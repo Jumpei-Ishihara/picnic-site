@@ -83,7 +83,10 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
   }
   const far = { geo: [] };
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3();
-  const farParts = mats.map(() => ({ dark: [], light: [] })), trunkParts = [];
+  // 遠くの木は色ごとに 1 つにまとめる（マスに分けて画面外を省く方法も試したが、描く回数が増えて速くならなかった）
+  const farParts = new Map(), trunkParts = new Map();
+  const tile = () => 'all';
+  const bucket = (map, key) => { let l = map.get(key); if (!l) map.set(key, l = []); return l; };
   let nNear = 0;
   for (const t of trees) {
     const r = Math.max(1.6, t.r);
@@ -130,10 +133,10 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
         const geo = farLeafGeo.clone();
         m4.compose(p.set(t.x + cx, y0 + cy, t.z + cz), q.setFromEuler(e.set(rnd() * 3, rnd() * 3, rnd() * 3)), sc.set(cr, cr * 0.82, cr));
         geo.applyMatrix4(m4);
-        farParts[pal][cy > h + r * 0.4 ? 'light' : 'dark'].push(geo);
+        bucket(farParts, `${pal}|${cy > h + r * 0.4 ? 1 : 0}|${tile(t.x, t.z)}`).push(geo);
       }
       const tg = new THREE.CylinderGeometry(trunkR * 0.7, trunkR, h + r * 0.2, 5).translate(t.x, y0 + (h + r * 0.2) / 2, t.z);
-      trunkParts.push(tg);
+      bucket(trunkParts, tile(t.x, t.z)).push(tg);
     }
   }
   const merge = list => {
@@ -156,18 +159,16 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
     return geo;
   };
   const farMeshes = [];
-  farParts.forEach((parts, i) => {
-    for (const key of ['dark', 'light']) {
-      if (!parts[key].length) continue;
-      const m = new THREE.Mesh(merge(parts[key]), mats[i][key === 'dark' ? 0 : 1]);
-      m.castShadow = m.receiveShadow = true;
-      m.customDepthMaterial = kit.depthMat;
-      scene.add(m);
-      farMeshes.push(m);
-    }
-  });
-  if (trunkParts.length) {
-    const m = new THREE.Mesh(merge(trunkParts), trunkMat);
+  for (const [key, parts] of farParts) {
+    const [pal, light] = key.split('|').map(Number);
+    const m = new THREE.Mesh(merge(parts), mats[pal][light]);
+    m.castShadow = m.receiveShadow = true;
+    m.customDepthMaterial = kit.depthMat;
+    scene.add(m);
+    farMeshes.push(m);
+  }
+  for (const parts of trunkParts.values()) {
+    const m = new THREE.Mesh(merge(parts), trunkMat);
     m.castShadow = true;
     scene.add(m);
     farMeshes.push(m);

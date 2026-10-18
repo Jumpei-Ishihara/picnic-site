@@ -4,7 +4,7 @@
 
 - **川辺のピクニック**（`picnic.html`）：木陰でピクニックをする川辺。光・水面・木漏れ日の表現が主役。PNG とループ動画を書き出せる。
 - **江戸川のピクニック**（`edogawa.html`）：市川の江戸川河川敷を、国土地理院の標高・空中写真と OpenStreetMap から再現した場面。PNG とループ動画を書き出せる。設計と記録は [docs/EDOGAWA_DESIGN.md](docs/EDOGAWA_DESIGN.md)。
-- **なぎさ公園のピクニック**（`nagisa.html`）：江戸川区 南葛西の なぎさ公園を同じ作り方で再現。展望の丘・木漏れ日・旧江戸川の河口・葛西臨海公園の大観覧車。記録は [docs/NAGISA_DESIGN.md](docs/NAGISA_DESIGN.md)。
+- **なぎさ公園のピクニック**（`nagisa.html`）：江戸川区 南葛西の なぎさ公園を同じ作り方で再現。展望の丘・木漏れ日・旧江戸川の河口・葛西臨海公園の大観覧車・魔法の文学館のカフェ・柵の中を周回するポニー。記録は [docs/NAGISA_DESIGN.md](docs/NAGISA_DESIGN.md)。
 - **ドット街さんぽ**（`town_3d.html`）：運河と広場のある小さな街。建物に入るとサイトの各ページ（About・Works など）が開く。
 
 詳しい仕様は [docs/SPEC.md](docs/SPEC.md)、共通エンジンの使い方は [engine/README.md](engine/README.md) を見てください。
@@ -41,7 +41,7 @@ cd ~/picnic-site && node tools/export_server.js --bridge-only
 | `docs/EDOGAWA_DESIGN.md` | 江戸川河川敷（市川）を再現する場面の地形分析・設計・実装計画（図は `docs/edogawa/`） |
 | `tools/geo/` | 地形データ（国土地理院の標高・空中写真、OpenStreetMap）を取得して場面データに変換するスクリプト（[使い方](tools/geo/README.md)） |
 | `nagisa.html` | なぎさ公園のピクニック |
-| `realsite/` | 実在の場所の場面（江戸川・なぎさ公園）で共有するもの（ピクニックの持ち物と湯気、生き物と交通、10 月の色と時刻ごとの仕上げ） |
+| `realsite/` | 実在の場所の場面（江戸川・なぎさ公園）で共有するもの（ピクニックの持ち物と湯気、生き物と交通、10 月の色と時刻ごとの仕上げ）と、なぎさ公園の施設（魔法の文学館・ポニーランド） |
 | `dev/edogawa_p1.html` | 江戸川の場面を作る途中の確認用ページ（地形・水面・実際の太陽・遠景） |
 | `scenes/nagisa/` | なぎさ公園の場面データ（`tools/geo/build_nagisa.py` で作る）と出典 |
 | `scenes/edogawa/` | 江戸川（市川）の場面データ（高さ・地面の種類・ランドマーク。`tools/geo/build_scene.py` で作る）と出典 |

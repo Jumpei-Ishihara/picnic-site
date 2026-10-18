@@ -30,6 +30,11 @@ B.NEAR, B.MID = NEAR, MID
 G, GROUND = B.G, B.GROUND
 MID_CLASSES = ['town', 'grass', 'pitch', 'water']
 PARK_ID = 154151032   # OSM：総合レクリエーション公園（なぎさ公園）
+MUSEUM_ID = 1220677132  # OSM：角野栄子児童文学館（魔法の文学館）。2023 年開館で、空中写真より新しい
+STABLE_ID = 536919766   # OSM：ポニーランドの建物（ポニーの家と考える。空中写真で馬場のすぐ北にある一番大きな建物）
+# 馬場（空中写真の明るい輪から：中心、走路の内側・外側の半径）。docs/NAGISA_DESIGN.md 7 章
+PONY_RING = {'x': -19, 'z': 8, 'rIn': 3.5, 'rOut': 11.0, 'fenceR': 11.5, 'centerR': 2.0}
+GOAT_PEN = {'x': 1, 'z': -14, 'w': 8, 'd': 6}   # ヤギのふれあいコーナー（位置は推定）
 log = B.log
 
 
@@ -272,10 +277,10 @@ def landmarks(osm, dem):
             H = float(t['height']) if t.get('height') else float(t['building:levels']) * 3.1 if t.get('building:levels') else None
         except ValueError:
             H = None
-        if H and H >= 25:
+        if H and H >= 25 or e['id'] == MUSEUM_ID:
             continue
         out['nearBuildings'].append({'x': round(cx, 1), 'z': round(cz, 1), 'height': round(H or DEFAULT_H.get(t['building'], 8), 1),
-                                     'kind': t['building'], 'footprint': [[round(x, 1), round(z, 1)] for x, z in pts]})
+                                     'kind': 'stable' if e['id'] == STABLE_ID else t['building'], 'osm': e['id'], 'footprint': [[round(x, 1), round(z, 1)] for x, z in pts]})
     # 大観覧車（ダイヤと花の大観覧車：高さ 117 m、直径 111 m、ゴンドラ 68 台）
     for e in osm:
         t = e.get('tags', {})
@@ -404,7 +409,28 @@ def main():
             for x in range(max(NEAR['x0'], int(min(xs))), min(NEAR['x0'] + nw, int(max(xs)) + 1)):
                 if B.point_in_poly(x + 0.5, z + 0.5, b['footprint']):
                     cls[(z - NEAR['z0']) * nw + (x - NEAR['x0'])] = G['paved']
+    # 施設：魔法の文学館（空中写真より新しいので、写真の芝や木の上に建つ）と、ポニーランドの馬場
+    mus = next(e for e in osm if e.get('id') == MUSEUM_ID)
+    mfp = [list(ll2local(p['lat'], p['lon'])) for p in mus['geometry']]
+    mfp = [[round(x, 1), round(z, 1)] for x, z in mfp]
+    in_museum = lambda x, z, pad=0: B.point_in_poly(x, z, mfp) or (pad and min(math.dist((x, z), p) for p in mfp) < pad)
+    R = PONY_RING
+    for j in range(nh):
+        for i in range(nw):
+            x, z = NEAR['x0'] + i, NEAR['z0'] + j
+            k = j * nw + i
+            r = math.hypot(x - R['x'], z - R['z'])
+            if in_museum(x + 0.5, z + 0.5):
+                cls[k] = G['paved']
+            elif r <= R['fenceR'] + 1.5:
+                cls[k] = G['dirt'] if R['rIn'] <= r <= R['rOut'] else (G['paved'] if r > R['rOut'] else G['lawnWorn'])
+            elif abs(x - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 and abs(z - GOAT_PEN['z']) < GOAT_PEN['d'] / 2:
+                cls[k] = G['dirt']
     trees = split_trees(cls)
+    # 文学館・馬場・ヤギの囲いの上には木を立てない（写真が古く、そこに木が写っていることがある）
+    trees = [t for t in trees if not in_museum(t['x'], t['z'], 3 + t['r'])
+             and math.hypot(t['x'] - R['x'], t['z'] - R['z']) > R['fenceR'] + 1 + t['r'] * 0.6
+             and not (abs(t['x'] - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 + t['r'] and abs(t['z'] - GOAT_PEN['z']) < GOAT_PEN['d'] / 2 + t['r'])]
     gim = Image.new('RGB', (nw, nh))
     gp = gim.load()
     for j in range(nh):
@@ -459,12 +485,61 @@ def main():
     mx = sum(p[0] for p in rb['path']) / len(rb['path'])
     mz = sum(p[1] for p in rb['path']) / len(rb['path'])
     river_brg = round(bearing_dist(mx - px_, mz - pz_)[0], 1)
+    # 魔法の文学館：3 階（カフェ・キキ）。床の高さ 1 階 4.5 m・2 階 4 m とし、カフェの床は 1 階の床 + 8.5 m
+    m_base = min(tp_at(x, z) for x, z in mfp)
+    mx_ = sum(p[0] for p in mfp) / len(mfp)
+    mz_ = sum(p[1] for p in mfp) / len(mfp)
+    # 建物は丘の北の斜面に建つ（足もと TP 5〜11 m）。床の基準は平面の中の地面の平均とする（丘の側から入る作りと考える）
+    m_mean = sum(tp_at(x, z) for x, z in mfp) / len(mfp)
+    cafe_tp = m_mean + 8.5
+    # カフェのテラス：建物の縁で、旧江戸川の側（方位 60〜150°）がいちばん遠くまで見通せる所と向き
+    sight_m = Sight(near, trees, lm['nearBuildings'], dem)
+    rn = min(river, key=lambda p: math.dist(p, (mx_, mz_)))
+    river_b = bearing_dist(rn[0] - mx_, rn[1] - mz_)[0]
+    best_c = None
+    for k in range(len(mfp)):
+        x, z = mfp[k]
+        for b in range(60, 151, 5):
+            c = sight_m.clear(x, z, cafe_tp + 1.5, b)
+            # 川（旧江戸川の真ん中の線）の方を向き、300 m 以上見通せる所のうち、いちばん川に近い（東の）縁
+            key = (c >= 300, x, -abs(b - river_b))
+            if best_c is None or key > best_c[0]:
+                best_c = (key, x, z, b)
+    (_, cafe_x, cafe_z, cafe_b) = best_c
+    # カフェの正面（左右 35°・40 m 以内）で、テラスの目の高さより高くなる木は除く。
+    # 文学館は 2023 年開館で空中写真より新しく、公式の案内では「旧江戸川を一望できる」カフェなので、眺めに合わせた（設計書 7 章）
+    removed = 0
+    eye_c = cafe_tp + 1.5
+    keep = []
+    for t in trees:
+        b_, d_ = bearing_dist(t['x'] - cafe_x, t['z'] - cafe_z)
+        off = abs((b_ - cafe_b + 180) % 360 - 180)
+        if d_ < 40 and off < 35 and tree_top(t, sight_m.tp(t['x'], t['z'])) > eye_c - 0.02 * d_ - 1:
+            removed += 1
+            continue
+        keep.append(t)
+    trees[:] = keep
+    facilities = {
+        'museum': {'name': '角野栄子児童文学館（魔法の文学館）', 'osm': MUSEUM_ID, 'footprint': mfp, 'x': round(mx_, 1), 'z': round(mz_, 1),
+                   'baseY': round(tp2y(m_base), 2), 'floors': 3, 'height': 13.0, 'cafeFloorY': round(tp2y(cafe_tp), 2),
+                   'terrace': {'x': cafe_x, 'z': cafe_z, 'bearing': cafe_b}, 'treesClearedForView': removed,
+                   'note': '設計 隈研吾建築都市設計事務所。白い外観と花びらのように広がる「フラワールーフ」。3 階がカフェ・キキ（旧江戸川を見渡す）。延床 1,613.95 m²。高さ・屋根の枚数は公表値が見つからないので推定'},
+        'ponyRing': {**PONY_RING, 'y': round(tp2y(tp_at(PONY_RING['x'], PONY_RING['z'])), 2), 'ponies': 5,
+                     'hours': [[10.0, 11.5], [13.5, 15.0]],
+                     'note': '馬場の位置と大きさは空中写真の明るい輪から。走路の形（円）と柵は、来園者の話（ポニーは柵の中を周回）にもとづく'},
+        'goatPen': {**GOAT_PEN, 'y': round(tp2y(tp_at(GOAT_PEN['x'], GOAT_PEN['z'])), 2), 'note': '位置は推定'},
+    }
     view = {
         'lunch':  {'x': round(sx - fx * 0.9, 2), 'z': round(sz - fz * 0.9, 2), 'eye': 0.75, 'bearing': LUNCH, 'pitch': -3, 'hour': 12.0},
         'nap':    {'x': round(sx - fx * 0.3, 2), 'z': round(sz - fz * 0.3, 2), 'eye': 0.25,
                    'bearing': round(bearing_dist(shade['x'] - sx, shade['z'] - sz)[0], 1), 'pitch': 55, 'hour': 13.5},
         'sunset': {'x': sunset_pt[0], 'z': sunset_pt[1], 'eye': 1.6, 'bearing': round(wb + 1, 1), 'pitch': 1, 'hour': 16.85},
         'river':  {'x': px_, 'z': pz_, 'eye': 1.6, 'bearing': river_brg, 'pitch': 1, 'hour': 15.0},
+        # カフェ・キキ（3 階のテラス）：床の上に立った目の高さ。y は床の高さ（地形ではない）
+        'cafe':   {'x': round(cafe_x + local_from_bearing(cafe_b, 1.6)[0], 2), 'z': round(cafe_z + local_from_bearing(cafe_b, 1.6)[1], 2),
+                   'eye': 1.5, 'bearing': cafe_b, 'pitch': -4, 'hour': 14.0, 'floorY': round(tp2y(cafe_tp), 2)},  # テラスの上（壁から 1.6 m）
+        # ポニーランド：馬場の柵の南西の外から、周回するポニーを見る（乗馬の時間）
+        'pony':   {'x': round(PONY_RING['x'] - 11, 1), 'z': round(PONY_RING['z'] + 11, 1), 'eye': 1.5, 'bearing': 45, 'pitch': -8, 'hour': 10.75},
     }
     for v in view.values():
         v['y'] = round(tp2y(tp_at(v['x'], v['z'])), 2)
@@ -483,6 +558,7 @@ def main():
         'trees': trees,
         'sheet': {'x': sx, 'z': sz, 'bearing': LUNCH, 'size': [2.0, 1.4], 'shadeTree': shade},
         'sightlines': {'lunch': lunch_clear, 'sunset': sunset_clear},
+        'facilities': facilities,
         'landmarks': lm,
         'viewpoints': view,
         'sun': {'lat': SITE['origin']['lat'], 'lon': SITE['origin']['lon'], 'date': '2026-10-18', 'tz': 9},
@@ -499,6 +575,7 @@ def main():
                 .replace('python3 tools/geo/fetch_data.py` → `python3 tools/geo/build_scene.py', 'python3 tools/geo/fetch_data.py --site nagisa` → `python3 tools/geo/build_nagisa.py'))
     log(f'done: {OUT}')
     log(f'  hill TP {ttp:.1f} at ({tx},{tz}), sheet ({sx},{sz}) shade tree {shade}, trees {len(trees)}, bridges {len(lm["bridges"])}, '
+        f'cafe view cleared {removed} trees, cafe terrace ({cafe_x},{cafe_z}) {cafe_b}° floor TP {cafe_tp:.1f} (river {river_b:.0f}°), museum base TP {m_base:.1f}, '
         f'lunch {LUNCH}° clear {lunch_clear} m, sunset at {sunset_pt} clear {sunset_clear} m, '
         f'buildings {len(lm["buildings"])} + near {len(lm["nearBuildings"])}, wheel {lm["ferrisWheel"] and lm["ferrisWheel"]["bearing"]}')
 
