@@ -26,7 +26,7 @@
     <button id="v-nap" title="昼寝：堤防の芝に寝ころんで空を見上げる（2）" aria-label="昼寝">😴</button>
     <button id="v-photo" title="堤防の上：自転車・歩行者道から下流を見る（Google マップの 360° 写真と同じ場所・向き）（3）" aria-label="堤防の上">🚲</button>
     <button id="v-sunset" title="夕日：堤防の上から、妙典の町の向こうに沈む夕日を見る（4）" aria-label="夕日">🌇</button>
-    <button id="v-bridge" title="鉄橋：水際から、江戸川を渡る東京メトロ東西線を見る（5）" aria-label="鉄橋">🚇</button>
+    <button id="v-bridge" title="アーチの水管橋：堤防の川側の斜面から、3 つのアーチの水管橋と奥の東西線の鉄橋を見る（5）" aria-label="アーチの水管橋">🌉</button>
     <button id="a-export" title="書き出し：PNG・ループ動画（P / R）" aria-label="書き出し">📷</button>
     <button id="o-more" title="時刻・表示の設定" aria-label="設定">⚙️</button>
   </div>
@@ -84,6 +84,7 @@
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
     import { createLife } from './realsite/life.js';
+    import { createArchPipeBridge, stripeMaterial } from './realsite/myoden-structures.js';
     import { createAudio } from './engine/audio.js';
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { createCapture } from './engine/capture.js';
@@ -119,7 +120,15 @@
     // ============================================================================
     // 地形と水面
     // ============================================================================
-    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: EDO_GROUND_LOOKS, midLooks: EDO_MID_LOOKS });
+    // 10 月の堤防の芝：写真では刈られて枯れ色が多く、ところどころ緑が残る。水際の護岸は暗い灰色のブロック
+    const LOOKS = {
+      ...EDO_GROUND_LOOKS,
+      lawn: { c: ['#6e6c3c', '#8a854c', '#a49c62'], pattern: 'grass' },
+      lawnWorn: { c: ['#8a7a4e', '#a38f62', '#b8a678'], pattern: 'grass' },
+      leveeGrass: { c: ['#64703a', '#7c8446', '#969a58'], pattern: 'grass' },
+      revetment: { c: ['#4e5052', '#5e6062', '#6e7072'], pattern: 'block', photo: true }
+    };
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: LOOKS, midLooks: { ...EDO_MID_LOOKS, grass: '#8a8650', water: '#7e7a5a' } }); // 水面より高い干潟・水際は泥と枯れ草の色
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     const isWater = (x, z) => terrain.heightAt(x, z) < level - 0.05;
@@ -140,7 +149,7 @@
     // 橋（東京メトロ東西線の鉄橋、妙典橋、河口の湾岸道路・京葉線・東関東道・外環）と、妙典給水場の水管橋
     // ============================================================================
     const BRIDGE_LOOKS = {
-      'tozai-line': '#7f98a8', 'myoden-bridge': '#c9c6bc', 'route-357': '#a9a9a2', 'wangan-expressway': '#9aa4ae', 'jr-keiyo': '#b8b4a8',
+      'tozai-line': '#c4c8cc', 'myoden-bridge': '#d6d2ca', 'route-357': '#a9a9a2', 'wangan-expressway': '#9aa4ae', 'jr-keiyo': '#b8b4a8',
       'higashi-kanto-expressway': '#a4a8ac', 'gaikan-expressway': '#a4a8ac', 'gyotoku-bypass': '#a9a9a2', 'pipe-bridge': '#c4d0d8'
     };
     const concreteMat = toon({ color: '#b9b4a8' }), deckMat = toon({ color: '#8b8a86' });
@@ -154,21 +163,13 @@
       scene.add(g);
       return g;
     });
-    // 水管橋：2 本の水道管を支える細いトラス（OSM の線。高さ・幅は推定）
+    // 水管橋：妙典の岸の側は白いトラス、川の上に 3 つのアーチ、床に太い水道管 2 本（写真から。大きさは推定）
     const PB = data.landmarks.specials?.pipeBridge;
-    if (PB) {
-      const g = createBridge({
-        path: PB.path, kind: 'truss', deckY: PB.deckY, width: PB.width,
-        heightAt: terrain.heightAt, isWater: (x, z) => terrain.midClassAt(x, z) === 'water',
-        materials: { steel: toon({ color: BRIDGE_LOOKS['pipe-bridge'] }), concrete: concreteMat, deck: toon({ color: '#9fb3c0' }) }
-      });
-      g.name = 'bridge-pipe';
-      scene.add(g);
-      bridges.push(g);
-    }
+    const pipeBridge = PB && createArchPipeBridge({ toon, spec: PB, heightAt: terrain.heightAt, level });
+    if (pipeBridge) scene.add(pipeBridge.group);
     const power = createPowerLines({
       lines: data.landmarks.powerLines, towers: data.landmarks.towers, heightAt: terrain.heightAt,
-      material: toon({ color: '#8d9196' }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x6a6e78 })
+      material: stripeMaterial(toon, { band: 6, from: -10 }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x6a6e78 })
     });
     scene.add(power.group);
     pixel.hideInNormalPass.add(power.wires);
@@ -180,9 +181,16 @@
     const houseWin = windowTextures({ cols: 2, rows: 2, lit: 0.55, rnd });
     const houseWall = toon({ color: '#ffffff', map: houseWin.map, emissive: 0xffd890, emissiveMap: houseWin.emissiveMap, emissiveIntensity: 0 });
     const NIGHT_LIGHTS = [houseWall];
+    // 川の向こう側か（川の中ほどの線から、川を横切る向き（北東）に）
+    const ACR = data.levee.across * Math.PI / 180, ACX = Math.sin(ACR), ACZ = -Math.cos(ACR);
+    const farSide = (x, z) => {
+      let best = null, bd = Infinity;
+      for (const p of data.water.river) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = p; } }
+      return best && (x - best[0]) * ACX + (z - best[1]) * ACZ > 0;
+    };
     const houses = createHouses({
-      // 歩ける近景の範囲には置かない
-      isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
+      // 歩ける近景の範囲には置かない。対岸（工場と倉庫の低い町並み）は下の倉庫だけ
+      isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !farSide(x, z) && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
       heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
       wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 90, maxDist: 2400, thinFrom: 500,
       wallColors: ['#d8d2c4', '#c9c2b2', '#e4e0d6', '#b8b2a8', '#cfc6b0', '#a9a49c'],
@@ -190,28 +198,31 @@
     });
     scene.add(houses.group);
     // 工場・倉庫の地区（対岸の原木・高谷・二俣、河口の塩浜）：大きな平屋根の箱
+    // 写真の対岸は、低い白い倉庫・工場が横に長く並ぶ平らな町並み（ごちゃつかせない）
     const factories = createHouses({
-      isTown: (x, z) => terrain.midClassAt(x, z) === 'industrial', heightAt: terrain.heightAt, bounds: MB, rnd, cell: 48, clearance: 20,
-      wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 150, maxDist: 2800, thinFrom: 1400,
-      shape: { w: [24, 60], d: [18, 42], h: [8, 16], tall: 0.08, tallH: [18, 30], flat: true },
-      wallColors: ['#c9ccd0', '#b8c0c8', '#d6d4cc', '#a9b4bc', '#c4bca8'],
-      roofColors: ['#8fa6a8', '#9aa0a6', '#7f9aa8', '#a8a49a']
+      isTown: (x, z) => (terrain.midClassAt(x, z) === 'industrial' || (terrain.midClassAt(x, z) === 'town' && farSide(x, z))),
+      heightAt: terrain.heightAt, bounds: MB, rnd, cell: 90, clearance: 30,
+      wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 400, maxDist: 2800, thinFrom: 1000,
+      shape: { w: [50, 110], d: [25, 50], h: [5, 9], tall: 0.03, tallH: [12, 18], flat: true },
+      wallColors: ['#e6e6e2', '#dcdedc', '#eeece6', '#d2d6d8'],
+      roofColors: ['#c8ccce', '#d4d4d0']
     });
     scene.add(factories.group);
-    // 市川市クリーンセンターの紅白の煙突（高さ 100 m は推定）
+    // 市川市クリーンセンター：白い煙突と白い四角い工場（写真から。高さ 100 m・工場の大きさは推定）
     const CH = data.landmarks.specials?.chimney;
     if (CH) {
-      const red = toon({ color: '#c8463c' }), white = toon({ color: '#ecebe6' });
-      const bands = 7, hb = CH.height / bands;
-      for (let i = 0; i < bands; i++) {
-        const r0 = CH.radius * (1 - i / bands * 0.25), r1 = CH.radius * (1 - (i + 1) / bands * 0.25);
-        const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, hb, 10), i >= bands - 2 || i % 2 ? red : white);
-        m.position.set(CH.x, CH.groundY + hb * (i + 0.5), CH.z);
-        scene.add(m);
-      }
+      const white = toon({ color: '#ecebe6' }), cap = toon({ color: '#7a7a78' });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(CH.radius * 0.85, CH.radius, CH.height - 3, 12), white);
+      body.position.set(CH.x, CH.groundY + (CH.height - 3) / 2, CH.z);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(CH.radius * 0.88, CH.radius * 0.85, 3, 12), cap);
+      top.position.set(CH.x, CH.groundY + CH.height - 1.5, CH.z);
+      const plant = new THREE.Mesh(new THREE.BoxGeometry(70, 26, 45).translate(0, 13, 0), white);
+      plant.position.set(CH.x + 40 * ACX - 30 * ACZ, CH.groundY, CH.z + 40 * ACZ + 30 * ACX);
+      plant.rotation.y = -ACR;
+      for (const m of [body, top, plant]) { m.castShadow = true; scene.add(m); }
       // 遠くでも消えないよう、1 ドットの線でも描く
       const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(CH.x, CH.groundY, CH.z), new THREE.Vector3(CH.x, CH.groundY + CH.height, CH.z)]);
-      const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xc8b8b0 }));
+      const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xe4e2dc }));
       scene.add(line);
       pixel.hideInNormalPass.add(line);
     }
@@ -594,7 +605,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__myoden = { THREE, data, forest, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+      window.__myoden = { THREE, data, pipeBridge, factories, forest, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
     }
   </script>
 </body>

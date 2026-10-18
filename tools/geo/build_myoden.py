@@ -84,8 +84,12 @@ def landmarks(osm, dem, photo):
     pipe = next((e for e in osm if e.get('id') == PIPE_ID and e.get('geometry')), None)
     if pipe:
         pts = [ll2local(p['lat'], p['lon']) for p in pipe['geometry']]
-        out['specials']['pipeBridge'] = {'path': [[round(x, 1), round(z, 1)] for x, z in pts], 'deckY': round(tp2y(10.5), 1), 'width': 3.0,
-                                             'note': '妙典給水場（千葉県企業局）の水管橋。OSM の線（man_made=pipeline、overhead）。高さ・幅は空中写真の影からの推定'}
+        # 写真（妙典の堤防から上流を見たもの）：妙典の岸の側が白いトラス、川の上に大・中・小の 3 つのアーチ（タイドアーチ）、その先は桁で対岸へ。
+        # 線に沿った標高：水（TP 1 m 以下）は始まりから 110〜425 m、堤防は 55 m と 480 m
+        out['specials']['pipeBridge'] = {'path': [[round(x, 1), round(z, 1)] for x, z in pts], 'deckY': round(tp2y(10.5), 1), 'width': 4.0,
+                                         'truss': [0, 130], 'arches': [[130, 270], [270, 370], [370, 450]], 'girder': [490, 531], 'rise': 0.19, 'pipeR': 0.8,
+                                         'note': '妙典給水場（千葉県企業局）の水管橋。OSM の線（man_made=pipeline、overhead）。形（トラス＋3 つのアーチ、白い円柱の橋脚、太い水道管 2 本）は写真から。'
+                                                 'アーチの区切り・高さ（スパンの 0.19 倍）・床の高さ TP 10.5 m は写真の見え方からの推定'}
     # 鉄塔と送電線（原点から 1.6 km 以内）
     towers = {}
     for e in osm:
@@ -104,7 +108,7 @@ def landmarks(osm, dem, photo):
             continue
         kv = max(int(v) for v in str(t.get('voltage', '22000')).split(';') if v.isdigit()) // 1000
         out['powerLines'].append({'name': t.get('name'), 'kv': kv, 'path': [[round(x, 1), round(z, 1)] for x, z in near],
-                                  'towerHeight': 55 if kv >= 154 else (38 if kv >= 66 else 24)})
+                                  'towerHeight': 55 if kv >= 154 else (50 if kv >= 66 else 24)})  # 写真では紅白の高い鉄塔（66 kV でも 50 m ほどに見える）
     out['towers'] = [[round(x, 1), round(z, 1)] for x, z in towers.values()]
     # 高さ 25 m 以上の建物（3 km 以内）と、近景のまわりの建物（なぎさ公園と同じ）
     DEFAULT_H = {'warehouse': 11, 'industrial': 11, 'factory': 11, 'house': 7, 'detached': 7, 'apartments': 14, 'residential': 9,
@@ -151,7 +155,7 @@ def landmarks(osm, dem, photo):
         {'id': 'tokyo-skyline', 'kind': 'skyline', 'span': [250, 300], 'dist': 9000, 'height': 70, 'note': '都心・江東区のビル群'},
         {'id': 'gyotoku', 'kind': 'skyline', 'span': [180, 250], 'dist': 900, 'height': 18, 'note': '妙典・行徳の町'},
         {'id': 'ichikawa', 'kind': 'skyline', 'span': [300, 20], 'dist': 1800, 'height': 22, 'note': '市川・本八幡の町（北）'},
-        {'id': 'bay', 'kind': 'skyline', 'span': [130, 180], 'dist': 2600, 'height': 24, 'note': '河口の二俣・塩浜の倉庫と工場'},
+        {'id': 'bay', 'kind': 'skyline', 'span': [130, 180], 'dist': 2600, 'height': 12, 'note': '河口の二俣・塩浜の倉庫と工場'},
     ]
     return out
 
@@ -170,6 +174,7 @@ def main():
     log('landmarks ...')
     lm = landmarks(osm, dem, photo)
     nw, nh = NEAR['w'], NEAR['h']
+    ax, az = local_from_bearing(325.0 + 90, 1.0)       # 川を横切る向き（北東へ）
     tp_at = lambda x, z: near[(min(max(round(z), NEAR['z0']), NEAR['z0'] + nh - 1) - NEAR['z0']) * nw + (min(max(round(x), NEAR['x0']), NEAR['x0'] + nw - 1) - NEAR['x0'])]
     # 建物の下は舗装に
     for b in lm['nearBuildings']:
@@ -198,6 +203,12 @@ def main():
                         i, j = round(x + dx) - NEAR['x0'], round(z + dz) - NEAR['z0']
                         if 0 <= i < nw and 0 <= j < nh and not wet[j][i] and math.hypot(dx, dz) <= 2.1:
                             cls[j * nw + i] = G['road']
+    # 水際の護岸（コンクリートのブロック）：水面 TP 1.0 m の線に沿って、川側の TP 0.5〜2.2 m の所（写真では暗い灰色の帯）
+    for j in range(nh):
+        for i in range(nw):
+            x, z = NEAR['x0'] + i, NEAR['z0'] + j
+            if 0.5 <= near[j * nw + i] <= 2.2 and x * ax + z * az > 20 and not wet[j][i]:
+                cls[j * nw + i] = G['revetment']
     trees = N.split_trees(cls)
     # 堤防の川側の斜面には木を植えない（河川の管理で堤防に木は置かない）。写真の暗いまだらを木と読んだものを除く
     UPB = math.radians(325.0 + 90)
@@ -220,8 +231,8 @@ def main():
     mh, mc = N.build_mid(dem, osm)
     # 町のうち、工場・倉庫の地区（OSM の landuse=industrial）
     inds = []
-    for e in load_json(os.path.join(CACHE, 'osm_industrial.json'))['elements']:
-        if e.get('geometry'):
+    for e in osm:
+        if e.get('tags', {}).get('landuse') == 'industrial' and e.get('geometry'):
             pts = [ll2local(p['lat'], p['lon']) for p in e['geometry']]
             inds.append((pts, min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts)))
     for j in range(MID['h']):
@@ -307,6 +318,30 @@ def main():
         'photo': {'x': PHOTO_POINT[0], 'z': PHOTO_POINT[1], 'eye': 1.6, 'bearing': 104, 'pitch': -2.6, 'hour': 10.5},
         'sunset': {'x': sunset_pt[0], 'z': sunset_pt[1], 'eye': 1.6, 'bearing': 258, 'pitch': 1, 'hour': 16.85},
     }
+    # 鉄橋の視点は、写真（妙典の堤防の川側の斜面から上流を見たもの）に合わせる：
+    # 左端に水管橋の手前のトラス、真ん中に大きなアーチ、右に 2 つのアーチ、その奥に東西線のトラス
+    PBs = lm['specials'].get('pipeBridge')
+    if PBs:
+        (px0, pz0), (px1, pz1) = PBs['path'][0], PBs['path'][-1]
+        PL = math.dist((px0, pz0), (px1, pz1))
+        at_s = lambda s_: (px0 + (px1 - px0) * s_ / PL, pz0 + (pz1 - pz0) * s_ / PL)
+        def off(a, b):
+            return (a - b + 540) % 360 - 180
+        best_a = None
+        for z in range(-60, NEAR['z0'] + nh - 4, 4):
+            for x in range(-20, NEAR['x0'] + nw - 4, 4):
+                tp_ = tp_at(x, z)
+                if not (2.6 <= tp_ <= 6.5) or x * ax + z * az < 8 or wet[z - NEAR['z0']][x - NEAR['x0']]:
+                    continue
+                b_truss = bearing_dist(at_s(60)[0] - x, at_s(60)[1] - z)[0]
+                b_mid = bearing_dist(at_s(300)[0] - x, at_s(300)[1] - z)[0]
+                d_arch = math.dist((x, z), at_s(200))
+                err = abs(off(b_truss, b_mid) + 34) + abs(d_arch - 200) * 0.3
+                if best_a is None or err < best_a[0]:
+                    best_a = (err, x, z, b_mid)
+        if best_a:
+            _, vx_, vz_, vb_ = best_a
+            bview = {'x': vx_, 'z': vz_, 'eye': 1.6, 'bearing': round(vb_ - 8, 1), 'pitch': 5, 'hour': 15.6}
     if bview:
         view['bridge'] = bview
     for v in view.values():
