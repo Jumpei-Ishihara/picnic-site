@@ -353,7 +353,7 @@
   "upstreamBearing": 325.0
  },
  "levee": {
-  "crestTP": 7.49,
+  "crestTP": 8.4,
   "shoreDist": 117,
   "across": 55.0,
   "note": "原点の断面：堤防の上（自転車・歩行者道）から川へ。標高データで水になるまでの距離 shoreDist m"
@@ -886,7 +886,7 @@
  },
  "sightlines": {
   "lunch": 459,
-  "sunset": 423
+  "sunset": 471
  },
  "landmarks": {
   "bridges": [
@@ -10976,16 +10976,16 @@
    "bearing": 104,
    "pitch": -2.6,
    "hour": 10.5,
-   "y": -0.22
+   "y": 1.0
   },
   "sunset": {
-   "x": -48,
-   "z": -104,
+   "x": -38,
+   "z": -108,
    "eye": 1.6,
    "bearing": 258,
    "pitch": 1,
    "hour": 16.85,
-   "y": 0.97
+   "y": 1.4
   },
   "bridge": {
    "x": 80,

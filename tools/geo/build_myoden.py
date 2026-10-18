@@ -27,6 +27,11 @@ N.NEAR, N.MID = NEAR, MID
 G, GROUND = B.G, B.GROUND
 MID_CLASSES = N.MID_CLASSES + ['industrial']   # 対岸の原木・高谷・二俣、河口の塩浜は工場・倉庫（OSM の landuse=industrial）
 PIPE_ID = 454774418          # OSM：妙典給水場からの水管橋（川をまたぐ水道管。空中写真でも明るい橋として写る）
+# 堤防の上の道（OSM）。標高データ（2023 年の道の開通より前の測量）は原点のまわり約 380 m だけ TP 6 m に下がっているが、
+# 前後の堤防の上は TP 8.3〜8.5 m で、360° 写真（2025 年）でも道は高い堤防の上にある。この区間の堤防の上を TP 8.4 m に上げる
+LEVEE_TOP_IDS = (210577374, 1126425114, 1126425115)
+RAMP_ID = 995263365     # 堤防の上へ上がる坂道（川側の低い道から）
+LEVEE_TP = 8.4
 PHOTO_POINT = (0.0, 0.0)     # 360° 写真の位置（原点）。向き 104°、見下ろし 2.6°
 log = B.log
 BRIDGE_IDS = {'東京メトロ東西線': 'tozai-line', '船橋行徳線': 'myoden-bridge', '東京湾岸道路': 'route-357', 'JR京葉線': 'jr-keiyo',
@@ -159,6 +164,56 @@ def landmarks(osm, dem, photo):
     return out
 
 
+def _seg_proj(px, pz, ax_, az_, bx_, bz_):
+    dx, dz = bx_ - ax_, bz_ - az_
+    L2 = dx * dx + dz * dz or 1e-9
+    t = max(0.0, min(1.0, ((px - ax_) * dx + (pz - az_) * dz) / L2))
+    return math.hypot(px - ax_ - dx * t, pz - az_ - dz * t), t
+
+
+def raise_levee(near, wet, osm, half=3.5, slope=0.5):
+    """堤防の上の道に沿って、上面（幅 7 m）を TP 8.4 m、両側を 1:2 の斜面にする（低い所だけ上げる。削らない）。
+    坂道は、下の端の高さから堤防の上まで一様に上がる。"""
+    nw, nh = NEAR['w'], NEAR['h']
+    byid = {e['id']: e for e in osm if e.get('type') == 'way'}
+    lines = []
+    for i in LEVEE_TOP_IDS:
+        e = byid.get(i)
+        if e and e.get('geometry'):
+            lines.append(([ll2local(p['lat'], p['lon']) for p in e['geometry']], None))
+    r = byid.get(RAMP_ID)
+    if r and r.get('geometry'):
+        pts = [ll2local(p['lat'], p['lon']) for p in r['geometry']]
+        lines.append((pts, 'ramp'))
+    H = lambda x, z: near[(round(z) - NEAR['z0']) * nw + (round(x) - NEAR['x0'])]
+    raised = 0
+    for pts, kind in lines:
+        # 坂道：線に沿った距離で、始まり（低い方）の地面から終わり（堤防の上）へ
+        cum = [0.0]
+        for a, b in zip(pts, pts[1:]):
+            cum.append(cum[-1] + math.dist(a, b))
+        total = cum[-1]
+        inside = lambda x, z: NEAR['x0'] <= x < NEAR['x0'] + nw and NEAR['z0'] <= z < NEAR['z0'] + nh
+        lo = H(*pts[0]) if kind == 'ramp' and inside(*pts[0]) else LEVEE_TP
+        reach = half + (LEVEE_TP - 2.0) / slope
+        for k, ((ax_, az_), (bx_, bz_)) in enumerate(zip(pts, pts[1:])):
+            x0, x1 = int(min(ax_, bx_) - reach), int(max(ax_, bx_) + reach) + 1
+            z0, z1 = int(min(az_, bz_) - reach), int(max(az_, bz_) + reach) + 1
+            seg = math.dist((ax_, az_), (bx_, bz_))
+            for z in range(max(z0, NEAR['z0']), min(z1, NEAR['z0'] + nh)):
+                for x in range(max(x0, NEAR['x0']), min(x1, NEAR['x0'] + nw)):
+                    j, i = z - NEAR['z0'], x - NEAR['x0']
+                    if wet[j][i]:
+                        continue
+                    d, t = _seg_proj(x, z, ax_, az_, bx_, bz_)
+                    crest = LEVEE_TP if kind != 'ramp' else lo + (LEVEE_TP - lo) * (cum[k] + seg * t) / total
+                    h = crest - max(0.0, d - (half if kind != 'ramp' else 2.5)) * slope
+                    if h > near[j * nw + i] + 0.01:
+                        near[j * nw + i] = h
+                        raised += 1
+    log(f'levee raised: {raised} cells to TP {LEVEE_TP}')
+
+
 def main():
     assert SITE_NAME == 'myoden'
     os.makedirs(OUT, exist_ok=True)
@@ -168,6 +223,7 @@ def main():
     photo = B.Photo()
     log('near heights ...')
     near, wet = N.near_heights(dem)
+    raise_levee(near, wet, osm)
     log('ground classes ...')
     cls = N.build_ground(dem, photo, wet)
     log('landmarks ...')
