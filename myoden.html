@@ -126,7 +126,8 @@
       lawn: { c: ['#6e6c3c', '#8a854c', '#a49c62'], pattern: 'grass' },
       lawnWorn: { c: ['#8a7a4e', '#a38f62', '#b8a678'], pattern: 'grass' },
       leveeGrass: { c: ['#64703a', '#7c8446', '#969a58'], pattern: 'grass' },
-      revetment: { c: ['#4e5052', '#5e6062', '#6e7072'], pattern: 'block', photo: true }
+      revetment: { c: ['#4e5052', '#5e6062', '#6e7072'], pattern: 'block', photo: true },
+      road: { c: ['#4a4b50', '#56575c', '#636469'], pattern: 'asphalt' } // 堤防の上の道：濃い灰色のアスファルト（360° 写真）
     };
     const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: LOOKS, midLooks: { ...EDO_MID_LOOKS, grass: '#8a8650', water: '#7e7a5a' } }); // 水面より高い干潟・水際は泥と枯れ草の色
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
@@ -167,6 +168,58 @@
     const PB = data.landmarks.specials?.pipeBridge;
     const pipeBridge = PB && createArchPipeBridge({ toon, spec: PB, heightAt: terrain.heightAt, level });
     if (pipeBridge) scene.add(pipeBridge.group);
+    // 水際の平らな芝のベンチ 3 つ（360° 写真：堤防の上から上流を見ると、斜面の下の水際に並ぶ）。川を向く
+    {
+      const acr = data.levee.across * Math.PI / 180, ax = Math.sin(acr), az = -Math.cos(acr);
+      const upr = (data.levee.across - 90) * Math.PI / 180, ux = Math.sin(upr), uz = -Math.cos(upr);
+      let t = 10;
+      while (t < 120 && terrain.heightAt(ax * t, az * t) + data.frame.origin.tp > 3.4) t += 1;
+      const wood = toon({ color: '#8a6a48' }), leg = toon({ color: '#6a6c70' });
+      for (const u of [18, 27, 36]) {
+        const x = ax * (t - 4) + ux * u, z = az * (t - 4) + uz * u, y = terrain.heightAt(x, z);
+        const g = new THREE.Group();
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.42), wood); seat.position.y = 0.42;
+        const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.32, 0.05), wood); back.position.set(0, 0.68, 0.2); back.rotation.x = -0.15;
+        g.add(seat, back);
+        for (const sx of [-0.75, 0.75]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.42), leg); l.position.set(sx, 0.21, 0); g.add(l); }
+        g.position.set(x, y, z);
+        g.rotation.y = Math.atan2(-ax, -az); // -z が川の方
+        g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+        scene.add(g);
+      }
+    }
+    // 堤防の上の道：アスファルトの両側に白いコンクリートの縁石（360° 写真）
+    {
+      const curbMat = toon({ color: '#d8d6d0' }), geos = [];
+      for (const line of data.landmarks.leveePaths ?? []) {
+        for (let k = 0; k < line.length - 1; k++) {
+          const [ax, az] = line[k], [bx, bz] = line[k + 1];
+          const len = Math.hypot(bx - ax, bz - az);
+          if (len < 0.5) continue;
+          const ux = (bx - ax) / len, uz = (bz - az) / len, nx = -uz, nz = ux;
+          for (let s = 0; s < len; s += 2) {
+            const l = Math.min(2, len - s);
+            for (const side of [-2.1, 2.1]) {
+              const cx = ax + ux * (s + l / 2) + nx * side, cz = az + uz * (s + l / 2) + nz * side;
+              if (cx < NB.x0 || cx > NB.x1 || cz < NB.z0 || cz > NB.z1) continue;
+              // 道の外側の縁だけ（道が重なる所・分かれ道の内側には置かない）
+              if (terrain.groundAt(cx + nx * Math.sign(side) * 0.8, cz + nz * Math.sign(side) * 0.8) === 'road') continue;
+              geos.push(new THREE.BoxGeometry(l, 0.12, 0.2).rotateY(Math.atan2(-uz, ux)).translate(cx, terrain.heightAt(cx, cz) + 0.06, cz).toNonIndexed());
+            }
+          }
+        }
+      }
+      if (geos.length) {
+        let n = 0; for (const g of geos) n += g.attributes.position.count;
+        const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+        for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+        const curbs = new THREE.Mesh(geo, curbMat);
+        curbs.receiveShadow = true;
+        scene.add(curbs);
+      }
+    }
     const power = createPowerLines({
       lines: data.landmarks.powerLines, towers: data.landmarks.towers, heightAt: terrain.heightAt,
       material: stripeMaterial(toon, { band: 6, from: -10 }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x6a6e78 })
@@ -190,7 +243,8 @@
     };
     const houses = createHouses({
       // 歩ける近景の範囲には置かない。対岸（工場と倉庫の低い町並み）は下の倉庫だけ
-      isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !farSide(x, z) && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
+      // 堤防の町側 250 m（東西線の車両基地が堤防に沿って続く）にも家を置かない：堤防の上から家はほとんど見えない（360° 写真）
+      isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !farSide(x, z) && !(x * ACX + z * ACZ > -250 && Math.abs(x * ACZ - z * ACX) < 900) && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
       heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
       wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 90, maxDist: 2400, thinFrom: 500,
       wallColors: ['#d8d2c4', '#c9c2b2', '#e4e0d6', '#b8b2a8', '#cfc6b0', '#a9a49c'],
@@ -232,12 +286,13 @@
       const win = windowTextures({ cols: 2, rows: 2, lit: 0.5, rnd, glass: '#4f6074' });
       win.map.repeat.set(1 / 7, 1 / 6.2); win.emissiveMap.repeat.set(1 / 7, 1 / 6.2);
       const wall = toon({ color: '#d6d2c8', map: win.map, emissive: 0xffe0a8, emissiveMap: win.emissiveMap, emissiveIntensity: 0 });
-      const roof = toon({ color: '#9a978f' });
+      const roof = toon({ color: '#9a978f' }), plainWhite = toon({ color: '#e2e2de' });
       NIGHT_LIGHTS.push(wall);
       for (const b of data.landmarks.buildings) {
         const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
         const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
-        const m = new THREE.Mesh(geo, [roof, wall]);
+        // 川の向こう側の高い建物は倉庫・工場（窓のない白い箱。写真の対岸）
+        const m = new THREE.Mesh(geo, farSide(b.x, b.z) ? [roof, plainWhite] : [roof, wall]);
         m.position.y = terrain.heightAt(b.x, b.z) - 0.5;
         m.receiveShadow = true;
         scene.add(m);

@@ -20,7 +20,8 @@ export function createArchPipeBridge({ toon, spec, heightAt, level }) {
   const ux = (x1 - x0) / L, uz = (z1 - z0) / L, vx = -uz, vz = ux;
   const P = (s, off = 0, y = spec.deckY) => new THREE.Vector3(x0 + ux * s + vx * off, y, z0 + uz * s + vz * off);
   const yaw = Math.atan2(-uz, ux);
-  const white = toon({ color: '#eceeee' }), pale = toon({ color: '#b8d2e6' }), pier = toon({ color: '#e4e2dc' }), pipeMat = toon({ color: '#f2f2ee' });
+  // 水道管は淡い水色（360° 写真で、陸側のトラスの下に見える）
+  const white = toon({ color: '#eceeee' }), pale = toon({ color: '#b8d2e6' }), pier = toon({ color: '#e4e2dc' }), pipeMat = toon({ color: '#a8c8de' });
   const W = spec.width / 2;
   const parts = new Map();
   const push = (mat, geo) => { if (!parts.has(mat)) parts.set(mat, []); parts.get(mat).push(geo); };
@@ -34,15 +35,16 @@ export function createArchPipeBridge({ toon, spec, heightAt, level }) {
     g.applyMatrix4(m).translate(a.x, a.y, a.z);
     push(mat, g);
   };
-  // 水道管 2 本（全長）と床の桁
+  // 水道管 2 本（陸側のトラスの始まりから全長）と床の桁
+  const s0 = Math.min(0, spec.truss[0]);
   for (const off of [-W + spec.pipeR, W - spec.pipeR]) {
-    const g = new THREE.CylinderGeometry(spec.pipeR, spec.pipeR, L, 10).rotateZ(Math.PI / 2).rotateY(yaw)
-      .translate(...P(L / 2, off, spec.deckY + spec.pipeR).toArray());
+    const g = new THREE.CylinderGeometry(spec.pipeR, spec.pipeR, L - s0, 10).rotateZ(Math.PI / 2).rotateY(yaw)
+      .translate(...P((L + s0) / 2, off, spec.deckY + spec.pipeR).toArray());
     push(pipeMat, g);
   }
-  for (const off of [-W, W]) beam(P(0, off), P(L, off), 0.5, white);
+  for (const off of [-W, W]) beam(P(s0, off), P(L, off), 0.5, white);
   // 手前のトラス（ワーレン。高さ 5 m）
-  const [ta, tb] = spec.truss, TH = 5, panel = 8;
+  const [ta, tb] = spec.truss, TH = 6.5, panel = 9;
   for (const off of [-W, W]) {
     beam(P(ta, off, spec.deckY + TH), P(tb, off, spec.deckY + TH), 0.45, white);
     for (let s = ta, k = 0; s < tb - 0.1; s += panel, k++) {
@@ -70,7 +72,7 @@ export function createArchPipeBridge({ toon, spec, heightAt, level }) {
     }
   });
   // 橋脚：白い円柱（トラスの両端・アーチの継ぎ目・陸の桁の下）
-  const pierAt = [spec.truss[0], ...spec.arches.map(r => r[0]), spec.arches[spec.arches.length - 1][1], ...(spec.girder ?? [])];
+  const pierAt = [...(spec.trussPiers ?? [spec.truss[0]]), ...spec.arches.map(r => r[0]), spec.arches[spec.arches.length - 1][1], ...(spec.girder ?? [])];
   for (const s of [...new Set(pierAt.map(v => Math.round(v)))]) {
     const p = P(s, 0);
     const g0 = Math.max(level - 1.5, heightAt(p.x, p.z) - 0.5);

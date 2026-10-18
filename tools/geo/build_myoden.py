@@ -87,8 +87,9 @@ def landmarks(osm, dem, photo):
         # 写真（妙典の堤防から上流を見たもの）：妙典の岸の側が白いトラス、川の上に大・中・小の 3 つのアーチ（タイドアーチ）、その先は桁で対岸へ。
         # 線に沿った標高：水（TP 1 m 以下）は始まりから 110〜425 m、堤防は 55 m と 480 m
         out['specials']['pipeBridge'] = {'path': [[round(x, 1), round(z, 1)] for x, z in pts], 'deckY': round(tp2y(10.5), 1), 'width': 4.0,
-                                         'truss': [0, 130], 'arches': [[130, 270], [270, 370], [370, 450]], 'girder': [490, 531], 'rise': 0.19, 'pipeR': 0.8,
+                                         'truss': [-80, 130], 'trussPiers': [-80, -40, 0, 45, 90], 'arches': [[130, 270], [270, 370], [370, 450]], 'girder': [490, 531], 'rise': 0.19, 'pipeR': 0.8,
                                          'note': '妙典給水場（千葉県企業局）の水管橋。OSM の線（man_made=pipeline、overhead）。形（トラス＋3 つのアーチ、白い円柱の橋脚、太い水道管 2 本）は写真から。'
+                                                 'トラスは堤防の陸側へも続き、東西線の車両基地の上を渡る（360° 写真）。陸側の長さ 80 m は推定。'
                                                  'アーチの区切り・高さ（スパンの 0.19 倍）・床の高さ TP 10.5 m は写真の見え方からの推定'}
     # 鉄塔と送電線（原点から 1.6 km 以内）
     towers = {}
@@ -154,8 +155,6 @@ def landmarks(osm, dem, photo):
     out['backdrop'] += [
         {'id': 'tokyo-skyline', 'kind': 'skyline', 'span': [250, 300], 'dist': 9000, 'height': 70, 'note': '都心・江東区のビル群'},
         {'id': 'gyotoku', 'kind': 'skyline', 'span': [180, 250], 'dist': 900, 'height': 18, 'note': '妙典・行徳の町'},
-        {'id': 'ichikawa', 'kind': 'skyline', 'span': [300, 20], 'dist': 1800, 'height': 22, 'note': '市川・本八幡の町（北）'},
-        {'id': 'bay', 'kind': 'skyline', 'span': [130, 180], 'dist': 2600, 'height': 12, 'note': '河口の二俣・塩浜の倉庫と工場'},
     ]
     return out
 
@@ -210,10 +209,13 @@ def main():
             if 0.5 <= near[j * nw + i] <= 2.2 and x * ax + z * az > 20 and not wet[j][i]:
                 cls[j * nw + i] = G['revetment']
     trees = N.split_trees(cls)
+    lm['leveePaths'] = [[[round(x, 1), round(z, 1)] for x, z in pts] for pts in paths]
     # 堤防の川側の斜面には木を植えない（河川の管理で堤防に木は置かない）。写真の暗いまだらを木と読んだものを除く
     UPB = math.radians(325.0 + 90)
     AXn, AZn = math.sin(UPB), -math.cos(UPB)
     trees = [t for t in trees if t['x'] * AXn + t['z'] * AZn < -6 or near[(round(t['z']) - NEAR['z0']) * nw + (round(t['x']) - NEAR['x0'])] < 3.0]
+    # 堤防の町側のすぐ下（40 m）は東西線の車両基地（360° 写真：柵と線路。木は無い）。妙典公園（北西）の木は残す
+    trees = [t for t in trees if not (-45 < t['x'] * AXn + t['z'] * AZn < -6)]
     gim = Image.new('RGB', (nw, nh))
     gp = gim.load()
     for j in range(nh):
