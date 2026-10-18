@@ -82,9 +82,10 @@ const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >
  * @param {number} [o.ppm]       近景のテクスチャ密度（1 m あたりのドット数）
  * @param {number} [o.midStep]   中景の間引き（2 なら 8 m 間隔）
  * @param {number} [o.blend]     近景の縁で中景につなぐ幅（m）
+ * @param {string[]} [o.midPhotoClasses]  files.mid.color（中景の空中写真の色、2 m ごと）がある場面で、写真の色を混ぜる中景の種類
  * @param {number} [o.photoMix]  files.near.groundColor（空中写真の色）がある場面で、looks の photo: true の種類に写真の色をどれだけ混ぜるか
  */
-export async function createHeightTerrain({ scene, data, baseUrl, material, ppm = 8, midStep = 2, blend = 6, looks = GROUND_LOOKS, midLooks = MID_LOOKS, photoMix = 0.6 }) {
+export async function createHeightTerrain({ scene, data, baseUrl, material, ppm = 8, midStep = 2, blend = 6, looks = GROUND_LOOKS, midLooks = MID_LOOKS, photoMix = 0.6, midPhotoClasses = ['grass', 'pitch'] }) {
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
   const [near, mid] = await Promise.all([
@@ -144,6 +145,29 @@ export async function createHeightTerrain({ scene, data, baseUrl, material, ppm 
     return inside ? midAt(x, z) - 3 : heightAt(x, z);
   };
   const midGeo = gridGeometry(mw, mh, M.x0, M.z0, ms, midHeight);
+  let midMat;
+  if (M.color) {
+    // 中景の色を 2 m ごとのテクスチャに：種類の色に、写真の色を混ぜる（河川敷の内野・道・水際の植え込みが見える）
+    const C = M.color;
+    const photo = await loadRGBA(baseUrl + C.file);
+    const [cv, g] = makeCanvas(C.w, C.h);
+    const img = g.createImageData(C.w, C.h);
+    const col = new THREE.Color();
+    const cache = {};
+    for (let j = 0; j < C.h; j++) for (let i = 0; i < C.w; i++) {
+      const x = C.x0 + i * C.step, z = C.z0 + j * C.step, o = (j * C.w + i) * 4;
+      const cls = midClassAt(x, z);
+      const base = cache[cls] ??= (col.set(midLooks[cls] ?? midLooks.town), [col.r * 255, col.g * 255, col.b * 255]);
+      // 写真の水（灰色）は混ぜない：水際の斜面が明るい帯に見えてしまうので
+      const pr = photo.data[o], pg = photo.data[o + 1], pb = photo.data[o + 2];
+      const usePhoto = photo.data[o + 3] > 0 && midPhotoClasses.includes(cls) && (pg - Math.max(pr, pb) >= 2 || pr + pg + pb > 480);
+      const v = 0.92 + hash2(i, j) * 0.14;
+      for (let c = 0; c < 3; c++) img.data[o + c] = Math.min(255, (usePhoto ? base[c] + (photo.data[o + c] - base[c]) * photoMix : base[c]) * v);
+      img.data[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    midMat = material({ map: pixelTex(cv) });
+  }
   const colors = new Float32Array(mw * mh * 3);
   const c = new THREE.Color();
   for (let j = 0; j < mh; j++) for (let i = 0; i < mw; i++) {
@@ -153,7 +177,7 @@ export async function createHeightTerrain({ scene, data, baseUrl, material, ppm 
     colors.set([c.r * v, c.g * v, c.b * v], (j * mw + i) * 3);
   }
   midGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const midMesh = new THREE.Mesh(midGeo, material({ vertexColors: true }));
+  const midMesh = new THREE.Mesh(midGeo, midMat ?? material({ vertexColors: true }));
   midMesh.receiveShadow = true;
   midMesh.name = 'terrain-mid';
   scene.add(midMesh);
@@ -190,6 +214,17 @@ async function loadRGB(url, w, h) {
     out.set([r / n, gg / n, b / n], (j * w + i) * 3);
   }
   return out;
+}
+
+// 透明度つきの画像をそのまま読む（中景の写真の色）
+async function loadRGBA(url) {
+  const blob = await (await fetch(url, { cache: 'no-cache' })).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const [cv, g] = makeCanvas(bmp.width, bmp.height);
+  g.drawImage(bmp, 0, 0);
+  const d = g.getImageData(0, 0, bmp.width, bmp.height);
+  cv.width = cv.height = 0;
+  return d;
 }
 
 // 地面の種類を ground.png の色から読む

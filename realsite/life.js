@@ -98,9 +98,11 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
     return a.bankTop + (b.bankTop - a.bankTop) * Math.min(1, Math.max(0, t));
   };
   const reedSpots = [];
+  const wallZ = data.banks?.eastRules?.wall;
   for (let z = NB.z0 + 2; withReeds && z < NB.z1 - 2; z += 0.6) {
     if (z > S.z - 30 && z < S.z + 10) continue; // シートから見て正面〜左手（上流側）の水際は空ける
     if (noise(z * 0.08, 3.1) < 0.42) continue;
+    if (wallZ && z >= wallZ[0] && z <= wallZ[1]) continue; // 船着場より上流はコンクリートの護岸（ヨシは生えていない）
     const x = bank(z) + (rnd() - 0.4) * 1.6;
     const g = terrain.groundAt(x + 1, z);
     if (g === 'paved' || g === 'road') continue; // 水際の広場は空ける

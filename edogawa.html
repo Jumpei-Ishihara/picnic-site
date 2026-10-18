@@ -34,7 +34,7 @@
     <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
     <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
-    <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
+    <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・水際の植え込み：国土地理院 シームレス空中写真をもとに作成（地面の色は加工して作成） ／ 地図データ：© OpenStreetMap contributors</div>
   </div>
 
   <div id="export" class="box hidden">
@@ -81,6 +81,7 @@
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
     import { createLife } from './realsite/life.js';
+    import { createBanks } from './realsite/edogawa-banks.js';
     import { createAudio } from './engine/audio.js';
     import { createCapture } from './engine/capture.js';
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide, fmtTime } from './engine/ui.js';
@@ -279,6 +280,9 @@
     collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
     for (const [x, z, r] of treeColliders) if (x > NB.x0 && x < NB.x1 && z > NB.z0 && z < NB.z1) collider.addCircle(x, z, r, 'tree');
     collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
+    // 両岸の水際：対岸のヨシ・低木・柳の帯、市川側の護岸と船着場（手すりは当たり判定にも）
+    const banks = createBanks({ toon, data, terrain, level, collider });
+    scene.add(banks.group);
     const toast = createToast(document.getElementById('toast'));
     const audio = createAudio();
     const FOOT = { paved: 'stone', road: 'stone', revetment: 'stone', dirt: 'grass' };
@@ -343,7 +347,14 @@
     })();
 
     // 場所の名前
+    const LD = data.banks?.landing;
+    const onLanding = (x, z) => {
+      if (!LD) return false;
+      const dx = x - LD.x, dz = z - LD.z, a = LD.angle;
+      return Math.abs(dx * Math.cos(a) + dz * Math.sin(a)) < LD.length / 2 && Math.abs(-dx * Math.sin(a) + dz * Math.cos(a)) < LD.width / 2;
+    };
     function zoneName(x, z) {
+      if (onLanding(x, z)) return '市川緊急用船着場';
       const r = data.section.reduce((a, b) => Math.abs(b.z - z) < Math.abs(a.z - z) ? b : a);
       if (x >= r.crestStart && x <= r.crestEnd) return '堤防の上';
       if (x > r.crestEnd) return '堤防の町側';
@@ -564,7 +575,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__edo = { THREE, data, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+      window.__edo = { THREE, data, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, banks, step, setView, setHour, zoneName };
     }
   </script>
 </body>

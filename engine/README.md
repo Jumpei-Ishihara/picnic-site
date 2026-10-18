@@ -20,7 +20,7 @@ cd ~/picnic-site && python3 -m http.server 8790
 | `sky.js` | 空（グラデーション・太陽・月・星）、遠景の山、雲、高い空のうろこ雲（`cirrus`）。広い場面では `radius`（空の球）と `cloudScale` を大きく、`mountains: 0` | `createSky` |
 | `time-of-day.js` | 太陽と環境光、時刻キーフレームの連続補間。`sunPath` を渡すと実際の太陽・月を使い、`setShadowCenter` で影の範囲をカメラに追従させる | `createLights` `createTimeOfDay` `DEFAULT_TOD_KEYS` |
 | `sun.js` | 実際の太陽・月の位置（日付・緯度経度・時刻から）、方位と場面の向きの変換 | `createSunPath` `solarPosition` `lunarPosition` `bearingToDir` |
-| `terrain.js` | 高さの画像から作る地形（近景 1 m＋中景 4 m）。地面の種類からドット絵のテクスチャを焼く。`photoMix` で空中写真の色を混ぜられる（色の表で `photo: true` の種類だけ） | `createHeightTerrain` `loadHeightField` `GROUND_LOOKS` |
+| `terrain.js` | 高さの画像から作る地形（近景 1 m＋中景 4 m）。地面の種類からドット絵のテクスチャを焼く。`photoMix` で空中写真の色を混ぜられる（色の表で `photo: true` の種類だけ）。中景も `files.mid.color`（2 m ごとの写真の色）があれば `midPhotoClasses` の種類に混ぜたテクスチャにする | `createHeightTerrain` `loadHeightField` `GROUND_LOOKS` |
 | `trees.js` | 木と木漏れ日（影に葉のすき間）。近くの木は 1 本ずつ揺らし、遠くの木はまとめて描く | `createLeafKit` `createForest` |
 | `grass.js` | 風で揺れる草のまとめ描き（芝の房・ススキやオギの株・穂）。ループ周期で揺れる | `createSwayingGrass` |
 | `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き。`thinFrom` より先は遠いほど間引く）、窓の模様と夜の窓明かり、大観覧車（遠くでも消えないよう 1 ドットの線と点でも描く） | `createBridge` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `createFerrisWheel` `GeoBuilder` |

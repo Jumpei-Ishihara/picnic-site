@@ -542,6 +542,152 @@ def shorelines(dem):
     return west, east
 
 
+# ---------------------------------------------------------------- 両岸の水際（植え込み・コンクリートの縁）
+
+def _lum(c):
+    return (0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]) / 255
+
+
+def resample(line, step):
+    """折れ線を step m ごとの点に。"""
+    out, carry = [list(line[0])], 0.0
+    for (x0, z0), (x1, z1) in zip(line, line[1:]):
+        L = math.hypot(x1 - x0, z1 - z0)
+        s = step - carry
+        while s <= L:
+            out.append([x0 + (x1 - x0) * s / L, z0 + (z1 - z0) * s / L])
+            s += step
+        carry = (carry + L) % step
+    return out
+
+
+def shore_banks(photo, line, side, z_range=(-640, 500), step=4, veg_ratio=0.78):
+    """
+    水際から陸へ、空中写真の明るさの断面を取り、水際の植え込み（ヨシ・低木・柳）の帯と、
+    コンクリートの縁（明るく、緑でない）を読む。芝より暗い緑が続く幅を帯の幅とする。
+    side: 陸の向き（+1 = +x 側、-1 = -x 側）。
+    返す点：[x, z, 陸向きの nx, nz, 帯の始まり（m）, 帯の幅（m）, 濃さ 0〜1（暗い所の割合 = 木の多さ）, 縁（0 = 土・草、1 = コンクリート）]
+    """
+    pts = [p for p in resample(sorted(line, key=lambda p: p[1]), step) if z_range[0] <= p[1] <= z_range[1]]
+    out = []
+    for i, (x, z) in enumerate(pts):
+        a, b = pts[max(0, i - 2)], pts[min(len(pts) - 1, i + 2)]
+        tx, tz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(tx, tz) or 1
+        nx, nz = -tz / L, tx / L
+        if nx * side < 0:
+            nx, nz = -nx, -nz
+        cs = [photo.rgb(x + nx * t, z + nz * t) for t in range(-4, 32)]
+        lawn = sorted(_lum(c) for c in cs[24:])[6] or 0.5
+        veg, bright = [], 0
+        for k, c in enumerate(cs):
+            t = k - 4
+            green = c[1] - max(c[0], c[2]) >= 2
+            r = _lum(c) / lawn
+            veg.append(green and r < veg_ratio)
+            if -2 <= t <= 2 and not green and r > 1.25:
+                bright += 1
+        # 水際（-4〜+4 m）から始まり、1 m の切れ目まで許して続く暗い緑
+        start = next((k for k in range(0, 9) if veg[k]), None)
+        width, dark = 0, 0.0
+        if start is not None:
+            k, gap, last = start, 0, start
+            while k < len(veg) and gap <= 1:
+                if veg[k]:
+                    last, gap = k, 0
+                else:
+                    gap += 1
+                k += 1
+            width = last - start + 1
+            band = cs[start:last + 1]
+            dark = sum(1 for c in band if _lum(c) / lawn < 0.55) / len(band)
+        out.append([x, z, nx, nz, (start if start is not None else 4) - 4, width, dark, 1 if bright >= 2 else 0])
+    # 幅と濃さを水際に沿ってならす（写真の 1 点のむらを消す）
+    for col in (5, 6):
+        vals = smooth([p[col] for p in out], 2)
+        for p, v in zip(out, vals):
+            p[col] = v
+    return [[round(p[0], 1), round(p[1], 1), round(p[2], 3), round(p[3], 3), p[4], round(p[5], 1), round(p[6], 2), p[7]] for p in out]
+
+
+def find_landing(ground, rows):
+    """市川緊急用船着場：近景の水際に接する舗装の塊（空中写真）。向きのある長方形にする。"""
+    nw, nh = NEAR['w'], NEAR['h']
+    best = None
+    seen = set()
+    for j in range(nh):
+        for i in range(nw):
+            k = j * nw + i
+            if k in seen or ground[k] != G['paved']:
+                continue
+            cells, q = [], [k]
+            seen.add(k)
+            while q:
+                c = q.pop()
+                cells.append(c)
+                ci, cj = c % nw, c // nw
+                for ni, nj in ((ci + 1, cj), (ci - 1, cj), (ci, cj + 1), (ci, cj - 1)):
+                    n = nj * nw + ni
+                    if 0 <= ni < nw and 0 <= nj < nh and n not in seen and ground[n] == G['paved']:
+                        seen.add(n)
+                        q.append(n)
+            xs = [NEAR['x0'] + c % nw for c in cells]
+            zs = [NEAR['z0'] + c // nw for c in cells]
+            # 水際から 6 m 以内に寄っている塊
+            near_water = sum(1 for x, z in zip(xs, zs) if x - rows[z - NEAR['z0']]['shore'] < 6)
+            if near_water > 20 and (best is None or len(cells) > len(best[0])):
+                best = (cells, xs, zs)
+    if not best:
+        return None
+    _, xs, zs = best
+    n = len(xs)
+    mx, mz = sum(xs) / n, sum(zs) / n
+    sxx = sum((x - mx) ** 2 for x in xs) / n
+    szz = sum((z - mz) ** 2 for z in zs) / n
+    sxz = sum((x - mx) * (z - mz) for x, z in zip(xs, zs)) / n
+    ang = 0.5 * math.atan2(2 * sxz, sxx - szz)       # 長い向き（x 軸から）
+    ux, uz = math.cos(ang), math.sin(ang)
+    us = [(x - mx) * ux + (z - mz) * uz for x, z in zip(xs, zs)]
+    vs = [-(x - mx) * uz + (z - mz) * ux for x, z in zip(xs, zs)]
+    us.sort(); vs.sort()
+    lo, hi = us[int(n * 0.02)], us[int(n * 0.98) - 1]
+    vlo, vhi = vs[int(n * 0.02)], vs[int(n * 0.98) - 1]
+    cu, cv = (lo + hi) / 2, (vlo + vhi) / 2
+    cx, cz = mx + cu * ux - cv * uz, mz + cu * uz + cv * ux
+    return {'x': round(cx, 1), 'z': round(cz, 1), 'length': round(hi - lo + 1, 1), 'width': round(vhi - vlo + 1, 1),
+            'angle': round(ang, 4), 'cells': n,
+            'note': '市川緊急用船着場（Google マップの名前）。形は空中写真の舗装の塊から。床は砂をかぶったコンクリート、水側に鋼の手すり（360° 写真 2019 年 11 月で確認）'}
+
+
+def mid_photo_colors(photo, step=2):
+    """中景の範囲を 2 m ごとに空中写真の色で塗った画像（写真の外は透明）。"""
+    x0, z0 = MID['x0'], MID['z0']
+    x1, z1 = x0 + (MID['w'] - 1) * MID['step'], z0 + (MID['h'] - 1) * MID['step']
+    w, h = (x1 - x0) // step + 1, (z1 - z0) // step + 1
+    im = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = im.load()
+    W, H = photo.im.width, photo.im.height
+    b = SITE['photoBbox']
+    corners = [ll2local(la, lo) for la in (b['s'], b['n']) for lo in (b['w'], b['e'])]
+    i0 = max(0, int((min(c[0] for c in corners) - x0) // step)); i1 = min(w, int((max(c[0] for c in corners) - x0) // step) + 1)
+    j0 = max(0, int((min(c[1] for c in corners) - z0) // step)); j1 = min(h, int((max(c[1] for c in corners) - z0) // step) + 1)
+    for j in range(j0, j1):
+        z = z0 + j * step
+        for i in range(i0, i1):
+            x = x0 + i * step
+            u, v = photo.pix(x, z)
+            if 2 <= u < W - 2 and 2 <= v < H - 2:
+                # 2 m 四方 ≒ 写真の 2×2 画素の平均
+                acc = [0, 0, 0]
+                for du in (-0.5, 0.5):
+                    for dv in (-0.5, 0.5):
+                        c = photo.px[int(u + du), int(v + dv)]
+                        for k in range(3):
+                            acc[k] += c[k]
+                px[i, j] = (acc[0] // 4, acc[1] // 4, acc[2] // 4, 255)
+    return im, {'x0': x0, 'z0': z0, 'step': step, 'w': w, 'h': h}
+
+
 # ---------------------------------------------------------------- ランドマーク
 
 def chain_ways(lst):
@@ -735,6 +881,42 @@ def main():
             if any(abs(x) < 300 and abs(z) < 600 for x, z in pts):
                 lm.setdefault('treeRows', []).append([[round(x, 1), round(z, 1)] for x, z in pts])
 
+    log('banks (shore vegetation, landing, photo colors) ...')
+    east_line = [p for p in east if p[1] < NEAR['z0'] or p[1] > NEAR['z0'] + NEAR['h'] - 1] + [[r['shore'], r['z']] for r in rows]
+    banks = {
+        'west': shore_banks(photo, west, -1),
+        # 市川側の水際の低木は夏の写真では芝との差が小さい（Google マップの秋の写真ではっきり見える）ので、しきい値をゆるめる
+        'east': shore_banks(photo, east_line, 1, veg_ratio=0.86),
+        'format': '[x, z, 陸向き nx, nz, 帯の始まり m, 帯の幅 m, 濃さ（木の多さ）0〜1, 縁 1 = コンクリート]',
+        'note': '水際の植え込み（ヨシ・低木・柳）の帯は空中写真の芝より暗い緑から読む。何の植物かは Google マップの空中写真・360° 写真で見た様子',
+        'landing': find_landing(ground, rows),
+    }
+    # 市川側の岸の種類（場所は写真・標高から、何があるかは Google マップの空中写真と 360° 写真で見た様子）
+    #   船着場より上流：まっすぐなコンクリートの護岸（写真に直線の縁）／船着場：コンクリートの床と鋼の手すり／
+    #   船着場より下流：水際にまばらな低木とヨシ（夏の写真では芝との差が小さいので、幅は決め打ち）
+    L = banks['landing']
+    if L:
+        half = abs(math.sin(L['angle'])) * L['length'] / 2
+        lz0, lz1 = L['z'] - half, L['z'] + half
+        banks['eastRules'] = {
+            'wall': [-260, round(lz0, 1)],
+            'fringe': {'z0': round(lz1 + 3, 1), 'z1': 500, 'width': 2.5, 'cover': 0.55},
+            'note': '市川側：船着場より上流はコンクリートの護岸、下流は水際にまばらな低木とヨシ（幅 2.5 m は決め打ち）',
+        }
+    for p in banks['east']:
+        if p[5] < 3:      # 3 m より細い帯は写真のむら
+            p[5] = 0
+    cim = Image.new('RGB', (nw, nh))
+    cp = cim.load()
+    for j in range(nh):
+        for i in range(nw):
+            c = photo.rgb(NEAR['x0'] + i, NEAR['z0'] + j)
+            cp[i, j] = tuple(int(v) for v in c)
+    cim.save(os.path.join(OUT, 'ground_color.png'), optimize=True)
+    mim, mid_color = mid_photo_colors(photo)
+    # 64 色に減らす（1.4 MB → 0.3 MB。地面の色に混ぜるだけなので十分）
+    mim.quantize(64, method=Image.Quantize.FASTOCTREE).save(os.path.join(OUT, 'mid_color.png'), optimize=True)
+
     r0 = min(rows, key=lambda r: abs(r['z']))
     # 鉄橋の視点：近景の北の端に近い堤防の上から、JR 総武線の鉄橋の中ほどを向く
     zn = NEAR['z0'] + 12
@@ -744,7 +926,10 @@ def main():
     bx = (jr['path'][0][0] + jr['path'][-1][0]) / 2
     bz = (jr['path'][0][1] + jr['path'][-1][1]) / 2
     bridge_brg = (SITE['upstreamBearing'] + math.degrees(math.atan2(bx - crest_n, -(bz - zn)))) % 360
-    sunset_x = r0['bankTop'] + 1.5
+    # 夕日の視点：水際の上の端。市川緊急用船着場（シートの北）が画面の右端に入らないよう、8 m 下流に
+    SUNSET_Z = 8
+    r8 = min(rows, key=lambda r: abs(r['z'] - SUNSET_Z))
+    sunset_x = r8['bankTop'] + 1.5
     # シート：水際から 15 m（座った目の高さでも川面が見えるように。設計書 10 章の申し送り）。長い辺を川に向ける
     # 向きは方位 315°：左に川、右の遠くに鉄橋（企画提案書の写真 1 に近い構図。16:9 で鉄橋が右端に入る）
     sheet = {'x': round(r0['shore'] + SHEET_FROM_WATER, 1), 'z': 0, 'bearing': LUNCH_BEARING, 'size': [2.0, 1.4]}
@@ -754,7 +939,7 @@ def main():
     view = {
         'lunch':  {'x': round(sx - fx * 0.9, 2), 'z': round(sz - fz * 0.9, 2), 'eye': 0.75, 'bearing': LUNCH_BEARING, 'pitch': -4, 'hour': 12.0},
         'nap':    {'x': round(sx - fx * 0.3, 2), 'z': round(sz - fz * 0.3, 2), 'eye': 0.25, 'bearing': 250, 'pitch': 60, 'hour': 13.0},
-        'sunset': {'x': round(sunset_x, 1), 'z': 0, 'eye': 1.5, 'bearing': 257, 'pitch': 1, 'hour': 16.83},
+        'sunset': {'x': round(sunset_x, 1), 'z': SUNSET_Z, 'eye': 1.5, 'bearing': 257, 'pitch': 1, 'hour': 16.83},
         'bridge': {'x': round(crest_n, 1), 'z': zn, 'eye': 1.6, 'bearing': round(bridge_brg, 1), 'pitch': 1, 'hour': 15.0},
     }
     for v in view.values():
@@ -769,9 +954,10 @@ def main():
             'axes': '-z = 上流（方位 338°）、+x = 町側（方位 68°）、y = 0 が TP 2.5 m、1 単位 = 1 m',
         },
         'files': {
-            'near': {'height': 'near_height.png', 'ground': 'ground.png', **NEAR,
+            'near': {'height': 'near_height.png', 'ground': 'ground.png', 'groundColor': 'ground_color.png', **NEAR,
                      'encoding': 'TP = (R*256+G)/100 - 10、y = TP - origin.tp'},
             'mid': {'height': 'mid_height.png', **MID, 'classes': MID_CLASSES,
+                    'color': {'file': 'mid_color.png', **mid_color, 'note': '空中写真の色（2 m ごと、写真の外は透明）'},
                     'encoding': 'TP = (R*256+G)/100 - 10、B = classes の番号'},
         },
         'ground': [{'id': i, 'name': n, 'color': '#%02x%02x%02x' % c} for i, (n, c) in enumerate(GROUND)],
@@ -783,13 +969,14 @@ def main():
         'section': [{k: (round(v, 2) if isinstance(v, float) else v) for k, v in r.items() if k not in ('fpMid', 'plaza')}
                     for r in rows[::4]],
         'trees': trees,
+        'banks': banks,
         'landmarks': lm,
         'sheet': sheet,
         'viewpoints': view,
         'sun': {'lat': SITE['origin']['lat'], 'lon': SITE['origin']['lon'], 'date': '2026-10-18', 'tz': 9},
         'attribution': [
             '地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成',
-            '地面の種類：国土地理院 シームレス空中写真をもとに作成',
+            '地面の種類・水際の植え込み：国土地理院 シームレス空中写真をもとに作成（地面の色は加工して作成）',
             '地図データ：© OpenStreetMap contributors',
         ],
     }
@@ -814,7 +1001,8 @@ def write_attribution():
 | ファイル | もとにしたデータ | 出典の書き方 |
 |---|---|---|
 | `mid_height.png`・`near_height.png` | 国土地理院 標高タイル（基盤地図情報 数値標高モデル DEM5A） | 「国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成」 |
-| `ground.png`・`scene.json` の木 | 国土地理院 シームレス空中写真（地面の種類を読み取るためだけに使用。写真そのものは含めていません） | 「国土地理院 シームレス空中写真をもとに作成」 |
+| `ground.png`・`scene.json` の木・水際の植え込み（`banks`） | 国土地理院 シームレス空中写真（地面の種類・植え込みの帯を読み取る） | 「国土地理院 シームレス空中写真をもとに作成」 |
+| `ground_color.png`・`mid_color.png` | 国土地理院 シームレス空中写真（1 m・2 m ごとの色に縮めたもの。地面の色に混ぜる） | 「国土地理院 シームレス空中写真を加工して作成」 |
 | `scene.json` のランドマーク・野球場・送電線 | OpenStreetMap | 「© OpenStreetMap contributors」 |
 
 - 国土地理院コンテンツ利用規約：https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html
