@@ -2,6 +2,7 @@
 //   tower   … 塔（スカイツリーのような細い塔。展望台 2 つとアンテナ）
 //   lattice … 鉄骨の塔（東京タワーのような裾の広い塔）
 //   mountain… 山（富士山。visibleHeight＝地球の丸みで隠れる分を引いた高さ、baseWidth＝裾の幅）
+//   profile … 点ごとに方位・距離・高さを持つ輪郭（東京ゲートブリッジのような長い橋）
 //   hill    … 木の多い台地の稜線（span の方位の範囲）
 //   skyline … 家並み・ビルの並び（span の方位の範囲）
 // 色は時間帯で変える：遠いものほど空（地平線）の色に近く、太陽の側にあるものは逆光で暗い影絵に。
@@ -38,6 +39,7 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
     if (it.kind === 'tower') mesh = towerMesh(it, mat);
     else if (it.kind === 'lattice') mesh = latticeMesh(it, mat);
     else if (it.kind === 'mountain') mesh = mountainMesh(it, mat);
+    else if (it.kind === 'profile') mesh = profileMesh(it, mat);
     else if (it.kind === 'hill') mesh = ridgeMesh(it, mat, 'hill');
     else mesh = ridgeMesh(it, mat, 'skyline');
     mesh.name = 'backdrop-' + it.id;
@@ -120,6 +122,23 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
     m.add(capMesh);
     m.userData.cap = capMat;
     return m;
+  }
+
+  // 点ごとに方位・距離・高さ（下端 base〜上端 height）を持つ輪郭（長い橋など）
+  function profileMesh(it, mat) {
+    const R = radiusOf(it.dist);
+    const pos = [];
+    for (const p of it.points) {
+      const q = at(p.bearing, R, tmp);
+      pos.push(q.x, scaleH(p.base, p.dist, R), q.z, q.x, scaleH(p.height, p.dist, R), q.z);
+    }
+    const idx = [];
+    for (let a = 0; a + 3 < pos.length / 3; a += 2) idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    mat.side = THREE.DoubleSide;
+    return new THREE.Mesh(geo, mat);
   }
 
   // 方位の範囲に沿った帯。上の縁を、台地なら木のこぶ、家並みなら四角い建物の段々に

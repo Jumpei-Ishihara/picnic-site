@@ -299,3 +299,108 @@ export function createQueue({ toon, at, toward, heightAt, loop = 6 }) {
   const W0 = Math.PI * 2 / loop;
   return { group, update(t) { list.forEach((m, i) => { m.group.rotation.z = Math.sin(t * W0 + i * 1.3) * 0.03; }); } };
 }
+
+// ---------------------------------------------------------------------------
+// 旧江戸川の護岸の壁（胸の高さのコンクリート）。scene.json の facilities.seawall の線に沿って
+// ---------------------------------------------------------------------------
+export function createSeawall({ toon, line, heightAt, height = 1.1, thick = 0.45, minY = -1.5 }) {
+  const b = new GeoBuilder();
+  for (let i = 0; i < line.length - 1; i++) {
+    const [x0, z0] = line[i], [x1, z1] = line[i + 1];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 0.01 || len > 9) continue; // 線が途切れている所はつながない
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    const y = heightAt(mx, mz); // 歩く面（遊歩道）の高さから
+    if (y < minY) continue; // 水の上（地面が水面に近い所）には立てない
+    b.box(V(mx, y + height / 2 - 0.2, mz), len + 0.3, height + 0.4, thick, Math.atan2(-(z1 - z0), x1 - x0));
+  }
+  const m = new THREE.Mesh(b.build(), toon({ color: '#bdb8ac' }));
+  m.castShadow = m.receiveShadow = true;
+  return { group: m };
+}
+
+// ---------------------------------------------------------------------------
+// 遊具広場：砂の広場の中に、とりでのような組み合わせ遊具（塔・すべり台・屋根）、ブランコ、うんてい。種類と配置は推定
+// ---------------------------------------------------------------------------
+export function createPlayground({ toon, pg, heightAt, loop = 6 }) {
+  const group = new THREE.Group();
+  const y = (x, z) => heightAt(x, z);
+  const red = toon({ color: '#c8463f' }), yellow = toon({ color: '#e8c84a' }), blue = toon({ color: '#3f6ab8' }), green = toon({ color: '#4f9a4a' }), wood = toon({ color: '#9a7048' });
+  const meshes = [];
+  const box = (mat, w, h, d, x, z, yy, yaw = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y(x, z) + yy, z);
+    m.rotation.y = yaw;
+    group.add(m);
+    meshes.push(m);
+    return m;
+  };
+  const cx = pg.x, cz = pg.z;
+  // 組み合わせ遊具：塔 2 つ（床 2 m・1.4 m）を橋でつなぎ、すべり台
+  for (const [dx, dz, h] of [[-3, -2, 2.0], [2, -2, 1.4]]) {
+    for (const [px, pz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) box(wood, 0.15, h + 1.2, 0.15, cx + dx + px, cz + dz + pz, (h + 1.2) / 2);
+    box(yellow, 2, 0.15, 2, cx + dx, cz + dz, h);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.0, 4), dx < 0 ? red : blue);
+    roof.position.set(cx + dx, y(cx + dx, cz + dz) + h + 1.7, cz + dz);
+    roof.rotation.y = Math.PI / 4;
+    group.add(roof); meshes.push(roof);
+  }
+  box(green, 3, 0.12, 0.9, cx - 0.5, cz - 2, 1.75);                                    // 橋
+  const slide = box(red, 0.8, 0.1, 3.4, cx - 3, cz + 0.3, 1.0);                         // すべり台（塔の床 2 m から地面へ）
+  slide.rotation.x = 0.62;
+  // ブランコ（2 人乗り）：A 字の柱と横木、つり下がった座板
+  const sx = cx + 5, sz = cz + 4;
+  for (const s of [-1.6, 1.6]) {
+    for (const t of [-0.6, 0.6]) {
+      const leg = box(blue, 0.12, 2.5, 0.12, sx + s, sz + t * 0.9, 1.2);
+      leg.rotation.x = t * 0.45;
+    }
+  }
+  box(blue, 3.4, 0.12, 0.12, sx, sz, 2.4);
+  const seats = [-0.7, 0.7].map(o => {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx + o, y(sx, sz) + 2.4, sz);
+    const rope = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.9, 0.04).translate(0, -0.95, 0), toon({ color: '#5a5a62' }));
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.25).translate(0, -1.95, 0), yellow);
+    pivot.add(rope, seat);
+    group.add(pivot); meshes.push(rope, seat);
+    return pivot;
+  });
+  // うんてい（はしごの横棒）
+  for (let k = 0; k < 7; k++) box(green, 0.06, 0.06, 1.2, cx + 1 + k * 0.45, cz + 5, 2.0);
+  for (const e of [0, 2.7]) for (const t of [-0.6, 0.6]) box(green, 0.1, 2.0, 0.1, cx + 1 + e, cz + 5 + t, 1.0);
+  for (const m of meshes) { m.castShadow = true; m.receiveShadow = true; }
+  const W0 = Math.PI * 2 / loop;
+  return {
+    group,
+    // ブランコが風で少しゆれる（6 秒周期）
+    update(t) { seats.forEach((p, i) => { p.rotation.x = Math.sin(t * W0 + i * 2) * 0.06; }); }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ツツジ山：丘の斜面の低い株（10 月なので花はなく、濃い緑の丸い茂み）。株の群れごとに 3 株、まとめ描き
+// ---------------------------------------------------------------------------
+export function createAzaleas({ toon, clumps, heightAt, seed = 9 }) {
+  let a = seed;
+  const rnd = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const n = clumps.length * 3;
+  const im = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), toon({ color: '#ffffff', flatShading: true }), n);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
+  const greens = ['#355a2c', '#3f6a32', '#2f5228', '#4a7238'];
+  let k = 0;
+  for (const [x, z, r] of clumps) {
+    for (let i = 0; i < 3; i++) {
+      const ang = i / 3 * Math.PI * 2 + rnd(), d = r * 0.7;
+      const bx = x + Math.cos(ang) * d, bz = z + Math.sin(ang) * d, br = r * (0.55 + rnd() * 0.25);
+      q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rnd() * 6);
+      im.setMatrixAt(k, m.compose(p.set(bx, heightAt(bx, bz) + br * 0.35, bz), q, s.set(br, br * 0.62, br)));
+      im.setColorAt(k, c.set(greens[(rnd() * greens.length) | 0]));
+      k++;
+    }
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.instanceColor.needsUpdate = true;
+  im.castShadow = im.receiveShadow = true;
+  return { group: im, count: n };
+}

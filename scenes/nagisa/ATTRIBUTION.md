@@ -5,7 +5,7 @@
 | ファイル | もとにしたデータ | 出典の書き方 |
 |---|---|---|
 | `mid_height.png`・`near_height.png` | 国土地理院 標高タイル（基盤地図情報 数値標高モデル DEM5A） | 「国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成」 |
-| `ground.png`・`scene.json` の木 | 国土地理院 シームレス空中写真（地面の種類を読み取るためだけに使用。写真そのものは含めていません） | 「国土地理院 シームレス空中写真をもとに作成」 |
+| `ground.png`・`ground_color.png`・`scene.json` の木 | 国土地理院 シームレス空中写真（地面の種類を読み取り、1 m ごとの色に縮めたもの） | 「国土地理院 シームレス空中写真を加工して作成」 |
 | `scene.json` のランドマーク・野球場・送電線 | OpenStreetMap | 「© OpenStreetMap contributors」 |
 
 - 国土地理院コンテンツ利用規約：https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html

@@ -329,14 +329,16 @@ function gableGeometry() {
  * @param {number} [o.cell]        置く間隔（m）
  * @param {number} [o.minDist]     原点からこれより近い所には置かない
  * @param {number} [o.clearance]   周り（4 方向）がこの距離まで町のときだけ置く（堤防のきわを空ける）
+ * @param {number} [o.thinFrom]    この距離より遠くは間引く（遠くの家は数ドットなので、数を減らして軽くする）。既定は間引かない
  */
-export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, wallColors, roofColors }) {
+export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, thinFrom = Infinity, wallColors, roofColors }) {
   const spots = [];
   for (let z = bounds.z0; z < bounds.z1; z += cell) {
     for (let x = bounds.x0; x < bounds.x1; x += cell) {
       const px = x + (rnd() - 0.5) * cell * 0.5, pz = z + (rnd() - 0.5) * cell * 0.5;
       const d = Math.hypot(px, pz);
       if (d < minDist || d > maxDist || !isTown(px, pz)) continue;
+      if (d > thinFrom && rnd() > Math.max(0.12, 1 - (d - thinFrom) / 900)) continue; // 遠いほど間引く（最少 12%）
       // 周りの 4 方向も町なら置く（堤防のきわは空ける）
       const c = clearance;
       if (!isTown(px + c, pz) || !isTown(px - c, pz) || !isTown(px, pz + c) || !isTown(px, pz - c)) continue;

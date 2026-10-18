@@ -80,7 +80,8 @@
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, windowTextures, createFerrisWheel } from './engine/structures.js';
     import { createLeafKit, createForest } from './engine/trees.js';
-    import { createMuseum, createPonyRing, createGoatPen, createQueue } from './realsite/nagisa-facilities.js';
+    import { createMuseum, createPonyRing, createGoatPen, createQueue, createSeawall, createPlayground, createAzaleas } from './realsite/nagisa-facilities.js';
+    import { createSurroundings, gateBridgeBackdrop } from './realsite/nagisa-surroundings.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
     import { createLife } from './realsite/life.js';
@@ -171,7 +172,7 @@
       // 歩ける近景の範囲には置かない
       isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
       heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
-      wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 90, maxDist: 1450,
+      wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 90, maxDist: 2400, thinFrom: 500,
       wallColors: ['#d8d2c4', '#c9c2b2', '#e4e0d6', '#b8b2a8', '#cfc6b0', '#a9a49c'],
       roofColors: ['#5a5f6a', '#6d4a3e', '#4a5a6a', '#7a7a7a', '#8a5a4a']
     });
@@ -199,7 +200,8 @@
         const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
         const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
         geo.computeBoundingBox();
-        const m = new THREE.Mesh(geo, [toon({ color: b.kind === 'warehouse' || b.kind === 'industrial' ? '#8fa6a8' : '#8a8076' }), houseWall]);
+        // 屋根は空中写真の色（無いときは種類から）
+        const m = new THREE.Mesh(geo, [toon({ color: b.roof ?? (b.kind === 'warehouse' || b.kind === 'industrial' ? '#8fa6a8' : '#8a8076') }), houseWall]);
         m.position.y = Math.min(...b.footprint.map(([x, z]) => terrain.heightAt(x, z))) - 0.3;
         m.castShadow = m.receiveShadow = true;
         scene.add(m);
@@ -252,6 +254,18 @@
     const queue = createQueue({ toon, at: gate, toward: { x: R.x, z: R.z }, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(queue.group);
     const ridingNow = h => FAC.ponyRing.hours.some(([a, b]) => h >= a && h < b);
+    // 旧江戸川の護岸の壁と、遊具広場
+    scene.add(createSeawall({ toon, line: FAC.seawall, heightAt: terrain.heightAt }).group);
+    const playground = createPlayground({ toon, pg: FAC.playground, heightAt: terrain.heightAt, loop: LOOP });
+    scene.add(playground.group);
+    const azaleas = createAzaleas({ toon, clumps: FAC.azaleas.shrubs, heightAt: terrain.heightAt }); // ツツジ山の株
+    scene.add(azaleas.group);
+
+    // ============================================================================
+    // 周りの目立つもの：シンデレラ城・プロメテウス火山、葛西臨海水族園のガラスドーム・クリスタルビュー（東京ゲートブリッジは遠景の影絵）
+    // ============================================================================
+    const surroundings = createSurroundings({ toon, specials: data.landmarks.specials });
+    scene.add(surroundings.group);
 
     // ============================================================================
     // 葛西臨海公園の大観覧車（高さ 117 m・直径 111 m・ゴンドラ 68 台）。夜は輪が色を変えて光る
@@ -276,12 +290,12 @@
       wheel.lineMaterial.color.copy(cTmp);
       wheel.pointMaterial.color.copy(cTmp).lerp(new THREE.Color(0x9cc4e4), 0.4 * (1 - back));
     }
-    NIGHT_LIGHTS.push(wheelRim, ...museum.nightLights);
+    NIGHT_LIGHTS.push(wheelRim, ...museum.nightLights, ...surroundings.nightLights);
 
     // ============================================================================
     // 遠景の影絵
     // ============================================================================
-    const backdrop = createBackdrop({ scene, items: data.landmarks.backdrop, upstreamBearing: UB, radius: 3000 });
+    const backdrop = createBackdrop({ scene, items: [...data.landmarks.backdrop, ...(data.landmarks.specials.gateBridge ? [gateBridgeBackdrop(data.landmarks.specials.gateBridge, UB)] : [])], upstreamBearing: UB, radius: 3000 });
 
     // ============================================================================
     // ピクニックの持ち物（企画提案書の身軽ピクニック）と、生き物・交通
@@ -376,7 +390,9 @@
       if (Math.abs(x - FAC.goatPen.x) < 7 && Math.abs(z - FAC.goatPen.z) < 6) return 'ヤギのふれあいコーナー';
       if (Math.hypot(x - stable.x, z - stable.z) < 18) return 'ポニーの家';
       if (Math.hypot(x - FAC.museum.x, z - FAC.museum.z) < 34) return '魔法の文学館';
+      if (Math.abs(x - FAC.playground.x) < FAC.playground.w / 2 + 3 && Math.abs(z - FAC.playground.z) < FAC.playground.d / 2 + 3) return '遊具広場';
       if (tp > data.hill.tp - 3) return '展望の丘';
+      if (tp > 6 && FAC.azaleas.shrubs.some(([ax, az]) => Math.hypot(ax - x, az - z) < 4)) return 'ツツジ山';
       if (distToWater(x, z) < 12) return '旧江戸川沿いの遊歩道';
       if (treeColliders.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 3.5)) return '木立の中';
       const g = terrain.groundAt(x, z);
@@ -580,6 +596,7 @@
       queue.group.visible = ridingNow(tod.hour);
       queue.update(loopT);
       goatPen.update(loopT);
+      playground.update(loopT);
       if (floorOverride && Math.hypot(player.x - floorOverride.x, player.z - floorOverride.z) > 3) floorOverride = null;
       if (wheel) {
         wheel.update(loopT);
@@ -608,7 +625,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__nagisa = { THREE, data, museum, ring, goatPen, queue, ridingNow, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+      window.__nagisa = { THREE, data, surroundings, playground, museum, ring, goatPen, queue, ridingNow, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
     }
   </script>
 </body>

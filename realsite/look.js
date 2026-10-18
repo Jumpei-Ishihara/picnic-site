@@ -22,19 +22,20 @@ export const EDO_TOD_KEYS = [
   { h: 24,    top: '#0b1030', hor: '#1d2752', sun: '#8fa8ff', si: 0.35, hs: '#2a3a70', hg: '#10121c', hi: 0.5,  night: 1 }
 ];
 
-// 秋（10 月中旬）の地面の 3 色（暗・中・明）。芝は少し黄ばみ、ススキの所は枯れ色
+// 秋（10 月中旬）の地面の 3 色（暗・中・明）。芝は少し黄ばみ、ススキの所は枯れ色。
+// photo: true の種類は、空中写真の色（files.near.groundColor）がある場面で写真の色合いを混ぜる（なぎさ公園）
 export const EDO_GROUND_LOOKS = {
   water:      { c: ['#4a4a32', '#5a573a', '#6b6744'], pattern: 'mud' },
   lawn:       { c: ['#567a32', '#6f9042', '#8da656'], pattern: 'grass' },
   lawnWorn:   { c: ['#84884c', '#9d9f62', '#b8b67e'], pattern: 'grass' },
-  dirt:       { c: ['#a8875e', '#bfa076', '#d6bb90'], pattern: 'speckle' },
-  paved:      { c: ['#9a9a92', '#b2b2aa', '#c8c8c0'], pattern: 'slab' },
-  revetment:  { c: ['#7a7a72', '#908f86', '#a6a59a'], pattern: 'block' },
+  dirt:       { c: ['#a8875e', '#bfa076', '#d6bb90'], pattern: 'speckle', photo: true },
+  paved:      { c: ['#9a9a92', '#b2b2aa', '#c8c8c0'], pattern: 'slab', photo: true },
+  revetment:  { c: ['#7a7a72', '#908f86', '#a6a59a'], pattern: 'block', photo: true },
   leveeGrass: { c: ['#52763a', '#678a44', '#82a052'], pattern: 'grass' },
-  road:       { c: ['#55565c', '#64656b', '#75767c'], pattern: 'asphalt' },
+  road:       { c: ['#55565c', '#64656b', '#75767c'], pattern: 'asphalt', photo: true },
   tree:       { c: ['#46682c', '#587a36', '#6f9042'], pattern: 'grass' },
   reeds:      { c: ['#8a8445', '#a39c56', '#bdb46a'], pattern: 'grass' },
-  other:      { c: ['#6f7f48', '#86955a', '#9fae6c'], pattern: 'grass' }
+  other:      { c: ['#6f7f48', '#86955a', '#9fae6c'], pattern: 'grass', photo: true }
 };
 export const EDO_MID_LOOKS = { town: '#8e877c', grass: '#78924a', pitch: '#9aa060', water: '#4a4a32' };
 

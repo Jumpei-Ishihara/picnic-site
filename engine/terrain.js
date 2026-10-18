@@ -82,8 +82,9 @@ const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >
  * @param {number} [o.ppm]       近景のテクスチャ密度（1 m あたりのドット数）
  * @param {number} [o.midStep]   中景の間引き（2 なら 8 m 間隔）
  * @param {number} [o.blend]     近景の縁で中景につなぐ幅（m）
+ * @param {number} [o.photoMix]  files.near.groundColor（空中写真の色）がある場面で、looks の photo: true の種類に写真の色をどれだけ混ぜるか
  */
-export async function createHeightTerrain({ scene, data, baseUrl, material, ppm = 8, midStep = 2, blend = 6, looks = GROUND_LOOKS, midLooks = MID_LOOKS }) {
+export async function createHeightTerrain({ scene, data, baseUrl, material, ppm = 8, midStep = 2, blend = 6, looks = GROUND_LOOKS, midLooks = MID_LOOKS, photoMix = 0.6 }) {
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
   const [near, mid] = await Promise.all([
@@ -93,6 +94,7 @@ export async function createHeightTerrain({ scene, data, baseUrl, material, ppm 
   // 地面の種類（ground.png の色 → 番号）
   const groundNames = data.ground.map(g => g.name);
   const groundCls = await loadGroundClasses(baseUrl + N.ground, data.ground);
+  const groundColor = N.groundColor ? await loadRGB(baseUrl + N.groundColor, N.w, N.h) : null;
   const nx1 = N.x0 + (N.w - 1) * N.step, nz1 = N.z0 + (N.h - 1) * N.step;
 
   const midAt = (x, z) => sampleField(mid, x, z);
@@ -126,7 +128,7 @@ export async function createHeightTerrain({ scene, data, baseUrl, material, ppm 
   // ---- 近景のメッシュ（1 m 間隔）とテクスチャ
   const nearMesh = new THREE.Mesh(
     gridGeometry(N.w, N.h, N.x0, N.z0, N.step, heightAt),
-    material({ map: bakeGroundTexture({ N, groundCls, groundNames, looks, ppm }) })
+    material({ map: bakeGroundTexture({ N, groundCls, groundNames, looks, ppm, groundColor, photoMix }) })
   );
   nearMesh.receiveShadow = true;
   nearMesh.castShadow = true;
@@ -166,6 +168,28 @@ export async function createHeightTerrain({ scene, data, baseUrl, material, ppm 
       return Math.hypot(gx, gz);
     }
   };
+}
+
+// 1 m ごとの色の画像を読み、3×3 でならす（車や影の点を消す）
+async function loadRGB(url, w, h) {
+  const blob = await (await fetch(url, { cache: 'no-cache' })).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const [cv, g] = makeCanvas(bmp.width, bmp.height);
+  g.drawImage(bmp, 0, 0);
+  const px = g.getImageData(0, 0, bmp.width, bmp.height).data;
+  cv.width = cv.height = 0;
+  const out = new Float32Array(w * h * 3);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const ii = i + di, jj = j + dj;
+      if (ii < 0 || jj < 0 || ii >= w || jj >= h) continue;
+      const o = (jj * w + ii) * 4;
+      r += px[o]; gg += px[o + 1]; b += px[o + 2]; n++;
+    }
+    out.set([r / n, gg / n, b / n], (j * w + i) * 3);
+  }
+  return out;
 }
 
 // 地面の種類を ground.png の色から読む
@@ -209,13 +233,15 @@ function gridGeometry(w, h, x0, z0, step, heightAt) {
 }
 
 // 近景の地面のテクスチャ：種類ごとの 3 色と模様。種類の境目は少しずらして混ぜる（1 m の階段が見えないように）
-function bakeGroundTexture({ N, groundCls, groundNames, looks, ppm }) {
+function bakeGroundTexture({ N, groundCls, groundNames, looks, ppm, groundColor = null, photoMix = 0.6 }) {
   const W = (N.w - 1) * ppm, H = (N.h - 1) * ppm;
   const [cv, g] = makeCanvas(W, H);
   const img = g.createImageData(W, H);
   const d = img.data;
   const cols = groundNames.map(n => (looks[n] ?? looks.other).c.map(rgb));
   const pats = groundNames.map(n => (looks[n] ?? looks.other).pattern);
+  const usePhoto = groundNames.map(n => !!(groundColor && (looks[n] ?? looks.other).photo));
+  const tmpC = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
   for (let py = 0; py < H; py++) {
     const z = N.z0 + (py + 0.5) / ppm;
     for (let px = 0; px < W; px++) {
@@ -225,7 +251,16 @@ function bakeGroundTexture({ N, groundCls, groundNames, looks, ppm }) {
       const ci = Math.min(Math.max(Math.round(x + jx - N.x0), 0), N.w - 1);
       const cj = Math.min(Math.max(Math.round(z + jz - N.z0), 0), N.h - 1);
       const k = groundCls[cj * N.w + ci];
-      const [dark, midc, light] = cols[k];
+      let [dark, midc, light] = cols[k];
+      if (usePhoto[k]) {
+        // 写真の色を混ぜた中間色から、暗・明を作る（模様は種類のまま）
+        const o = (cj * N.w + ci) * 3;
+        for (let c = 0; c < 3; c++) {
+          const m = midc[c] + (groundColor[o + c] - midc[c]) * photoMix;
+          tmpC[0][c] = m * 0.84; tmpC[1][c] = m; tmpC[2][c] = Math.min(255, m * 1.1);
+        }
+        [dark, midc, light] = tmpC;
+      }
       // まだら模様：大きな斑（約 3 m）＋細かな斑（約 0.6 m）。境目はドット単位でディザして、四角い塊に見えないように
       const n = valueNoise(x * 0.35, z * 0.35) * 0.55 + valueNoise(x * 1.7, z * 1.7) * 0.3 + valueNoise(x * 4.3 + 17, z * 4.3) * 0.15
         + (hash2(px * 7 + 3, py * 5 + 1) - 0.5) * 0.14;

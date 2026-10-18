@@ -25,7 +25,7 @@ from geo_common import (CACHE, OUT, SITE, SITE_NAME, bearing_dist, ll2local, loa
 assert SITE_NAME == 'nagisa', 'run with --site nagisa (or GEO_SITE=nagisa)'
 
 NEAR = {'x0': -220, 'z0': -190, 'step': 1, 'w': 361, 'h': 371}     # x -220..140, z -190..180
-MID = {'x0': -1800, 'z0': -1800, 'step': 6, 'w': 601, 'h': 601}    # 3.6 km 四方
+MID = {'x0': -2700, 'z0': -2500, 'step': 8, 'w': 676, 'h': 632}    # 5.4 × 5.05 km（南は舞浜のディズニーリゾートまで）
 B.NEAR, B.MID = NEAR, MID
 G, GROUND = B.G, B.GROUND
 MID_CLASSES = ['town', 'grass', 'pitch', 'water']
@@ -35,6 +35,13 @@ STABLE_ID = 536919766   # OSM：ポニーランドの建物（ポニーの家と
 # 馬場（空中写真の明るい輪から：中心、走路の内側・外側の半径）。docs/NAGISA_DESIGN.md 7 章
 PONY_RING = {'x': -19, 'z': 8, 'rIn': 3.5, 'rOut': 11.0, 'fenceR': 11.5, 'centerR': 2.0}
 GOAT_PEN = {'x': 1, 'z': -14, 'w': 8, 'd': 6}   # ヤギのふれあいコーナー（位置は推定）
+# 周りの目立つ建物（OSM の id）。形を作って立てるので、ふつうの「高い建物」からは除く
+CASTLE_ID = 217727348      # シンデレラ城（高さ 51 m）
+VOLCANO_ID = 859682628     # プロメテウス火山（高さ 51 m、node）
+CRYSTAL_ID = 161731857     # 葛西臨海公園 クリスタルビュー
+AQUA_BLD_ID = 190858879    # 葛西臨海水族園の本館（高さ 9.7 m）。この上にガラスドーム（高さ 30.7 m）
+GATE_IDS = (150870020, 150870021)  # 東京ゲートブリッジ（上下線）
+SPECIAL_IDS = {CASTLE_ID, CRYSTAL_ID, AQUA_BLD_ID}
 log = B.log
 
 
@@ -180,10 +187,11 @@ def build_mid(dem, osm):
         g = e.get('geometry')
         if not g or e['type'] != 'way':
             continue
-        kind = 'pitch' if t.get('leisure') == 'pitch' else 'grass' if (t.get('leisure') in ('park', 'garden') or t.get('landuse') in ('grass', 'recreation_ground')) else None
+        # テーマパーク（ディズニーリゾート）も公園と同じ扱い（家並みを散らさない）
+        kind = 'pitch' if t.get('leisure') == 'pitch' else 'grass' if (t.get('leisure') in ('park', 'garden') or t.get('landuse') in ('grass', 'recreation_ground') or t.get('tourism') == 'theme_park') else None
         if kind:
             pts = [ll2local(p['lat'], p['lon']) for p in g]
-            if min(abs(p[0]) for p in pts) < 2000 and min(abs(p[1]) for p in pts) < 2000:
+            if min(abs(p[0]) for p in pts) < 2800 and min(abs(p[1]) for p in pts) < 2700:
                 polys[kind].append((pts, min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts)))
     hs, cls = [], []
     for j in range(h):
@@ -203,7 +211,7 @@ def build_mid(dem, osm):
     return hs, cls
 
 
-def landmarks(osm, dem):
+def landmarks(osm, dem, photo=None):
     out = {'bridges': [], 'buildings': [], 'backdrop': [], 'ferrisWheel': None, 'towers': [], 'powerLines': []}
     # 水をまたぐ橋（名前ごとにつなぐ）。川の河口の湾岸道路・首都高・JR 京葉線、北の葛西橋通り・東西線など
     ways = {}
@@ -251,7 +259,7 @@ def landmarks(osm, dem):
             H = float(t['height']) if t.get('height') else float(t['building:levels']) * 3.1 if t.get('building:levels') else None
         except ValueError:
             H = None
-        if not H or H < 25:
+        if not H or H < 25 or e['id'] in SPECIAL_IDS:
             continue
         pts = [ll2local(p['lat'], p['lon']) for p in g]
         cx = sum(p[0] for p in pts) / len(pts)
@@ -279,8 +287,45 @@ def landmarks(osm, dem):
             H = None
         if H and H >= 25 or e['id'] == MUSEUM_ID:
             continue
-        out['nearBuildings'].append({'x': round(cx, 1), 'z': round(cz, 1), 'height': round(H or DEFAULT_H.get(t['building'], 8), 1),
+        roof = None
+        if photo:  # 屋根の色：平面の中の写真の色の中央値
+            xs_ = [p[0] for p in pts]; zs_ = [p[1] for p in pts]
+            cols = [photo.rgb(x_, z_) for z_ in range(int(min(zs_)), int(max(zs_)) + 1, 2) for x_ in range(int(min(xs_)), int(max(xs_)) + 1, 2)
+                    if B.point_in_poly(x_ + 0.5, z_ + 0.5, pts)]
+            if cols:
+                roof = '#%02x%02x%02x' % tuple(int(sorted(c[k] for c in cols)[len(cols) // 2]) for k in range(3))
+        out['nearBuildings'].append({'x': round(cx, 1), 'z': round(cz, 1), 'height': round(H or DEFAULT_H.get(t['building'], 8), 1), 'roof': roof,
                                      'kind': 'stable' if e['id'] == STABLE_ID else t['building'], 'osm': e['id'], 'footprint': [[round(x, 1), round(z, 1)] for x, z in pts]})
+    # 周りの目立つもの：シンデレラ城・プロメテウス火山（ディズニーリゾート）、葛西臨海水族園のガラスドーム・クリスタルビュー、東京ゲートブリッジ
+    byid = {e['id']: e for e in osm if e['type'] in ('way', 'node')}
+    def fp_of(i):
+        e = byid.get(i)
+        return [[round(v, 1) for v in ll2local(p['lat'], p['lon'])] for p in e['geometry']] if e and e.get('geometry') else None
+    def center(fp):
+        return round(sum(p[0] for p in fp) / len(fp), 1), round(sum(p[1] for p in fp) / len(fp), 1)
+    sp = {}
+    if fp_of(CASTLE_ID):
+        cx_, cz_ = center(fp_of(CASTLE_ID))
+        sp['castle'] = {'x': cx_, 'z': cz_, 'height': 51, 'groundY': round(tp2y(dem.height(cx_, cz_)), 1), 'size': 36,
+                        'note': 'シンデレラ城。高さ 51 m（OSM）。形は簡略（白い壁・青い屋根の塔）'}
+    v = byid.get(VOLCANO_ID)
+    if v:
+        vx, vz = ll2local(v['lat'], v['lon'])
+        sp['volcano'] = {'x': round(vx, 1), 'z': round(vz, 1), 'height': 51, 'base': 150, 'groundY': round(tp2y(dem.height(vx, vz)), 1),
+                         'note': 'プロメテウス火山。高さ 51 m（OSM）。裾の直径 150 m は推定'}
+    if fp_of(AQUA_BLD_ID):
+        ax_, az_ = center(fp_of(AQUA_BLD_ID))
+        sp['aquaDome'] = {'x': ax_, 'z': az_, 'height': 30.7, 'radius': 38, 'baseHeight': 9.7, 'groundY': round(tp2y(dem.height(ax_, az_)), 1),
+                          'note': '葛西臨海水族園のガラスドーム。高さ 30.7 m（紹介記事）。直径 約 76 m は本館の大きさからの推定'}
+    if fp_of(CRYSTAL_ID):
+        sp['crystalView'] = {'footprint': fp_of(CRYSTAL_ID), 'height': 11, 'groundY': round(tp2y(dem.height(*center(fp_of(CRYSTAL_ID)))), 1),
+                             'note': '葛西臨海公園 クリスタルビュー（ガラスの休憩所）。高さ 11 m は推定'}
+    gates = [fp_of(i) for i in GATE_IDS if fp_of(i)]
+    if gates:
+        sp['gateBridge'] = {'path': gates[0], 'deck': 55, 'trussTop': 88, 'mainSpan': 440,
+                            'note': '東京ゲートブリッジ。OSM の線。主塔のない トラス（恐竜橋）。トラスの頂部 約 88 m・桁下 約 55 m は公表値に近い推定'}
+    out['specials'] = sp
+
     # 大観覧車（ダイヤと花の大観覧車：高さ 117 m、直径 111 m、ゴンドラ 68 台）
     for e in osm:
         t = e.get('tags', {})
@@ -399,7 +444,7 @@ def main():
     log('ground classes ...')
     cls = build_ground(dem, photo, wet)
     log('landmarks ...')
-    lm = landmarks(osm, dem)
+    lm = landmarks(osm, dem, photo)
     nw, nh = NEAR['w'], NEAR['h']
     # 建物の下は舗装に（空中写真では屋根が土や芝に見える）。木も建物の上には生やさない
     for b in lm['nearBuildings']:
@@ -438,6 +483,66 @@ def main():
             gp[i, j] = GROUND[cls[j * nw + i]][1]
     gim.save(os.path.join(OUT, 'ground.png'), optimize=True)
     B.write_height_png(os.path.join(OUT, 'near_height.png'), near, None, nw, nh)
+    # 地面の色（1 m ごとの空中写真の色）。道・砂利・駐車場・グラウンドの色合いを写真に合わせるのに使う（芝や木の所は使わない）
+    cim = Image.new('RGB', (nw, nh))
+    cp = cim.load()
+    for j in range(nh):
+        for i in range(nw):
+            cp[i, j] = tuple(int(c) for c in photo.rgb(NEAR['x0'] + i, NEAR['z0'] + j))
+    cim.save(os.path.join(OUT, 'ground_color.png'), optimize=True)
+
+    # 旧江戸川の護岸の線（陸の東の端。1 m ごとの行で、東どなりが水になる所）。胸の高さの壁を立てる
+    edge = []
+    for j in range(nh):
+        xs_ = [i for i in range(nw - 1) if not wet[j][i] and wet[j][i + 1] and NEAR['x0'] + i > -20]
+        if xs_:
+            edge.append((NEAR['x0'] + max(xs_) + 0.5, NEAR['z0'] + j))
+    # 1 m の行ごとの水際は階段状なので、中央値（前後 5 行）→ 平均（前後 6 行）でならし、4 m おきに間引く
+    med = [sorted(e_[0] for e_ in edge[max(0, k - 5):k + 6])[len(edge[max(0, k - 5):k + 6]) // 2] for k in range(len(edge))]
+    avg = [sum(med[max(0, k - 6):k + 7]) / len(med[max(0, k - 6):k + 7]) for k in range(len(med))]
+    seawall = [[round(avg[k] - 1.0, 1), edge[k][1]] for k in range(0, len(edge), 4)]  # 水際から 1 m 陸側
+    seawall_line = seawall
+
+    # ツツジ山：丘の斜面（TP 5.5〜12.8 m）の芝の中で、まわり（7 m 四方）より暗いまだらの所を、ツツジの株の群れとする（約 130 品種 17,000 株）
+    import colorsys
+    Vv = [[colorsys.rgb_to_hsv(*(c / 255 for c in photo.rgb(NEAR['x0'] + i, NEAR['z0'] + j)))[2] for i in range(nw)] for j in range(nh)]
+    cand = {}
+    for j in range(3, nh - 3):
+        for i in range(3, nw - 3):
+            if cls[j * nw + i] not in (G['lawn'], G['lawnWorn']):
+                continue
+            tp = near[j * nw + i]
+            if not 5.5 < tp < 12.8:
+                continue
+            m7 = sum(Vv[j + a][i + b] for a in range(-3, 4) for b in range(-3, 4)) / 49
+            if m7 - Vv[j][i] > 0.035:
+                key = (i // 3, j // 3)
+                cand[key] = cand.get(key, 0) + 1
+    shrubs = []
+    for (gi, gj), n in cand.items():
+        if n < 3:
+            continue
+        x_ = NEAR['x0'] + gi * 3 + 1.5 + (hash((gi, gj, 1)) % 100) / 100 - 0.5
+        z_ = NEAR['z0'] + gj * 3 + 1.5 + (hash((gi, gj, 2)) % 100) / 100 - 0.5
+        shrubs.append([round(x_, 1), round(z_, 1), round(0.9 + n / 9 * 0.6, 2)])
+
+    # 遊具広場：空中写真で (-105, -50) あたりの土（砂）の塊
+    from collections import deque
+    seed = min(((i, j) for j in range(nh) for i in range(nw) if cls[j * nw + i] == G['dirt']),
+               key=lambda p_: math.dist((p_[0] + NEAR['x0'], p_[1] + NEAR['z0']), (-105, -50)))
+    comp, q, seen_ = [], deque([seed]), {seed}
+    while q:
+        i, j = q.popleft()
+        comp.append((i, j))
+        for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+            if 0 <= ni < nw and 0 <= nj < nh and (ni, nj) not in seen_ and cls[nj * nw + ni] == G['dirt']:
+                seen_.add((ni, nj))
+                q.append((ni, nj))
+    px_s = [c[0] + NEAR['x0'] for c in comp]
+    pz_s = [c[1] + NEAR['z0'] for c in comp]
+    playground = {'x': round(sum(px_s) / len(px_s), 1), 'z': round(sum(pz_s) / len(pz_s), 1),
+                  'w': max(px_s) - min(px_s) + 1, 'd': max(pz_s) - min(pz_s) + 1, 'area': len(comp),
+                  'note': '空中写真の砂の広場の位置と大きさ。遊具の種類と配置は推定（公式の案内は名前だけ）'}
     log('mid ...')
     mh, mc = build_mid(dem, osm)
     B.write_height_png(os.path.join(OUT, 'mid_height.png'), mh, mc, MID['w'], MID['h'])
@@ -462,6 +567,7 @@ def main():
     if not best:
         raise SystemExit('no sheet spot found')
     _, sx, sz, shade = best
+    shrubs = [b for b in shrubs if math.dist(b[:2], (sx, sz)) > 5]  # シートのまわりは空ける
     tp_at = lambda x, z: near[(round(z) - NEAR['z0']) * nw + (round(x) - NEAR['x0'])]
     sight = Sight(near, trees, lm['nearBuildings'], dem)
     # ランチ：シートに座って（目の高さ 0.75 m）、川と舞浜の側（方位 110〜210°）で、いちばん遠くまで見通せる向き
@@ -480,11 +586,23 @@ def main():
                 if cls[j * nw + i] == G['revetment'] and not wet[j][i]),
                key=lambda p: math.dist(p, (sx, sz)))
     px_, pz_ = prom[0] - 3, prom[1]
-    # 川辺：河口の橋（湾岸道路・国道 357 号）の中ほどを向く
-    rb = next((b for b in lm['bridges'] if b['id'] == 'route-357'), lm['bridges'][0])
-    mx = sum(p[0] for p in rb['path']) / len(rb['path'])
-    mz = sum(p[1] for p in rb['path']) / len(rb['path'])
-    river_brg = round(bearing_dist(mx - px_, mz - pz_)[0], 1)
+    # 川辺：護岸の壁の内側（水際から 2 m）から、旧江戸川の下流（舞浜・河口の方）を見る。
+    # 河口の橋は川の曲がりの先（西岸の陸の向こう）なので、川の真ん中の線の下流の点（z = 550 付近）を向き、見通しがいちばん長い所を選ぶ。
+    # 立つ人の目（1.6 m）は、胸の高さの壁（1.1 m）の上から川を見る
+    down = min(river, key=lambda p_: abs(p_[1] - 550))
+    mx, mz = down
+    sight_r = Sight(near, trees, lm['nearBuildings'], dem)
+    best_r = None
+    for wx, wz in seawall_line[::3]:
+        x_, z_ = wx - 1.0, wz
+        if not (NEAR['z0'] + 5 < z_ < NEAR['z0'] + nh - 5):
+            continue
+        b_ = bearing_dist(mx - x_, mz - z_)[0]
+        c_ = sight_r.clear(x_, z_, tp_at(x_, z_) + 1.6, b_, maxd=1500)
+        if best_r is None or c_ > best_r[0]:
+            best_r = (c_, x_, z_, b_)
+    river_clear, px_, pz_, river_brg = best_r
+    river_brg = round(river_brg, 1)
     # 魔法の文学館：3 階（カフェ・キキ）。床の高さ 1 階 4.5 m・2 階 4 m とし、カフェの床は 1 階の床 + 8.5 m
     m_base = min(tp_at(x, z) for x, z in mfp)
     mx_ = sum(p[0] for p in mfp) / len(mfp)
@@ -549,7 +667,7 @@ def main():
         'frame': {'origin': SITE['origin'], 'upstreamBearing': SITE['upstreamBearing'],
                   'axes': '-z = 北、+x = 東、y = 0 が TP 3.0 m、1 単位 = 1 m'},
         'files': {
-            'near': {'height': 'near_height.png', 'ground': 'ground.png', **NEAR, 'encoding': 'TP = (R*256+G)/100 - 10、y = TP - origin.tp'},
+            'near': {'height': 'near_height.png', 'ground': 'ground.png', 'groundColor': 'ground_color.png', **NEAR, 'encoding': 'TP = (R*256+G)/100 - 10、y = TP - origin.tp'},
             'mid': {'height': 'mid_height.png', **MID, 'classes': MID_CLASSES, 'encoding': 'TP = (R*256+G)/100 - 10、B = classes の番号'},
         },
         'ground': [{'id': i, 'name': n, 'color': '#%02x%02x%02x' % c} for i, (n, c) in enumerate(GROUND)],
@@ -558,7 +676,8 @@ def main():
         'trees': trees,
         'sheet': {'x': sx, 'z': sz, 'bearing': LUNCH, 'size': [2.0, 1.4], 'shadeTree': shade},
         'sightlines': {'lunch': lunch_clear, 'sunset': sunset_clear},
-        'facilities': facilities,
+        'facilities': {**facilities, 'playground': playground, 'seawall': seawall,
+                       'azaleas': {'shrubs': shrubs, 'note': 'ツツジ山（約 130 品種 17,000 株）。丘の斜面の芝で、空中写真の暗いまだらの所に株の群れを置いた（10 月なので花はない）'}},
         'landmarks': lm,
         'viewpoints': view,
         'sun': {'lat': SITE['origin']['lat'], 'lon': SITE['origin']['lon'], 'date': '2026-10-18', 'tz': 9},
@@ -572,9 +691,13 @@ def main():
     with open(os.path.join(OUT, 'ATTRIBUTION.md'), 'w', encoding='utf-8') as f:
         f.write(open(os.path.join(os.path.dirname(OUT), 'edogawa', 'ATTRIBUTION.md'), encoding='utf-8').read()
                 .replace('（scenes/edogawa）', '（scenes/nagisa）')
+                .replace('| `ground.png`・`scene.json` の木 | 国土地理院 シームレス空中写真（地面の種類を読み取るためだけに使用。写真そのものは含めていません） |',
+                         '| `ground.png`・`ground_color.png`・`scene.json` の木 | 国土地理院 シームレス空中写真（地面の種類を読み取り、1 m ごとの色に縮めたもの） |')
+                .replace('「国土地理院 シームレス空中写真をもとに作成」', '「国土地理院 シームレス空中写真を加工して作成」')
                 .replace('python3 tools/geo/fetch_data.py` → `python3 tools/geo/build_scene.py', 'python3 tools/geo/fetch_data.py --site nagisa` → `python3 tools/geo/build_nagisa.py'))
     log(f'done: {OUT}')
     log(f'  hill TP {ttp:.1f} at ({tx},{tz}), sheet ({sx},{sz}) shade tree {shade}, trees {len(trees)}, bridges {len(lm["bridges"])}, '
+        f'azalea clumps {len(shrubs)}, river view {river_clear} m at ({px_},{pz_}) {river_brg}°, '
         f'cafe view cleared {removed} trees, cafe terrace ({cafe_x},{cafe_z}) {cafe_b}° floor TP {cafe_tp:.1f} (river {river_b:.0f}°), museum base TP {m_base:.1f}, '
         f'lunch {LUNCH}° clear {lunch_clear} m, sunset at {sunset_pt} clear {sunset_clear} m, '
         f'buildings {len(lm["buildings"])} + near {len(lm["nearBuildings"])}, wheel {lm["ferrisWheel"] and lm["ferrisWheel"]["bearing"]}')

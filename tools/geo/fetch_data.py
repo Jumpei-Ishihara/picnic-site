@@ -57,6 +57,7 @@ def overpass_query():
         f'way{bb}["bridge"]["highway"~"motorway|motorway_link|trunk_link"];',
     ]
     # 空中写真の範囲（近景のまわり）は、高さのない建物もすべて（近景に建物を立てるため）
+    parts += SITE.get('osmExtra', [])
     pb = SITE['photoBbox']
     parts.append(f'way({pb["s"]},{pb["w"]},{pb["n"]},{pb["e"]})["building"];')
     return '[out:json][timeout:120];(' + ''.join(parts) + ');out tags geom;'
