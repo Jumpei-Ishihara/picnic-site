@@ -1,0 +1,16 @@
+# 地理データの元データ（国土地理院のタイル・OSM の取得結果）と確認用の図。
+# 再配布せず、tools/geo/fetch_data.py で取り直す
+tools/geo/cache/
+
+# 企画提案書（個人の資料。公開リポジトリには含めない）
+docs/*企画提案書*.pdf
+
+# このパソコンだけの設定（プレビュー用サーバーのパスなど）
+.claude/
+
+# 書き出したファイル・一時ファイル
+*.mp4.tmp
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store

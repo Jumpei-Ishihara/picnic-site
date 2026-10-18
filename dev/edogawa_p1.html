@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>江戸川 P1 確認</title>
+  <link rel="stylesheet" href="../engine/ui.css" />
+  <style>
+    /* エンジン拡張（P1）の確認用ページ。見た目の作り込みは P2 以降の edogawa.html で行う */
+    #info { position: fixed; left: 8px; top: 8px; padding: 6px 10px; font: 12px/1.6 ui-monospace, monospace; white-space: pre; }
+    #ctl { position: fixed; left: 8px; bottom: 8px; padding: 6px 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 16px); }
+    #ctl input { width: 180px; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="info" class="box">読み込み中…</div>
+  <div id="ctl" class="box">
+    <button data-v="lunch">🍲 ランチ</button><button data-v="nap">😴 昼寝</button><button data-v="sunset">🌇 夕日</button><button data-v="bridge">🌉 鉄橋</button>
+    <input id="hour" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><span id="hl">12:00</span>
+  </div>
+  <div id="joy" class="hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { mulberry32, createToon, RAMP, rampify } from '../engine/pixel-kit.js';
+    import { createPixelRenderer } from '../engine/pixel-renderer.js';
+    import { createSky } from '../engine/sky.js';
+    import { createLights, createTimeOfDay } from '../engine/time-of-day.js';
+    import { createCollider } from '../engine/collision.js';
+    import { createPlayerController } from '../engine/player.js';
+    import { createPixelWater } from '../engine/water.js';
+    import { createSunPath } from '../engine/sun.js';
+    import { createHeightTerrain } from '../engine/terrain.js';
+    import { createBackdrop } from '../engine/backdrop.js';
+
+    const BASE = '../scenes/edogawa/';
+    const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    const LOOP = 6;
+    const rnd = mulberry32(3);
+    const toon = createToon();
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xb6dcf6, 150, 1500);
+    const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.15, 2600);
+    camera.rotation.order = 'YXZ';
+    const canvas = document.getElementById('view');
+    const pixel = createPixelRenderer({ canvas, scene, camera });
+    pixel.setPaletteOn(false);
+    pixel.setQuantize(32, 0.032);
+
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
+    const sky = createSky(scene, { rnd, mountains: 0, radius: 2400, cloudScale: 10 });
+    pixel.hideInNormalPass.add(sky.mesh);
+
+    const sunPath = createSunPath({ lat: data.sun.lat, lon: data.sun.lon, date: data.sun.date, tz: data.sun.tz, upstreamBearing: data.frame.upstreamBearing });
+    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, hour: 12, fogFar: 1500, fogNightShrink: 600, fogSkyMix: 0.3, lightDistance: 150 });
+
+    // ---- 地形
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon });
+    const NB = terrain.bounds.near;
+
+    // ---- 水面：両岸の水際で囲む（陸側へ 4 m 広げて、岸の地形の下にもぐらせる）
+    const level = data.water.levelY;
+    const sec = data.section; // 近景の東岸は断面の水際を使う（細かい）
+    const east = data.water.eastShore.filter(([, z]) => z < NB.z0 || z > NB.z1).concat(sec.map(r => [r.shore, r.z])).sort((a, b) => a[1] - b[1]);
+    const west = data.water.westShore.slice().sort((a, b) => a[1] - b[1]);
+    const shape = [[...west.map(([x, z]) => [x - 4, z]), ...east.reverse().map(([x, z]) => [x + 4, z])]];
+    const water = createPixelWater({
+      renderer: pixel.renderer, scene, camera, shape, level, loop: LOOP,
+      depthBounds: { x0: NB.x0 - 90, z0: NB.z0, x1: NB.x1, z1: NB.z1 },
+      groundHeight: terrain.heightAt, maxDepth: 3, clarity: 0.3, caustic: 0.15, wave: 0.8, waveFade: [5, 40],
+      tints: {
+        day:   ['#7a9478', '#41605e', '#dfe6d6', '#8aa080'],
+        dusk:  ['#b8806b', '#46345a', '#ffdbb8', '#d98c40'],
+        night: ['#1f4a5a', '#0d1f33', '#7f99bf', '#3c6a8a']
+      }
+    });
+
+    // ---- 遠景
+    const backdrop = createBackdrop({ scene, items: data.landmarks.backdrop, upstreamBearing: data.frame.upstreamBearing });
+
+    // ---- 歩く
+    const collider = createCollider({ cell: 2 });
+    collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
+    collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
+    const controls = createPlayerController({
+      canvas, camera, scene, collider, start: { x: 0, z: 0, yaw: sunPath.yawOfBearing(285), pitch: -0.05 },
+      eye: 1.55, isTouch: IS_TOUCH, heightAt: terrain.heightAt, walkSpeed: 4, runSpeed: 9, maxTapDistance: 120,
+      joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
+      tapTargets: [terrain.near]
+    });
+    const player = controls.player;
+
+    // ---- 3色塗り
+    {
+      tod.apply(12);
+      const e = new THREE.Color().copy(sun.color).multiplyScalar(sun.intensity).add(new THREE.Color().copy(hemi.color).multiplyScalar(hemi.intensity));
+      RAMP.dayRef.value = (0.299 * e.r + 0.587 * e.g + 0.114 * e.b) / Math.PI;
+      scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) rampify(m); });
+    }
+
+    // ---- 視点
+    const hourEl = document.getElementById('hour'), hlEl = document.getElementById('hl');
+    const fmt = h => `${Math.floor(h)}:${String(Math.round(h % 1 * 60) % 60).padStart(2, '0')}`;
+    function setHour(h) { tod.hour = h; hourEl.value = h; hlEl.textContent = fmt(h); }
+    function setView(name) {
+      const v = data.viewpoints[name];
+      setHour(v.hour);
+      controls.cancelWalk();
+      player.x = v.x; player.z = v.z;
+      player.yaw = sunPath.yawOfBearing(v.bearing);
+      player.pitch = v.pitch * Math.PI / 180;
+      controls.setEye(v.eye);
+      controls.settle?.();
+    }
+    for (const b of document.querySelectorAll('[data-v]')) b.addEventListener('click', () => setView(b.dataset.v));
+    hourEl.addEventListener('input', () => setHour(+hourEl.value));
+    addEventListener('keydown', e => { const v = { 1: 'lunch', 2: 'nap', 3: 'sunset', 4: 'bridge' }[e.key]; if (v) setView(v); });
+
+    // ---- 毎フレーム
+    const info = document.getElementById('info');
+    let elapsed = 0, last = performance.now(), cpu = 0;
+    function step(dt) {
+      const t0 = performance.now();
+      elapsed += dt;
+      tod.update(dt);
+      controls.update(dt);
+      tod.setShadowCenter(camera.position);
+      sky.update(dt, elapsed, camera.position);
+      backdrop.update({ horizon: sky.uniforms.uHor.value, top: sky.uniforms.uTop.value, sunDir: tod.state.sunDir, night: tod.night }, camera.position);
+      const warm = Math.max(0, 1 - Math.abs(sunPath.keyHour(tod.hour) - 18.3) / 1.6);
+      water.update(dt, elapsed % LOOP, { sun, night: tod.night, warm, fog: scene.fog });
+      water.renderReflection(pixel.size.width, pixel.size.height);
+      pixel.render();
+      cpu = cpu * 0.9 + (performance.now() - t0) * 0.1;
+      const s = sunPath.sunAt(tod.hour);
+      const yawDeg = ((data.frame.upstreamBearing - player.yaw * 180 / Math.PI) % 360 + 360) % 360;
+      info.textContent = `${fmt(tod.hour)}  太陽 高さ ${s.elevation.toFixed(1)}° 方位 ${s.azimuth.toFixed(0)}°\n`
+        + `位置 x ${player.x.toFixed(1)} z ${player.z.toFixed(1)}  地面 ${terrain.groundAt(player.x, player.z)}  TP ${(terrain.heightAt(player.x, player.z) + data.frame.origin.tp).toFixed(2)}\n`
+        + `向き ${yawDeg.toFixed(0)}°  CPU ${cpu.toFixed(1)} ms`;
+    }
+    requestAnimationFrame(function frame(now) {
+      step(Math.min(0.05, (now - last) / 1000));
+      last = now;
+      requestAnimationFrame(frame);
+    });
+    setView('lunch');
+
+    window.__edo = { THREE, data, terrain, water, backdrop, sunPath, tod, controls, player, camera, pixel, sun, step, setView, setHour, scene };
+  </script>
+</body>
+</html>

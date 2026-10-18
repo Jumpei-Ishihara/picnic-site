@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ドット絵ワールド</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    /* 入口ページ：2つの場面へのリンク */
+    html, body { overflow: auto; touch-action: auto; -webkit-user-select: auto; user-select: auto; }
+    body { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+      background: linear-gradient(#3c6aa8, #84b6ea 55%, #5fa04a 55%, #3f7d3c); }
+    main { max-width: 560px; width: 100%; padding: 22px; line-height: 1.75; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    p { margin: 4px 0 16px; color: #e2e4ea; font-size: 14px; }
+    .scenes { display: grid; gap: 10px; }
+    .scenes a { display: block; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.06); color: var(--text); text-decoration: none; }
+    .scenes a:hover { background: rgba(255, 255, 255, 0.12); }
+    .scenes strong { font-size: 16px; }
+    .scenes span { display: block; font-size: 13px; color: var(--muted); }
+    footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="box">
+    <h1>ドット絵ワールド</h1>
+    <p>歩けるドット絵の場面です。歩き回ったり、座って景色を眺めたりできます。</p>
+    <div class="scenes">
+      <a href="edogawa.html"><strong>🍲 江戸川のピクニック</strong><span>市川の江戸川河川敷を、国土地理院の標高と地図データから再現。スープと昼寝の身軽ピクニック。10月の太陽の位置で、スカイツリーの横に夕日が沈む。PNG・ループ動画の書き出しつき。</span></a>
+      <a href="picnic.html"><strong>🧺 川辺のピクニック</strong><span>木陰のシート、きらめく川、夕日と蛍。PNG・ループ動画の書き出しつき。</span></a>
+      <a href="town_3d.html"><strong>🏘️ ドット街さんぽ</strong><span>運河と広場の小さな街。お店に入るとサイトの各ページが開きます。</span></a>
+    </div>
+    <footer>旧版：<a href="legacy/picnic_3d.html">レイマーチング版のピクニック</a> ・ <a href="legacy/pixelart_2d.html">2D 版</a></footer>
+  </main>
+</body>
+</html>

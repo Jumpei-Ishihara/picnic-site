@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ドット街さんぽ</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    /* 街だけで使うもの */
+    #minimap {
+      position: fixed; top: 12px; right: 12px; width: 208px; height: 176px; padding: 4px;
+      image-rendering: pixelated; pointer-events: none;
+    }
+    @media (max-width: 640px) {
+      #minimap { width: 120px; height: 102px; top: calc(8px + env(safe-area-inset-top)); right: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="hud-tl" class="box">
+    <div class="title">ドット街さんぽ<span class="ver">prototype</span></div>
+    <div id="loc">📍 さくら坂</div>
+  </div>
+  <canvas id="minimap" class="box"></canvas>
+
+  <button id="prompt" class="hidden"></button>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く（お店ならそのまま入店）・ E: 入る</div>
+  <div id="joy" class="hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box">
+    <div class="group">
+      <button id="m-walk" class="on">🚶 自由歩行</button>
+      <button id="m-stroll">👣 おまかせ散策</button>
+      <button id="s-pause" title="散策を一時停止（Space）">⏸</button>
+      <button id="o-more" title="表示・音の設定">⚙️</button>
+    </div>
+    <div class="group time">
+      <label id="time-label">14:00</label>
+      <input id="time" type="range" min="0" max="24" step="0.05" value="14" />
+      <button id="t-auto" title="時間を自動で進める">⏩</button>
+    </div>
+    <div class="group opts">
+      <button id="o-pal" class="on" title="固定パレットで減色">🎨 パレット</button>
+      <button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button>
+      <button id="o-px" title="ドットの大きさ">🔍 ×3</button>
+      <button id="o-snd" class="on" title="足音・環境音">🔊</button>
+    </div>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div class="card box">
+      <span class="tag" id="p-tag"></span>
+      <h2 id="p-title"></h2>
+      <div id="p-body"></div>
+      <button id="p-close">✕ 街に戻る（Esc）</button>
+    </div>
+  </div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🏘️ ドット街さんぽ</h1>
+      <p>運河と広場のある小さな街を、ドット絵の世界で歩いてみましょう。お店の扉に近づくと中に入れます。</p>
+      <div class="btns">
+        <button id="s-walk">🚶 自由に歩く</button>
+        <button id="s-stroll" class="sub">👣 おまかせ散策</button>
+      </div>
+      <small id="start-hint">PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、E で入店 ／ スマホ: 画面左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所やお店へ歩いて行けます</small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { MASTER_PALETTE, PPM, mulberry32, makePicker, makeCanvas, shade, pixelTex, createToon } from './engine/pixel-kit.js';
+    import { createPixelRenderer } from './engine/pixel-renderer.js';
+    import { createSky } from './engine/sky.js';
+    import { createLights, createTimeOfDay } from './engine/time-of-day.js';
+    import { createCollider } from './engine/collision.js';
+    import { createPlayerController } from './engine/player.js';
+    import { createAudio } from './engine/audio.js';
+    import { bindButton as btn, createToast, bindTimeControls } from './engine/ui.js';
+
+    // ============================================================================
+    // 街のタイルマップ（1文字 = 2m × 2m）。ここを書き換えると街の形が変わる。
+    //   .芝生  #車道  -歩道  p広場  ~運河  =橋
+    //   t木  l街灯  hベンチ  f花壇  o噴水  c猫
+    //   A〜Z 建物（同じ文字の長方形が1棟。内容は BUILDINGS で設定）
+    // ============================================================================
+    const MAP = [
+      't..t...t..' + '-##-' + '..t..t.' + '~~' + '.t.',
+      '..........' + '-##-' + '.......' + '~~' + '...',
+      '.t..f..f.t' + 'l##-' + '.t...t.' + '~~' + 't..',
+      '..........' + '-##-' + '.......' + '~~' + '...',
+      '.AAA.BBBB.' + '-##-' + 'EEE.FFF' + '~~' + 'GG.',
+      '.AAA.BBBB.' + '-##l' + 'EEE.FFF' + '~~' + 'GG.',
+      '.AAA.BBBB.' + '-##-' + 'EEE.FFF' + '~~' + 'GG.',
+      'fAAAfBBBBf' + '-##-' + 'EEEfFFF' + '~~' + 'GG.',
+      '-l----l---' + '----' + '--l---l' + '==' + '---',
+      '##########' + '####' + '#######' + '==' + '###',
+      '##########' + '####' + '#######' + '==' + '###',
+      '---l----l-' + '----' + '-l----l' + '==' + '---',
+      'HHHfIIII.t' + '-##-' + 'pppppph' + '~~' + 'JJ.',
+      'HHH.IIII..' + '-##-' + 'pcppppp' + '~~' + 'JJ.',
+      'HHH.IIII..' + 'l##-' + 'pppoppp' + '~~' + '.t.',
+      'HHH.IIII..' + '-##-' + 'ppppppp' + '~~' + '...',
+      '.........t' + '-##-' + 'hpppppt' + '~~' + '...',
+      '.t..t.....' + '-##l' + 't.f.f.t' + '~~' + '.t.',
+      'KKKK.LLLL.' + '-##-' + 'MMMM...' + '~~' + '...',
+      'KKKK.LLLL.' + '-##-' + 'MMMM.t.' + '~~' + 't..',
+      'KKKK.LLLL.' + '-##-' + 'MMMM...' + '~~' + '...',
+      't...t...tt' + '-##-' + '..t..t.' + '~~' + '.t.'
+    ];
+
+    // 建物 = Webサイトのセクション。扉から入ると body が表示される。
+    const BUILDINGS = {
+      A: { name: 'パン屋「こむぎ」', icon: '🥐', section: 'About', floors: 2, wall: '#f1dcb5', trim: '#8a5a3a', roof: 'gable', roofColor: '#b8463f', awning: '#b8463f', shop: true,
+           body: '<p>焼きたての香りがする街角のパン屋。ここは<strong>自己紹介（About）</strong>の部屋です。</p><p>プロフィール、好きなもの、活動の経歴などを置く想定です。</p>' },
+      B: { name: '古書店「しおり」', icon: '📚', section: 'Blog', floors: 3, wall: '#c9a27a', trim: '#5b3d2b', roof: 'flat', roofColor: '#5b3d2b', awning: '#3f7d3c', shop: true,
+           body: '<p>背の高い本棚がぎっしり。ここは<strong>日記・記事（Blog）</strong>の部屋です。</p><p>最新記事の一覧を本の背表紙のように並べるのも楽しそうです。</p>' },
+      E: { name: '喫茶「かわべ」', icon: '☕', section: 'Contact', floors: 2, wall: '#e8c99a', trim: '#5b3d2b', roof: 'gable', roofColor: '#2c4a7a', awning: '#2c4a7a', shop: true,
+           body: '<p>運河の見える窓際席が人気の喫茶店。ここは<strong>お問い合わせ（Contact）</strong>の部屋です。</p><p>連絡フォームやSNSへのリンクを置く想定です。</p>' },
+      F: { name: '花屋「つぼみ」', icon: '🌷', section: 'Works', floors: 2, wall: '#f4f4f2', trim: '#3f7d3c', roof: 'gable', roofColor: '#3f7d3c', awning: '#e88a8e', shop: true,
+           body: '<p>季節の花が店先にあふれています。ここは<strong>作品集（Works）</strong>の部屋です。</p><p>作品を花束のようにカードで並べる展示を想定しています。</p>' },
+      G: { name: '運河の倉庫ギャラリー', icon: '🖼️', section: 'Gallery', floors: 3, wall: '#8c2f39', trim: '#3a2a22', roof: 'flat', roofColor: '#3a2a22', awning: '#26304f', brick: true, shop: true,
+           body: '<p>レンガ倉庫を改装したギャラリー。ここは<strong>ドット絵・動画（Gallery）</strong>の部屋です。</p><p>「川辺のピクニック」の書き出し動画などを飾る想定です。</p>' },
+      H: { name: '銭湯「つきのゆ」', icon: '♨️', section: 'Links', floors: 2, wall: '#9497a0', trim: '#26304f', roof: 'gable', roofColor: '#26304f', awning: '#26304f', shop: true,
+           body: '<p>のれんの奥から湯気が立っています。ここは<strong>リンク集（Links）</strong>の部屋です。</p>' },
+      I: { name: 'アパート「ひなた荘」', icon: '🏢', section: '住人', floors: 4, wall: '#e06a4f', trim: '#5a1f2b', roof: 'flat', roofColor: '#5a1f2b', brick: true,
+           body: '<p>4階建てのレンガのアパート。窓の明かりは夜になると灯ります。</p><p>（ここはまだ空き部屋です）</p>' },
+      J: { name: '時計塔', icon: '🕰️', section: 'News', floors: 6, wall: '#c3c4c8', trim: '#4a4a55', roof: 'pyramid', roofColor: '#2f8a8f',
+           body: '<p>街の時刻を告げる時計塔。文字盤は街の時間に合わせて動いています。</p><p>ここは<strong>お知らせ（News）</strong>の部屋です。</p>' },
+      K: { name: '民家', icon: '🏠', section: '住宅', floors: 2, wall: '#f4f4f2', trim: '#7f5639', roof: 'gable', roofColor: '#7a3f6e',
+           body: '<p>ノックしてみたけれど、返事はない…。</p>' },
+      L: { name: '民家', icon: '🏠', section: '住宅', floors: 2, wall: '#bfe08a', trim: '#2e5a3a', roof: 'gable', roofColor: '#8c2f39',
+           body: '<p>庭から夕飯のいい匂いがする。</p>' },
+      M: { name: '民家', icon: '🏠', section: '住宅', floors: 3, wall: '#b6dcf6', trim: '#2c4a7a', roof: 'gable', roofColor: '#4a4a55',
+           body: '<p>窓辺で猫が昼寝をしている。</p>' }
+    };
+
+    const TILE = 2;
+    const ROWS = MAP.length, COLS = MAP[0].length;
+    const tileAt = (c, r) => (r < 0 || r >= ROWS || c < 0 || c >= COLS) ? null : MAP[r][c];
+    const tx = c => (c - COLS / 2) * TILE;
+    const tz = r => (r - ROWS / 2) * TILE;
+    const toCol = x => Math.floor(x / TILE + COLS / 2);
+    const toRow = z => Math.floor(z / TILE + ROWS / 2);
+    const isBuilding = ch => !!ch && !!BUILDINGS[ch];
+    const BASE = { t: '.', f: '.', l: '-', h: 'p', o: 'p', c: 'p' };
+    const baseOf = ch => BASE[ch] || ch;
+
+    const rnd = mulberry32(20261017);
+    const pick = makePicker(rnd);
+    const toon = createToon();
+
+    const nightMats = [];   // 夜に窓が灯るマテリアル
+    const lampHeads = [];
+    const lampLights = [];
+
+    // ---------------------------------------------------------------------------
+    // レンダラー・シーン・空
+    // ---------------------------------------------------------------------------
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    const canvas = document.getElementById('view');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xb6dcf6, 22, 72);
+    const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 320);
+    camera.rotation.order = 'YXZ';
+    const pixel = createPixelRenderer({ canvas, scene, camera, palette: MASTER_PALETTE });
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 42 });
+    const sky = createSky(scene, { rnd });
+
+    // ---------------------------------------------------------------------------
+    // 地面（タイルマップから1枚のドット絵テクスチャを生成）
+    // ---------------------------------------------------------------------------
+    const TAP_TARGETS = []; // タップで歩く先を判定する対象（地面・建物・猫）
+    function buildGround() {
+      const TP = TILE * PPM; // 16px / tile
+      const [cv, g] = makeCanvas(COLS * TP, ROWS * TP);
+      const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+      const sprinkle = (x0, y0, n, cols) => { for (let i = 0; i < n; i++) px(x0 + ((rnd() * TP) | 0), y0 + ((rnd() * TP) | 0), pick(cols)); };
+      const isRoad = ch => baseOf(ch) === '#';
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const ch = MAP[r][c];
+          const b = baseOf(ch);
+          const x0 = c * TP, y0 = r * TP;
+          if (b === '.') {
+            g.fillStyle = '#5fa04a'; g.fillRect(x0, y0, TP, TP);
+            sprinkle(x0, y0, 70, ['#3f7d3c', '#8ac35b', '#4f9042']);
+            if (rnd() < 0.35) sprinkle(x0, y0, 2, ['#ffe79a', '#e88a8e', '#f4f4f2']);
+          } else if (b === '#') {
+            g.fillStyle = '#4a4a55'; g.fillRect(x0, y0, TP, TP);
+            sprinkle(x0, y0, 40, ['#3f3f4a', '#55555f']);
+            // 白線：横断歩道（歩道の延長上）と中央の破線（交差点内は描かない）
+            const roadish = ch => ch === null || ch === '=' || isRoad(ch);
+            const side = (cc, rr) => baseOf(tileAt(cc, rr)) === '-';
+            const horiz = roadish(tileAt(c - 1, r)) && roadish(tileAt(c + 1, r));
+            const vert = roadish(tileAt(c, r - 1)) && roadish(tileAt(c, r + 1));
+            g.fillStyle = '#f4f4f2';
+            if (horiz) {
+              const zebra = (side(c, r - 1) && side(c, r - 2)) || (side(c, r + 1) && side(c, r + 2));
+              const inIntersection = isRoad(tileAt(c, r - 2)) || isRoad(tileAt(c, r + 2));
+              if (zebra) for (let y = 1; y < TP; y += 4) g.fillRect(x0 + 2, y0 + y, TP - 4, 2);
+              else if (!inIntersection) {
+                if (isRoad(tileAt(c, r + 1)) && !isRoad(tileAt(c, r - 1))) for (let x = 2; x < TP; x += 8) g.fillRect(x0 + x, y0 + TP - 1, 4, 1);
+                if (isRoad(tileAt(c, r - 1)) && !isRoad(tileAt(c, r + 1))) for (let x = 2; x < TP; x += 8) g.fillRect(x0 + x, y0, 4, 1);
+              }
+            } else if (vert) {
+              if (side(c, r - 1) || side(c, r + 1)) for (let x = 1; x < TP; x += 4) g.fillRect(x0 + x, y0 + 2, 2, TP - 4);
+              else {
+                if (isRoad(tileAt(c + 1, r)) && !isRoad(tileAt(c - 1, r))) for (let y = 2; y < TP; y += 8) g.fillRect(x0 + TP - 1, y0 + y, 1, 4);
+                if (isRoad(tileAt(c - 1, r)) && !isRoad(tileAt(c + 1, r))) for (let y = 2; y < TP; y += 8) g.fillRect(x0, y0 + y, 1, 4);
+              }
+            }
+          } else if (b === '-') {
+            g.fillStyle = '#c3c4c8'; g.fillRect(x0, y0, TP, TP);
+            g.fillStyle = '#a9abb3';
+            for (let k = 0; k < TP; k += 4) { g.fillRect(x0, y0 + k, TP, 1); g.fillRect(x0 + k, y0, 1, TP); }
+            sprinkle(x0, y0, 12, ['#d6d7da', '#9497a0']);
+            g.fillStyle = '#6d6d78';
+            if (isRoad(tileAt(c, r - 1))) g.fillRect(x0, y0, TP, 2);
+            if (isRoad(tileAt(c, r + 1))) g.fillRect(x0, y0 + TP - 2, TP, 2);
+            if (isRoad(tileAt(c - 1, r))) g.fillRect(x0, y0, 2, TP);
+            if (isRoad(tileAt(c + 1, r))) g.fillRect(x0 + TP - 2, y0, 2, TP);
+          } else if (b === 'p') {
+            g.fillStyle = '#cf9f6b'; g.fillRect(x0, y0, TP, TP);
+            for (let y = 0; y < TP; y += 4) {
+              for (let x = (y / 4) % 2 ? -4 : 0; x < TP; x += 8) {
+                g.fillStyle = rnd() < 0.5 ? '#e8c99a' : '#dcb788';
+                g.fillRect(x0 + Math.max(0, x), y0 + y, Math.min(7, 7 + x), 3);
+              }
+            }
+          } else if (b === '~') {
+            g.fillStyle = '#1e5a66'; g.fillRect(x0, y0, TP, TP);
+          } else if (b === '=') {
+            g.fillStyle = '#a8774c'; g.fillRect(x0, y0, TP, TP);
+            g.fillStyle = '#7f5639';
+            for (let x = 0; x < TP; x += 3) g.fillRect(x0 + x, y0, 1, TP);
+            sprinkle(x0, y0, 10, ['#cf9f6b', '#5b3d2b']);
+          } else {
+            g.fillStyle = '#6d6d78'; g.fillRect(x0, y0, TP, TP);
+          }
+        }
+      }
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(COLS * TILE, ROWS * TILE), toon({ map: pixelTex(cv) }));
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      TAP_TARGETS.push(ground);
+
+      // マップ外の野原
+      const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), toon({ color: 0x4f9042 }));
+      outer.rotation.x = -Math.PI / 2;
+      outer.position.y = -0.02;
+      scene.add(outer);
+    }
+    buildGround();
+
+    // ---------------------------------------------------------------------------
+    // 建物（同じ文字の範囲を1棟として生成。壁はドット絵のファサードテクスチャ）
+    // ---------------------------------------------------------------------------
+    const BLD_BOX = {};
+    const DOORS = [];
+    const FACE_INDEX = { E: 0, W: 1, S: 4, N: 5 };
+    const FACE_NORMAL = { E: [1, 0], W: [-1, 0], S: [0, 1], N: [0, -1] };
+
+    function drawWindow(g, ge, x, y, w, h, b, big) {
+      g.fillStyle = b.trim; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = '#2c4a7a'; g.fillRect(x, y, w, h);
+      g.fillStyle = '#84b6ea'; g.fillRect(x + 1, y + 1, 1, h - 3); g.fillRect(x + w - 3, y + 1, 1, 2);
+      if (!big) { g.fillStyle = b.trim; g.fillRect(x + (w >> 1), y, 1, h); }
+      g.fillStyle = shade(b.trim, -0.3); g.fillRect(x - 1, y + h + 1, w + 2, 1);
+      if (rnd() < 0.5) { g.fillStyle = pick(['#e88a8e', '#f6c95b', '#f4f4f2', '#8ac35b']); g.fillRect(x, y, w, 2); }
+      if (big || rnd() < 0.55) {
+        ge.fillStyle = big ? '#ffd98a' : pick(['#ffcf7a', '#ffe7a8', '#ffb867', '#cfe3ff']);
+        ge.fillRect(x, y, w, h);
+      }
+    }
+
+    function makeFacade(b, wm, hm, isFront) {
+      const W = Math.max(8, Math.round(wm * PPM)), H = Math.max(8, Math.round(hm * PPM));
+      const [cv, g] = makeCanvas(W, H);
+      const [ce, ge] = makeCanvas(W, H);
+      g.fillStyle = b.wall; g.fillRect(0, 0, W, H);
+      ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
+      if (b.brick) {
+        g.fillStyle = shade(b.wall, -0.2);
+        for (let y = 0; y < H; y += 3) {
+          g.fillRect(0, y, W, 1);
+          for (let x = (y / 3) % 2 ? 0 : 3; x < W; x += 6) g.fillRect(x, y, 1, 3);
+        }
+      }
+      for (let i = 0; i < W * H * 0.06; i++) {
+        g.fillStyle = shade(b.wall, rnd() < 0.5 ? -0.07 : 0.06);
+        g.fillRect((rnd() * W) | 0, (rnd() * H) | 0, 1, 1);
+      }
+      g.fillStyle = b.trim;
+      g.fillRect(0, H - 2, W, 2);
+      g.fillRect(0, 0, W, 2);
+
+      const FH = 3 * PPM;
+      const doorW = 10, doorH = 18, doorX = Math.round(W / 2 - doorW / 2);
+      const n = Math.max(1, Math.floor(wm / 2.2));
+      const sp = W / n;
+      for (let f = 0; f < b.floors; f++) {
+        const yb = H - 2 - f * FH;
+        if (f > 0) { g.fillStyle = shade(b.trim, 0.15); g.fillRect(0, yb, W, 1); }
+        for (let k = 0; k < n; k++) {
+          const big = f === 0 && isFront && !!b.shop;
+          const ww = big ? 12 : 8, wh = big ? 12 : 11;
+          const wx = Math.round(sp * (k + 0.5) - ww / 2), wy = big ? yb - 15 : yb - 17;
+          if (f === 0 && isFront && wx + ww + 1 > doorX - 1 && wx - 1 < doorX + doorW + 1) continue;
+          if (wx < 1 || wx + ww > W - 1) continue;
+          drawWindow(g, ge, wx, wy, ww, wh, b, big);
+        }
+      }
+      if (isFront) {
+        const yTop = H - 2 - doorH;
+        g.fillStyle = shade(b.trim, -0.3); g.fillRect(doorX - 1, yTop - 1, doorW + 2, doorH + 1);
+        g.fillStyle = shade(b.trim, 0.1); g.fillRect(doorX, yTop, doorW, doorH);
+        g.fillStyle = '#2c4a7a'; g.fillRect(doorX + 2, yTop + 2, doorW - 4, 6);
+        g.fillStyle = '#f6c95b'; g.fillRect(doorX + doorW - 3, yTop + 11, 1, 1);
+        ge.fillStyle = '#ffd98a'; ge.fillRect(doorX + 2, yTop + 2, doorW - 4, 6);
+      }
+      return { map: pixelTex(cv), emissiveMap: pixelTex(ce) };
+    }
+
+    function makeRoofTexture(color) {
+      const [cv, g] = makeCanvas(8, 8);
+      g.fillStyle = color; g.fillRect(0, 0, 8, 8);
+      g.fillStyle = shade(color, -0.3); g.fillRect(0, 7, 8, 1); g.fillRect(0, 3, 8, 1);
+      g.fillRect(2, 0, 1, 3); g.fillRect(6, 4, 1, 3);
+      g.fillStyle = shade(color, 0.18); g.fillRect(0, 0, 8, 1);
+      return pixelTex(cv, true);
+    }
+
+    function makeSignTexture(icon, bg) {
+      const [cv, g] = makeCanvas(32, 32);
+      g.fillStyle = bg; g.fillRect(0, 0, 32, 32);
+      g.fillStyle = '#fff6d6'; g.fillRect(2, 2, 28, 28);
+      g.font = '22px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(icon, 16, 18);
+      return pixelTex(cv);
+    }
+
+    function makeStripeTexture(color) {
+      const [cv, g] = makeCanvas(16, 4);
+      for (let x = 0; x < 16; x++) { g.fillStyle = (x >> 1) % 2 ? '#f4f4f2' : color; g.fillRect(x, 0, 1, 4); }
+      return pixelTex(cv);
+    }
+
+    function gableRoof(span, length, rise, mat) {
+      const s = new THREE.Shape();
+      s.moveTo(-span / 2, 0); s.lineTo(span / 2, 0); s.lineTo(0, rise); s.closePath();
+      const geo = new THREE.ExtrudeGeometry(s, { depth: length, bevelEnabled: false });
+      geo.translate(0, 0, -length / 2);
+      return new THREE.Mesh(geo, mat);
+    }
+
+    let clockTex = null, clockCtx = null;
+
+    function buildBuildings() {
+      const info = {};
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const ch = MAP[r][c];
+        if (!isBuilding(ch)) continue;
+        const o = info[ch] || (info[ch] = { minC: c, maxC: c, minR: r, maxR: r });
+        o.minC = Math.min(o.minC, c); o.maxC = Math.max(o.maxC, c);
+        o.minR = Math.min(o.minR, r); o.maxR = Math.max(o.maxR, r);
+      }
+      const INSET = 0.2;
+      const walkable = ch => !!ch && '-#p=lh'.includes(ch);
+
+      for (const key of Object.keys(info)) {
+        const o = info[key], b = BUILDINGS[key];
+        const x0 = tx(o.minC) + INSET, x1 = tx(o.maxC + 1) - INSET;
+        const z0 = tz(o.minR) + INSET, z1 = tz(o.maxR + 1) - INSET;
+        const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+        const h = b.floors * 3 + 0.4;
+        BLD_BOX[key] = { x0, x1, z0, z1 };
+
+        // 扉の向き：歩道・道路に一番多く面している側
+        const count = { N: 0, S: 0, E: 0, W: 0 };
+        for (let c = o.minC; c <= o.maxC; c++) { count.N += walkable(tileAt(c, o.minR - 1)); count.S += walkable(tileAt(c, o.maxR + 1)); }
+        for (let r = o.minR; r <= o.maxR; r++) { count.W += walkable(tileAt(o.minC - 1, r)); count.E += walkable(tileAt(o.maxC + 1, r)); }
+        let front = 'N';
+        for (const s of ['S', 'N', 'E', 'W']) if (count[s] > count[front]) front = s;
+
+        const mats = [];
+        for (const side of ['E', 'W', 'top', 'bottom', 'S', 'N']) {
+          if (side === 'top' || side === 'bottom') { mats.push(toon({ color: b.roofColor })); continue; }
+          const faceW = (side === 'E' || side === 'W') ? d : w;
+          const fac = makeFacade(b, faceW, h, side === front);
+          const m = toon({ map: fac.map, emissiveMap: fac.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0 });
+          nightMats.push(m);
+          mats.push(m);
+        }
+        const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+        box.position.set(cx, h / 2, cz);
+        box.castShadow = box.receiveShadow = true;
+        box.userData.bkey = key;
+        scene.add(box);
+        TAP_TARGETS.push(box);
+
+        // 屋根
+        const roofMat = toon({ map: makeRoofTexture(b.roofColor) });
+        if (b.roof === 'gable') {
+          const span = Math.min(w, d) + 0.5, len = Math.max(w, d) + 0.5;
+          const roof = gableRoof(span, len, span * 0.38, roofMat);
+          if (w > d) roof.rotation.y = Math.PI / 2;
+          roof.position.set(cx, h, cz);
+          roof.castShadow = roof.receiveShadow = true;
+          scene.add(roof);
+        } else if (b.roof === 'pyramid') {
+          const rise = Math.max(w, d) * 0.9;
+          const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.SQRT1_2, 1, 4), roofMat);
+          roof.rotation.y = Math.PI / 4;
+          roof.scale.set(w + 0.5, rise, d + 0.5);
+          roof.position.set(cx, h + rise / 2, cz);
+          roof.castShadow = true;
+          scene.add(roof);
+        } else {
+          const pm = toon({ color: b.trim });
+          const ph = 0.5, pt = 0.2;
+          for (const [px, pz, sx, sz] of [[cx, z0 + pt / 2, w, pt], [cx, z1 - pt / 2, w, pt], [x0 + pt / 2, cz, pt, d], [x1 - pt / 2, cz, pt, d]]) {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(sx, ph, sz), pm);
+            p.position.set(px, h + ph / 2, pz);
+            p.castShadow = true;
+            scene.add(p);
+          }
+          const ac = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.7), toon({ color: '#9497a0' }));
+          ac.position.set(cx + w * 0.2, h + 0.3, cz - d * 0.15);
+          ac.castShadow = true;
+          scene.add(ac);
+        }
+
+        // 扉まわり（ひさし・看板）
+        const [nx, nz] = FACE_NORMAL[front];
+        const dx = front === 'E' ? x1 : front === 'W' ? x0 : cx;
+        const dz = front === 'S' ? z1 : front === 'N' ? z0 : cz;
+        const deco = new THREE.Group();
+        deco.position.set(dx, 0, dz);
+        deco.rotation.y = Math.atan2(nx, nz);
+        scene.add(deco);
+        if (b.awning) {
+          const pivot = new THREE.Group();
+          pivot.position.set(0, 2.75, 0);
+          pivot.rotation.x = 0.32;
+          const aw = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 1.0), toon({ map: makeStripeTexture(b.awning) }));
+          aw.position.z = 0.5;
+          aw.castShadow = true;
+          pivot.add(aw);
+          deco.add(pivot);
+        }
+        if (key !== 'J') {
+          const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), toon({ map: makeSignTexture(b.icon, b.trim), emissive: 0xffffff, emissiveIntensity: 0 }));
+          sign.material.emissiveMap = sign.material.map;
+          nightMats.push(sign.material);
+          sign.position.set(0, 3.45, 0.03);
+          deco.add(sign);
+        }
+        DOORS.push({ key, x: dx + nx * 0.6, z: dz + nz * 0.6, b });
+
+        // 時計塔の文字盤（街の時刻と連動）
+        if (key === 'J') {
+          const [cv, g] = makeCanvas(32, 32);
+          clockCtx = g;
+          clockTex = pixelTex(cv);
+          const cm = toon({ map: clockTex, transparent: true, emissive: 0xffffff, emissiveMap: clockTex, emissiveIntensity: 0 });
+          nightMats.push(cm);
+          for (const [sx, sz, ry] of [[cx, z1 + 0.03, 0], [cx, z0 - 0.03, Math.PI], [x1 + 0.03, cz, Math.PI / 2], [x0 - 0.03, cz, -Math.PI / 2]]) {
+            const f = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), cm);
+            f.position.set(sx, h - 2.2, sz);
+            f.rotation.y = ry;
+            scene.add(f);
+          }
+        }
+      }
+    }
+    buildBuildings();
+
+    let lastClockMinute = -1;
+    function drawClock(hour) {
+      if (!clockCtx) return;
+      const minute = Math.floor(hour * 60) % 1440;
+      if (minute === lastClockMinute) return;
+      lastClockMinute = minute;
+      const g = clockCtx;
+      g.clearRect(0, 0, 32, 32);
+      g.fillStyle = '#4a4a55'; g.beginPath(); g.arc(16, 16, 15, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fff6d6'; g.beginPath(); g.arc(16, 16, 13, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#26304f';
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2;
+        g.fillRect(Math.round(16 + Math.sin(a) * 11) - 1, Math.round(16 - Math.cos(a) * 11) - 1, 2, 2);
+      }
+      const hand = (a, len, col) => {
+        g.fillStyle = col;
+        for (let t = 0; t <= len; t += 0.5) g.fillRect(Math.round(16 + Math.sin(a) * t) - 1, Math.round(16 - Math.cos(a) * t) - 1, 2, 2);
+      };
+      hand(((minute / 60) % 12) / 12 * Math.PI * 2, 7, '#1b1a33');
+      hand((minute % 60) / 60 * Math.PI * 2, 10, '#8c2f39');
+      clockTex.needsUpdate = true;
+    }
+
+    // ---------------------------------------------------------------------------
+    // 木・街灯・ベンチ・花壇・噴水・運河・橋・猫
+    // ---------------------------------------------------------------------------
+    const FOUNTAINS = [];
+    const CATS = [];
+    const waterTex = (() => {
+      const [cv, g] = makeCanvas(16, 16);
+      g.fillStyle = '#3c6aa8'; g.fillRect(0, 0, 16, 16);
+      for (let i = 0; i < 18; i++) { g.fillStyle = '#2c4a7a'; g.fillRect((rnd() * 16) | 0, (rnd() * 16) | 0, 3, 1); }
+      for (let i = 0; i < 8; i++) { g.fillStyle = '#84b6ea'; g.fillRect((rnd() * 14) | 0, (rnd() * 16) | 0, 3, 1); }
+      g.fillStyle = '#e2f3fb'; g.fillRect(4, 5, 2, 1); g.fillRect(11, 12, 2, 1);
+      return pixelTex(cv, true);
+    })();
+    const waterMat = toon({ map: waterTex, emissive: 0x2c4a7a, emissiveIntensity: 0.35 });
+
+    function buildProps() {
+      const trunkGeo = new THREE.CylinderGeometry(0.14, 0.2, 1.8, 6);
+      const trunkMat = toon({ color: '#5b3d2b' });
+      const leafMats = ['#3f7d3c', '#5fa04a', '#2e5a3a'].map(c => toon({ color: c, flatShading: true }));
+      const sakuraMat = toon({ color: '#ffc4d0', flatShading: true });
+      const leafGeo1 = new THREE.IcosahedronGeometry(1.15, 0);
+      const leafGeo2 = new THREE.IcosahedronGeometry(0.8, 0);
+      const postMat = toon({ color: '#26304f' });
+      const stoneMat = toon({ color: '#9497a0' });
+      const woodMat = toon({ color: '#7f5639' });
+      const flowerTex = (() => {
+        const [cv, g] = makeCanvas(14, 14);
+        g.fillStyle = '#3f7d3c'; g.fillRect(0, 0, 14, 14);
+        for (let i = 0; i < 40; i++) { g.fillStyle = pick(['#e88a8e', '#f6c95b', '#f4f4f2', '#b35a7a', '#8ac35b', '#e06a4f']); g.fillRect((rnd() * 14) | 0, (rnd() * 14) | 0, 1, 1); }
+        return pixelTex(cv);
+      })();
+
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const ch = MAP[r][c];
+        const cx = tx(c) + 1, cz = tz(r) + 1;
+        if (ch === 't') {
+          const g = new THREE.Group();
+          const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+          trunk.position.y = 0.9;
+          const isSakura = (c >= 8 && c <= 15 && rnd() < 0.7) || rnd() < 0.12;
+          const lm = isSakura ? sakuraMat : pick(leafMats);
+          const l1 = new THREE.Mesh(leafGeo1, lm);
+          l1.position.y = 2.3; l1.scale.set(1, 0.85, 1); l1.rotation.set(rnd(), rnd() * 3, rnd());
+          const l2 = new THREE.Mesh(leafGeo2, lm);
+          l2.position.set((rnd() - 0.5) * 0.5, 3.05, (rnd() - 0.5) * 0.5); l2.rotation.set(rnd(), rnd() * 3, rnd());
+          for (const m of [trunk, l1, l2]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
+          const s = 0.85 + rnd() * 0.35;
+          g.scale.set(s, s, s);
+          g.position.set(cx + (rnd() - 0.5) * 0.4, 0, cz + (rnd() - 0.5) * 0.4);
+          scene.add(g);
+        } else if (ch === 'l') {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 3.2, 6), postMat);
+          post.position.set(cx, 1.6, cz);
+          post.castShadow = true;
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.36, 0.32), toon({ color: '#fff6d6', emissive: 0xffe79a, emissiveIntensity: 0.3 }));
+          head.position.set(cx, 3.35, cz);
+          const cap = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.22, 4), postMat);
+          cap.position.set(cx, 3.64, cz); cap.rotation.y = Math.PI / 4;
+          scene.add(post, head, cap);
+          lampHeads.push(head.material);
+          const light = new THREE.PointLight(0xffc870, 0, 11, 1.6);
+          light.position.set(cx, 3.1, cz);
+          scene.add(light);
+          lampLights.push(light);
+        } else if (ch === 'h') {
+          const g = new THREE.Group();
+          const seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.45), woodMat);
+          seat.position.y = 0.45;
+          const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 0.06), woodMat);
+          back.position.set(0, 0.75, -0.2);
+          g.add(seat, back);
+          for (const lx of [-0.65, 0.65]) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.4), postMat);
+            leg.position.set(lx, 0.22, 0);
+            g.add(leg);
+          }
+          g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+          g.position.set(cx, 0, cz);
+          g.rotation.y = tileAt(c, r - 1) === '~' || tileAt(c + 1, r) === '~' ? Math.PI : 0;
+          scene.add(g);
+        } else if (ch === 'f') {
+          const bed = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.35, 1.7), [stoneMat, stoneMat, toon({ map: flowerTex }), stoneMat, stoneMat, stoneMat]);
+          bed.position.set(cx, 0.175, cz);
+          bed.castShadow = bed.receiveShadow = true;
+          scene.add(bed);
+        } else if (ch === 'o') {
+          const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.4, 0.5, 12), stoneMat);
+          basin.position.set(cx, 0.25, cz);
+          const water = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.05, 12), waterMat);
+          water.position.set(cx, 0.48, cz);
+          const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.3, 8), stoneMat);
+          pillar.position.set(cx, 1.0, cz);
+          const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.22, 0.25, 10), stoneMat);
+          bowl.position.set(cx, 1.65, cz);
+          for (const m of [basin, pillar, bowl]) { m.castShadow = m.receiveShadow = true; }
+          scene.add(basin, water, pillar, bowl);
+          const N = 90;
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+          const spray = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xcfeff6, size: 0.09 }));
+          spray.frustumCulled = false;
+          scene.add(spray);
+          FOUNTAINS.push({ x: cx, z: cz, r: 1.4, spray, N });
+        } else if (ch === 'c') {
+          const g = new THREE.Group();
+          const white = toon({ color: '#f4f4f2' }), orange = toon({ color: '#e0883a' }), dark = toon({ color: '#3a2a22' });
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 0.26), white);
+          body.position.y = 0.13;
+          const patch = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.27, 0.27), orange);
+          patch.position.set(0.1, 0.135, 0);
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.22), orange);
+          head.position.set(-0.3, 0.3, 0);
+          const e1 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 4), dark);
+          e1.position.set(-0.3, 0.44, 0.06);
+          const e2 = e1.clone(); e2.position.z = -0.06;
+          const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.05), dark);
+          tail.position.set(0.36, 0.06, 0.1); tail.rotation.y = 0.6;
+          for (const m of [body, patch, head, e1, e2, tail]) { m.castShadow = true; g.add(m); }
+          g.position.set(cx, 0, cz);
+          g.rotation.y = 2.2;
+          g.userData.cat = true;
+          scene.add(g);
+          TAP_TARGETS.push(g);
+          CATS.push({ x: cx, z: cz, tail });
+        } else if (ch === '~') {
+          const wp = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), waterMat);
+          wp.rotation.x = -Math.PI / 2;
+          wp.position.set(cx, 0.03, cz);
+          wp.receiveShadow = true;
+          scene.add(wp);
+          // 運河の縁石
+          for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nb = tileAt(c + dc, r + dr);
+            if (nb === null || nb === '~' || nb === '=') continue;
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(dc ? 0.25 : TILE, 0.45, dc ? TILE : 0.25), stoneMat);
+            wall.position.set(cx + dc * (1 - 0.125), 0.225, cz + dr * (1 - 0.125));
+            wall.castShadow = wall.receiveShadow = true;
+            scene.add(wall);
+          }
+        } else if (ch === '=') {
+          // 橋の欄干
+          for (const dr of [-1, 1]) {
+            if (tileAt(c, r + dr) !== '~') continue;
+            const ez = cz + dr * 0.95;
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(TILE, 0.1, 0.12), woodMat);
+            rail.position.set(cx, 1.0, ez);
+            rail.castShadow = true;
+            scene.add(rail);
+            for (const ex of [-0.9, 0, 0.9]) {
+              const p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.0, 0.12), woodMat);
+              p.position.set(cx + ex, 0.5, ez);
+              p.castShadow = true;
+              scene.add(p);
+            }
+          }
+        }
+      }
+    }
+    buildProps();
+
+    // ---------------------------------------------------------------------------
+    // 散策ルート（歩道を一周する閉じた曲線）。自動散策と通行人が使う。
+    // ---------------------------------------------------------------------------
+    const WP = (c, r, ox = 0, oz = 0) => new THREE.Vector3(tx(c) + 1 + ox, 0, tz(r) + 1 + oz);
+    const route = new THREE.CatmullRomCurve3([
+      WP(13, 19, 0.5), WP(13, 12, 0.5, 0.5), WP(18, 11, 0, 0.5), WP(22, 11, 0, 0.3), WP(24, 11, 0, 0.5),
+      WP(24, 8, 0, -0.5), WP(21, 8, 0, -0.3), WP(17, 8, 0, -0.5), WP(13, 7, 0.5, -0.5), WP(13, 2, 0.5),
+      WP(10, 1, -0.5), WP(10, 7, -0.5, -0.5), WP(5, 8, 0, -0.5), WP(1, 8, 0, -0.5), WP(1, 11, 0, 0.5),
+      WP(7, 11, 0, 0.5), WP(10, 12, -0.5, 0.5), WP(10, 20, -0.5)
+    ], true, 'catmullrom', 0.3);
+    const routeLen = route.getLength();
+
+    // 通行人
+    const NPCS = [];
+    const skinMat = toon({ color: '#f2c9a0' });
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group();
+      const shirt = toon({ color: pick(['#b8463f', '#3c6aa8', '#f6c95b', '#5fa04a', '#7a3f6e', '#f4f4f2']) });
+      const pants = toon({ color: pick(['#26304f', '#3a2a22', '#4a4a55']) });
+      const hair = toon({ color: pick(['#1b1a33', '#5b3d2b', '#a8774c']) });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.75, 6), shirt);
+      body.position.y = 1.15;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), skinMat);
+      head.position.y = 1.72;
+      const hat = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.32), hair);
+      hat.position.y = 1.9;
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.75, 0.13), pants);
+      legL.geometry.translate(0, -0.375, 0);
+      legL.position.set(-0.1, 0.78, 0);
+      const legR = legL.clone(); legR.position.x = 0.1;
+      for (const m of [body, head, hat, legL, legR]) { m.castShadow = true; g.add(m); }
+      scene.add(g);
+      NPCS.push({ g, legL, legR, u: i / 6 + rnd() * 0.05, speed: (i % 2 ? -1 : 1) * (0.9 + rnd() * 0.4), side: i % 2 ? 0.55 : -0.55, phase: rnd() * 6 });
+    }
+
+    pixel.hideInNormalPass.add(sky.mesh);
+    for (const f of FOUNTAINS) pixel.hideInNormalPass.add(f.spray);
+
+    // ---------------------------------------------------------------------------
+    // 時間帯：窓・街灯・時計塔など街固有のものをここで更新
+    // ---------------------------------------------------------------------------
+    const tod = createTimeOfDay({
+      scene, sky, sun, hemi, hour: 14,
+      onApply({ hour, night }) {
+        for (const m of nightMats) m.emissiveIntensity = night * 1.4;
+        for (const m of lampHeads) m.emissiveIntensity = 0.3 + night * 2.5;
+        for (const l of lampLights) l.intensity = night * 9;
+        waterMat.emissiveIntensity = 0.3 + night * 0.2;
+        drawClock(hour);
+      }
+    });
+
+    // ---------------------------------------------------------------------------
+    // 当たり判定（タイルマップから登録）
+    // ---------------------------------------------------------------------------
+    const collider = createCollider({ cell: TILE });
+    collider.setBounds(tx(0), tz(0), tx(COLS), tz(ROWS));
+    for (const [key, bb] of Object.entries(BLD_BOX)) collider.addRect(bb.x0, bb.z0, bb.x1, bb.z1, key);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const ch = MAP[r][c], x0 = tx(c), z0 = tz(r), cx = x0 + 1, cz = z0 + 1;
+      if (ch === '~') collider.addRect(x0, z0, x0 + TILE, z0 + TILE, 'water');
+      else if (ch === 't') collider.addCircle(cx, cz, 0.32, 'tree');
+      else if (ch === 'l') collider.addCircle(cx, cz, 0.12, 'lamp');
+      else if (ch === 'c') collider.addCircle(cx, cz, 0.3, 'cat');
+      else if (ch === 'h') collider.addRect(cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 'bench');
+      else if (ch === 'f') collider.addRect(cx - 0.85, cz - 0.85, cx + 0.85, cz + 0.85, 'flowers');
+    }
+    for (const f of FOUNTAINS) collider.addCircle(f.x, f.z, f.r, 'fountain');
+    collider.addDynamic((x, z, r) => NPCS.some(n => Math.hypot(x - n.g.position.x, z - n.g.position.z) < r + 0.28));
+    const solidAt = collider.solidAt;
+
+    // ---------------------------------------------------------------------------
+    // 音・通知
+    // ---------------------------------------------------------------------------
+    const audio = createAudio();
+    const toast = createToast(document.getElementById('toast'));
+    const SURFACE = { '=': 'wood', '.': 'grass' };
+
+    // ---------------------------------------------------------------------------
+    // プレイヤー（歩行操作は engine/player.js）
+    // ---------------------------------------------------------------------------
+    let started = false;
+    const start = WP(13, 14, 0.5);
+    const controls = createPlayerController({
+      canvas, camera, scene, collider, route,
+      start: { x: start.x, z: start.z, yaw: 0, pitch: 0.02 },
+      eye: 1.6, radius: 0.3, isTouch: IS_TOUCH,
+      joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
+      tapTargets: TAP_TARGETS,
+      isInputEnabled: () => started && !panelOpen,
+      isFrozen: () => panelOpen,
+      onPointerDown: () => audio.init(),
+      // 建物をタップしたら扉へ、猫なら隣へ、それ以外は地面の当たった場所へ
+      resolveTap(hit) {
+        let o = hit.object;
+        while (o && !o.userData.bkey && !o.userData.cat && o.parent) o = o.parent;
+        if (o && o.userData.bkey) {
+          const d = DOORS.find(dd => dd.key === o.userData.bkey);
+          toast.show(`${d.b.icon} ${d.b.name} へ向かいます`);
+          return { x: d.x, z: d.z, enterKey: d.key };
+        }
+        if (o && o.userData.cat) {
+          const c = CATS[0];
+          const a = Math.atan2(player.x - c.x, player.z - c.z);
+          return { x: c.x + Math.sin(a) * 0.9, z: c.z + Math.cos(a) * 0.9, cat: true };
+        }
+        return { x: hit.point.x, z: hit.point.z };
+      },
+      onArrive(a) {
+        updatePrompt();
+        if (a.enterKey && nearTarget && nearTarget.id === a.enterKey) interact();
+        if (a.cat && nearTarget && nearTarget.type === 'cat') interact();
+      },
+      onStuck: () => toast.show('ここから先へは進めないみたい'),
+      onStep: (x, z) => audio.footstep(SURFACE[baseOf(tileAt(toCol(x), toRow(z)))] || 'stone'),
+      onStateChange: updateModeUI
+    });
+    const player = controls.player;
+    const setMode = m => controls.setMode(m);
+
+    // E: 入る / Esc: パネルを閉じる / Space: 散策の一時停止
+    window.addEventListener('keydown', e => {
+      if (e.repeat) return;
+      if (panelOpen) { if (e.code === 'Escape' || e.code === 'KeyE') closePanel(); return; }
+      if (!started) return;
+      if (e.code === 'KeyE') interact();
+      if (e.code === 'Space') { e.preventDefault(); if (controls.mode === 'stroll') controls.togglePause(); }
+    });
+
+    // ---------------------------------------------------------------------------
+    // 扉・猫とのインタラクション
+    // ---------------------------------------------------------------------------
+    let nearTarget = null, panelOpen = false;
+    const promptEl = document.getElementById('prompt');
+    function findNearTarget() {
+      let best = null, bd = 2.4;
+      for (const d of DOORS) {
+        const dist = Math.hypot(d.x - player.x, d.z - player.z);
+        if (dist < bd) { bd = dist; best = { type: 'door', d }; }
+      }
+      for (const c of CATS) {
+        const dist = Math.hypot(c.x - player.x, c.z - player.z);
+        if (dist < Math.min(bd, 1.9)) { bd = dist; best = { type: 'cat', c }; }
+      }
+      return best;
+    }
+    function updatePrompt() {
+      const t = panelOpen ? null : findNearTarget();
+      const id = t ? (t.type === 'door' ? t.d.key : 'cat') : null;
+      if ((nearTarget && nearTarget.id) === id) return;
+      nearTarget = t ? { ...t, id } : null;
+      if (!t) { promptEl.classList.add('hidden'); return; }
+      promptEl.innerHTML = t.type === 'door'
+        ? `<kbd>E</kbd>${t.d.b.icon} ${t.d.b.name} に入る`
+        : `<kbd>E</kbd>🐱 猫をなでる`;
+      promptEl.classList.remove('hidden');
+    }
+    function interact() {
+      if (!nearTarget) return;
+      if (nearTarget.type === 'cat') { audio.meow(); toast.show('🐱 にゃーん（ごろごろ…）'); return; }
+      const b = nearTarget.d.b;
+      document.getElementById('p-tag').textContent = b.section;
+      document.getElementById('p-title').textContent = `${b.icon} ${b.name}`;
+      document.getElementById('p-body').innerHTML = b.body;
+      document.getElementById('panel').classList.remove('hidden');
+      panelOpen = true;
+      audio.chime();
+      promptEl.classList.add('hidden');
+    }
+    function closePanel() {
+      document.getElementById('panel').classList.add('hidden');
+      panelOpen = false;
+      nearTarget = null;
+    }
+    promptEl.addEventListener('click', interact);
+    document.getElementById('p-close').addEventListener('click', closePanel);
+
+
+    // ---------------------------------------------------------------------------
+    // ミニマップ・現在地
+    // ---------------------------------------------------------------------------
+    const mm = document.getElementById('minimap');
+    const MMS = 4;
+    mm.width = COLS * MMS; mm.height = ROWS * MMS;
+    const mmCtx = mm.getContext('2d');
+    const [mmBase, mmBaseCtx] = makeCanvas(COLS * MMS, ROWS * MMS);
+    const MM_COL = { '.': '#5fa04a', '#': '#4a4a55', '-': '#c3c4c8', p: '#e8c99a', '~': '#2f8a8f', '=': '#a8774c', t: '#2e5a3a', f: '#e88a8e', o: '#5cc0b5' };
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const ch = MAP[r][c];
+      mmBaseCtx.fillStyle = isBuilding(ch) ? BUILDINGS[ch].roofColor : (MM_COL[ch] || MM_COL[baseOf(ch)] || '#5fa04a');
+      mmBaseCtx.fillRect(c * MMS, r * MMS, MMS, MMS);
+    }
+    for (const d of DOORS) {
+      mmBaseCtx.fillStyle = '#f6c95b';
+      mmBaseCtx.fillRect(Math.round((d.x / TILE + COLS / 2) * MMS) - 1, Math.round((d.z / TILE + ROWS / 2) * MMS) - 1, 2, 2);
+    }
+    function drawMinimap(yaw) {
+      mmCtx.drawImage(mmBase, 0, 0);
+      const px = (player.x / TILE + COLS / 2) * MMS, pz = (player.z / TILE + ROWS / 2) * MMS;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      mmCtx.fillStyle = '#ffffff';
+      for (let t = 0; t <= 5; t++) mmCtx.fillRect(Math.round(px + fx * t) - (t ? 0 : 1), Math.round(pz + fz * t) - (t ? 0 : 1), t ? 1 : 3, t ? 1 : 3);
+      mmCtx.fillStyle = '#e06a4f';
+      mmCtx.fillRect(Math.round(px), Math.round(pz), 1, 1);
+    }
+
+    function zoneName(x, z) {
+      const c = toCol(x), r = toRow(z), ch = tileAt(c, r);
+      if (ch === '=') return '🌉 かわせみ橋';
+      if (c >= 23) return '🏭 運河の東岸';
+      if (r >= 12 && r <= 17 && c >= 14 && c <= 20) return '⛲ 噴水広場';
+      if (r >= 8 && r <= 11) return '🛣️ かわせみ通り';
+      if (c >= 10 && c <= 13) return '🌸 さくら坂';
+      if (r >= 17) return '🏠 南の住宅街';
+      return '🌳 北の公園通り';
+    }
+
+    // ---------------------------------------------------------------------------
+    // UI
+    // ---------------------------------------------------------------------------
+    const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
+    function updateModeUI() {
+      const m = controls ? controls.mode : 'walk';
+      document.getElementById('m-walk').classList.toggle('on', m === 'walk');
+      document.getElementById('m-stroll').classList.toggle('on', m === 'stroll');
+      const pause = document.getElementById('s-pause');
+      pause.classList.toggle('show', m === 'stroll');
+      pause.textContent = controls && controls.paused ? '▶️' : '⏸';
+      document.getElementById('help').textContent = m === 'walk'
+        ? 'WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く（お店ならそのまま入店）・ E: 入る'
+        : 'ホイール: 進む・戻る ・ ドラッグ: 見回す ・ Space: 一時停止 ・ WASD で自由歩行に戻る';
+    }
+    btn('m-walk', () => setMode('walk'));
+    btn('m-stroll', () => setMode('stroll'));
+    btn('s-pause', () => controls.togglePause());
+    btn('o-more', () => document.getElementById('bar').classList.toggle('open'));
+    btn('o-pal', el => { pixel.setPaletteOn(!pixel.paletteOn); el.classList.toggle('on', pixel.paletteOn); });
+    btn('o-line', el => { pixel.setOutline(!pixel.outline); el.classList.toggle('on', pixel.outline); });
+    btn('o-px', el => { const s = [2, 3, 4, 5]; pixel.setPixelScale(s[(s.indexOf(pixel.pixelScale) + 1) % s.length]); el.textContent = `🔍 ×${pixel.pixelScale}`; });
+    btn('o-snd', el => { audio.setEnabled(!audio.enabled); el.classList.toggle('on', audio.enabled); el.textContent = audio.enabled ? '🔊' : '🔈'; });
+
+    function begin(m) {
+      started = true;
+      document.getElementById('start').classList.add('hidden');
+      audio.init();
+      setMode(m);
+    }
+    btn('s-walk', () => begin('walk'));
+    btn('s-stroll', () => begin('stroll'));
+    if (IS_TOUCH) document.getElementById('help').classList.add('hidden');
+    if (IS_TOUCH) document.getElementById('o-px').classList.add('hidden'); // スマホは解像度固定（×3）
+
+    // ---------------------------------------------------------------------------
+    // メインループ
+    // ---------------------------------------------------------------------------
+    let last = performance.now(), elapsed = 0, birdTimer = 2;
+    const tmpV = new THREE.Vector3(), tanV = new THREE.Vector3();
+
+    function updateWorld(dt) {
+      waterTex.offset.x = (waterTex.offset.x + dt * 0.03) % 1;
+      waterTex.offset.y = (waterTex.offset.y + dt * 0.06) % 1;
+      for (const f of FOUNTAINS) {
+        const pos = f.spray.geometry.attributes.position;
+        for (let i = 0; i < f.N; i++) {
+          const ph = (elapsed * 0.7 + i / f.N) % 1;
+          const a = i * 2.39996;
+          const rr = 0.15 + ph * 0.75;
+          pos.setXYZ(i, f.x + Math.cos(a) * rr, 1.8 + ph * 1.3 - ph * ph * 2.4, f.z + Math.sin(a) * rr);
+        }
+        pos.needsUpdate = true;
+      }
+      for (const c of CATS) c.tail.rotation.y = 0.6 + Math.sin(elapsed * 2) * 0.35;
+      for (const n of NPCS) {
+        n.u = (n.u + n.speed * dt / routeLen + 1) % 1;
+        const p = route.getPointAt(n.u, tmpV);
+        route.getTangentAt(n.u, tanV);
+        const dir = Math.sign(n.speed);
+        n.g.position.set(p.x + tanV.z * n.side, 0, p.z - tanV.x * n.side);
+        n.g.rotation.y = Math.atan2(tanV.x * dir, tanV.z * dir);
+        n.phase += Math.abs(n.speed) * dt * 4.2;
+        n.legL.rotation.x = Math.sin(n.phase) * 0.5;
+        n.legR.rotation.x = -Math.sin(n.phase) * 0.5;
+        n.g.position.y = Math.abs(Math.cos(n.phase)) * 0.04;
+      }
+      // 運河・噴水に近いほど水音が大きく
+      const canalX = tx(21) + TILE;
+      const dCanal = Math.max(0, Math.abs(player.x - canalX) - 2);
+      let dF = Infinity;
+      for (const f of FOUNTAINS) dF = Math.min(dF, Math.hypot(player.x - f.x, player.z - f.z));
+      audio.setWater(0.16 * Math.max(0, 1 - dCanal / 14) + 0.22 * Math.max(0, 1 - dF / 9), dt);
+      birdTimer -= dt;
+      if (birdTimer < 0) { birdTimer = 2 + Math.random() * 5; if (tod.night < 0.4 && started) audio.chirp(); }
+      toast.update(dt);
+    }
+
+    function step(dt) {
+      elapsed += dt;
+      tod.update(dt);
+      timeUI.update();
+      if (!started) player.yaw += dt * 0.05; // タイトル画面ではゆっくり見回す
+      const yaw = controls.update(dt);
+      updateWorld(dt);
+      sky.update(dt, elapsed, camera.position);
+      updatePrompt();
+      document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
+      drawMinimap(yaw);
+      pixel.render();
+    }
+    function frame(now) {
+      step(Math.min(0.05, (now - last) / 1000));
+      last = now;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // 動作確認用（URL末尾に #debug を付けたときだけ）
+    if (location.hash === '#debug') {
+      window.__town = { player, keys: controls.keys, step, setMode, interact, solidAt, DOORS, controls, get near() { return nearTarget; }, get mode() { return controls.mode; } };
+    }
+  </script>
+</body>
+</html>

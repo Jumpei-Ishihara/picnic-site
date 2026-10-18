@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Riverside Picnic World — Pixel Shader Edition</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .pixel-canvas {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    input[type="range"] {
+      accent-color: var(--primary);
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-2 select-none">
+  <div class="max-w-xl mx-auto bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 shadow-sm space-y-2">
+    <!-- Top Header & Time of Day Presets -->
+    <div class="flex flex-wrap items-center justify-between gap-1.5">
+      <div class="flex items-center gap-1.5">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <h1 class="text-[var(--foreground)] font-semibold text-sm tracking-tight">
+          3D 川辺のピクニック・ワールド
+        </h1>
+        <span id="badge-res" onclick="cycleResolution()" class="cursor-pointer text-xs px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] font-mono hover:opacity-80" title="クリックで3Dピクセル解像度を切替">
+          384×216 3D-PX
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1 bg-[var(--content)] p-0.5 rounded-lg border border-[var(--border)]">
+        <button id="btn-day" onclick="setTimeOfDay(0)" class="px-2 py-1 rounded text-xs font-medium transition-all bg-[var(--primary)] text-[var(--primary-foreground)] shadow-xs">
+          ☀️ 昼下がり
+        </button>
+        <button id="btn-sunset" onclick="setTimeOfDay(1)" class="px-2 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🌅 夕暮れ
+        </button>
+        <button id="btn-night" onclick="setTimeOfDay(2)" class="px-2 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🌙 星と蛍
+        </button>
+      </div>
+    </div>
+
+    <!-- Camera Mode & Human Eye-Level Viewpoint Presets Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-1 text-xs">
+      <div class="flex items-center gap-1 bg-[var(--content)] p-0.5 rounded-lg border border-[var(--border)]">
+        <button id="cam-walk" onclick="setCameraMode('walk')" class="px-2 py-0.5 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)]" title="WASD/矢印キーで地面・物体の当たり判定＆歩行揺れ付きで移動">
+          🚶 人物ウォーク(WASD)
+        </button>
+        <button id="cam-stroll" onclick="setCameraMode('stroll')" class="px-2 py-0.5 rounded text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]" title="人物目線で橋〜川辺の遊歩道を歩く自動ウォークパターン（上下の歩行揺れ付き）">
+          👣 人物目線・自動散策
+        </button>
+        <button id="cam-orbit" onclick="setCameraMode('orbit')" class="px-2 py-0.5 rounded text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🪐 自由回転
+        </button>
+        <button id="cam-loop" onclick="setCameraMode('loop')" class="px-2 py-0.5 rounded text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🎥 6秒周回
+        </button>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <button id="btn-posture" onclick="togglePosture()" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]" title="Cキーでも切替可能（立ち目線 / シート座り目線）">
+          🧍 立ち目線
+        </button>
+        <button onclick="applyCameraPreset('path')" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]" title="川辺の石畳からピクニックシートへ歩く目線">
+          🪨 遊歩道
+        </button>
+        <button onclick="applyCameraPreset('sit')" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]" title="ピクニックシートに座って猫やグラスを眺める目線">
+          🧺 シート座り
+        </button>
+        <button onclick="applyCameraPreset('bridge')" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]" title="太鼓橋の上から川面を見下ろす人物目線">
+          🌉 太鼓橋上
+        </button>
+        <button onclick="applyCameraPreset('top')" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]" title="俯瞰で川底の透過を確認">
+          🦅 俯瞰
+        </button>
+      </div>
+    </div>
+
+    <!-- Main 3D Viewport Container -->
+    <div class="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-inner cursor-grab active:cursor-grabbing" id="canvas-wrapper" tabindex="0">
+      <canvas id="gl-canvas" width="384" height="216" class="pixel-canvas w-full h-full block"></canvas>
+      <!-- 2D Overlay Canvas for Crisp Screen-Space Pixel Sparkles (+ / ◇) & HUD -->
+      <canvas id="fx-canvas" width="384" height="216" class="pixel-canvas w-full h-full block absolute inset-0 pointer-events-none"></canvas>
+
+      <!-- Subtle HUD Overlay -->
+      <div class="absolute top-2 left-2 pointer-events-none flex items-center gap-1.5 bg-black/55 backdrop-blur-xs text-white px-2 py-0.5 rounded text-xs font-mono border border-white/15">
+        <span id="hud-mode">☀️ 3D SUNNY AFTERNOON</span>
+        <span class="opacity-40">|</span>
+        <span id="hud-fps">60 FPS</span>
+        <span id="hud-rec" class="hidden text-rose-400 font-bold animate-pulse">| 🔴 REC</span>
+      </div>
+
+      <!-- Surface & Collision Status Pill (Top-Right) -->
+      <div id="hud-surface" class="absolute top-2 right-2 pointer-events-none bg-black/55 backdrop-blur-xs text-emerald-200 px-2 py-0.5 rounded text-xs border border-white/15">
+        🪨 川辺の石畳パス (立ち目線)
+      </div>
+
+      <div id="hud-help" class="absolute bottom-2 right-2 pointer-events-none bg-black/55 backdrop-blur-xs text-white/90 px-2 py-0.5 rounded text-xs border border-white/15">
+        WASD/矢印: 歩行(上下揺れ・当たり判定付) / Space: 小ジャンプ / C: 立ち・座り目線 / ドラッグ: 見回す
+      </div>
+    </div>
+
+    <!-- Quick Action & ~/Downloads Export Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+      <div class="flex flex-wrap items-center gap-1">
+        <button onclick="throw3DStone()" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          🪨 3D水切り
+        </button>
+        <button onclick="spawnRippleCluster()" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          💧 波紋を広げる
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button id="btn-png" onclick="export3DPNG()" class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)] flex items-center gap-1">
+          📷 PNG保存
+        </button>
+
+        <div class="flex items-center bg-[var(--content)] rounded border border-[var(--border)] px-1.5 py-0.5 gap-1" title="アニメーション＆周回カメラの基本周期は6.0秒">
+          <label for="input-duration" class="text-xs text-[var(--muted-foreground)]">秒数:</label>
+          <input id="input-duration" type="number" min="1" max="60" step="0.5" value="6.0" class="w-11 bg-transparent text-xs font-mono text-center text-[var(--foreground)] focus:outline-none" />
+          <span class="text-xs text-[var(--muted-foreground)]">秒</span>
+        </div>
+
+        <button id="btn-video" onclick="toggle3DVideoRecording()" class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition shadow-xs flex items-center gap-1">
+          🎬 動画保存 (1周期)
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline Export Result / Notification Drawer -->
+    <div id="export-drawer" class="hidden bg-[var(--content)] border border-[var(--border)] rounded-lg p-2 space-y-1.5">
+      <div class="flex items-center justify-between">
+        <span id="export-title" class="text-xs font-semibold text-[var(--foreground)]">✅ ~/Downloads に保存しました</span>
+        <div class="flex items-center gap-1.5">
+          <a id="export-download-link" href="#" download="riverside-picnic-3d.png" class="px-2 py-0.5 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90">
+            ⬇️ 再保存
+          </a>
+          <button onclick="document.getElementById('export-drawer').classList.add('hidden')" class="px-1.5 py-0.5 rounded text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            ✕
+          </button>
+        </div>
+      </div>
+      <p id="export-hint" class="text-xs text-[var(--muted-foreground)]">
+        `~/Downloads` に直接書き出しました。
+      </p>
+    </div>
+
+    <!-- Compact Sliders Row -->
+    <div class="grid grid-cols-3 gap-2 pt-1 border-t border-[var(--border)]">
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">✨ 立体木漏れ日・光</span>
+          <span id="val-light" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-light" type="range" min="10" max="160" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">🌊 3D水面波・風速</span>
+          <span id="val-wave" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-wave" type="range" min="10" max="200" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">💎 川底透過・水中光</span>
+          <span id="val-caustics" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-caustics" type="range" min="0" max="160" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 3D RIVERSIDE PICNIC WORLD — WebGL GLSL Pixel-Art Raymarched/Low-Poly Engine
+    // ============================================================================
+    const LOOP_PERIOD = 6.0;
+    const W0 = (Math.PI * 2) / LOOP_PERIOD;
+
+    const RESOLUTIONS = [
+      { w: 384, h: 216, label: '384×216 3D-PX' },
+      { w: 320, h: 180, label: '320×180 RETRO' },
+      { w: 512, h: 288, label: '512×288 HD-PX' }
+    ];
+    let resIdx = 0;
+    let W = RESOLUTIONS[0].w;
+    let H = RESOLUTIONS[0].h;
+
+    const glCanvas = document.getElementById('gl-canvas');
+    const fxCanvas = document.getElementById('fx-canvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    fxCtx.imageSmoothingEnabled = false;
+
+    // 1280x720 Composite Export Canvas for crisp PNG & 60fps MP4 recording
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = 1280;
+    exportCanvas.height = 720;
+    const exportCtx = exportCanvas.getContext('2d', { alpha: false });
+    exportCtx.imageSmoothingEnabled = false;
+
+    const gl = glCanvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+
+    // Camera & World State (Defaulting to Human Eye-Level Walk on the Riverside Footpath)
+    let timeOfDay = 0; // 0: Day, 1: Sunset, 2: Night
+    let cameraMode = 'walk'; // 'walk' (WASD Human Eye-Level) | 'stroll' (Auto Human Eye-Level Route) | 'orbit' | 'loop'
+    let camYaw = -0.34;
+    let camPitch = 0.15;
+    let camDist = 7.4;
+    let camTarget = [1.35, 0.45, 0.15];
+
+    // Human Eye-Level & Physics State (Raised Standing & Sitting Eye Heights)
+    const EYE_HEIGHT_STAND = 1.38; // Standing adult human eye height above terrain
+    const EYE_HEIGHT_SIT   = 0.76; // Seated picnic eye height above blanket/ground
+    const PLAYER_RADIUS    = 0.24; // Horizontal collision radius
+    let isSitting = false;
+    let currentEyeOffset = EYE_HEIGHT_STAND;
+    let walkPos = [1.56, 0.36 + EYE_HEIGHT_STAND, 2.55]; // [x, eyeY, z]
+    let footY = 0.36;
+    let velY = 0.0;
+    let isGrounded = true;
+
+    // Head-Bobbing (歩行時の上下・左右の揺れ) & Footstep State
+    let walkPhase = 0.0;
+    let walkBobBlend = 0.0;
+    let lastStepHalfCycle = 0;
+    let lastCollidedObject = '';
+    let collisionNoticeTimer = 0.0;
+    let keys = {};
+
+    let lightIntensity = 1.0;
+    let waveIntensity = 1.0;
+    let causticsIntensity = 1.0;
+    let time = 0;
+
+    // Up to 4 simultaneous 3D water ripples: [x, z, radius, strength]
+    const ripples3D = [
+      [-0.3, 0.5, 1.2, 1.0],
+      [-0.6, -1.2, 2.5, 0.6],
+      [0.1, 1.8, 99.0, 0.0],
+      [-0.4, -0.2, 99.0, 0.0]
+    ];
+
+    function add3DRipple(x, z, strength = 1.2) {
+      // Find oldest slot
+      let best = 0;
+      let maxR = -1;
+      for (let i = 0; i < 4; i++) {
+        if (ripples3D[i][2] > maxR) {
+          maxR = ripples3D[i][2];
+          best = i;
+        }
+      }
+      ripples3D[best][0] = x;
+      ripples3D[best][1] = z;
+      ripples3D[best][2] = 0.05;
+      ripples3D[best][3] = strength;
+    }
+
+    function throw3DStone() {
+      // Simulate skipping stone bounces along the 3D river
+      const bounces = [
+        { x: 0.35, z: 1.4, delay: 0, s: 1.4 },
+        { x: -0.15, z: 0.3, delay: 280, s: 1.2 },
+        { x: -0.55, z: -0.9, delay: 540, s: 1.0 },
+        { x: -0.85, z: -2.1, delay: 780, s: 0.8 }
+      ];
+      bounces.forEach(b => {
+        setTimeout(() => add3DRipple(b.x, b.z, b.s), b.delay);
+      });
+    }
+
+    function spawnRippleCluster() {
+      add3DRipple(-0.2 + (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 3.2, 1.35);
+    }
+
+    // ============================================================================
+    // WEBGL SHADER SOURCE (3D Low-Poly + Pixel Shader + Planar Water + God Rays)
+    // ============================================================================
+    const vsSource = `
+      attribute vec2 aPos;
+      varying vec2 vUV;
+      void main() {
+        vUV = aPos * 0.5 + 0.5;
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+    `;
+
+    const fsSource = `
+      precision highp float;
+      varying vec2 vUV;
+
+      uniform vec2 uRes;
+      uniform float uTime;
+      uniform int uMode; // 0: day, 1: sunset, 2: night
+      uniform vec3 uCamPos;
+      uniform vec3 uCamFwd;
+      uniform vec3 uCamRight;
+      uniform vec3 uCamUp;
+      uniform float uLightInt;
+      uniform float uWaveInt;
+      uniform float uCausticInt;
+      uniform vec4 uRipple0;
+      uniform vec4 uRipple1;
+      uniform vec4 uRipple2;
+      uniform vec4 uRipple3;
+
+      const float PI = 3.14159265;
+      const float W0 = 1.04719755; // 2*PI / 6.0s exact loop angular frequency
+
+      // 4x4 Bayer Matrix Dithering in GLSL
+      float bayer4(vec2 coord) {
+        vec2 p = mod(floor(coord), 4.0);
+        int x = int(p.x);
+        int y = int(p.y);
+        int idx = y * 4 + x;
+        if (idx == 0) return 0.0 / 16.0;
+        if (idx == 1) return 8.0 / 16.0;
+        if (idx == 2) return 2.0 / 16.0;
+        if (idx == 3) return 10.0 / 16.0;
+        if (idx == 4) return 12.0 / 16.0;
+        if (idx == 5) return 4.0 / 16.0;
+        if (idx == 6) return 14.0 / 16.0;
+        if (idx == 7) return 6.0 / 16.0;
+        if (idx == 8) return 3.0 / 16.0;
+        if (idx == 9) return 11.0 / 16.0;
+        if (idx == 10) return 1.0 / 16.0;
+        if (idx == 11) return 9.0 / 16.0;
+        if (idx == 12) return 15.0 / 16.0;
+        if (idx == 13) return 7.0 / 16.0;
+        if (idx == 14) return 13.0 / 16.0;
+        return 5.0 / 16.0;
+      }
+
+      float hash21(vec2 p) {
+        p = fract(p * vec2(234.34, 435.345));
+        p += dot(p, p + 34.23);
+        return fract(p.x * p.y);
+      }
+
+      // Signed Distance Primitives for Low-Poly / Voxel-Hybrid 3D Scene
+      float sdBox(vec3 p, vec3 b) {
+        vec3 q = abs(p) - b;
+        return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+      }
+
+      float sdCylinder(vec3 p, float r, float h) {
+        vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+        return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+      }
+
+      float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+        vec3 pa = p - a, ba = b - a;
+        float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+        return length(pa - ba * h) - r;
+      }
+
+      // River center meander curve along Z
+      float riverCenter(float z) {
+        return -0.65 + sin(z * 0.22) * 0.55;
+      }
+
+      // 3D Terrain & Riverbed Heightfield
+      float terrainHeight(vec2 xz) {
+        float rc = riverCenter(xz.y);
+        float dx = xz.x - rc;
+        float riverHalfW = 1.65 + sin(xz.y * 0.35) * 0.18;
+
+        if (abs(dx) < riverHalfW) {
+          // Riverbed depth with 3D rounded river pebbles
+          float normD = abs(dx) / riverHalfW;
+          float bed = -0.68 * (1.0 - normD * normD * 0.82);
+          vec2 pebbleGrid = floor(xz * 5.5);
+          vec2 pebbleLocal = fract(xz * 5.5) - 0.5;
+          float pH = hash21(pebbleGrid);
+          float pebbleBump = max(0.0, 0.18 - dot(pebbleLocal, pebbleLocal) * 0.9) * (0.4 + pH * 0.6);
+          return bed + pebbleBump;
+        } else if (dx >= riverHalfW) {
+          // Right Bank: Lush Picnic Meadow (flat terrace where blanket sits, rising gently behind)
+          float bankDist = dx - riverHalfW;
+          float terrace = smoothstep(0.0, 0.55, bankDist) * 0.36;
+          float backHill = smoothstep(3.2, 8.5, bankDist) * 1.4;
+          // Subtle low-poly stepped terracing
+          return terrace + backHill + sin(xz.x * 0.8 + xz.y * 0.7) * 0.03;
+        } else {
+          // Left Bank: Forest & Willow Shore
+          float bankDist = -dx - riverHalfW;
+          return smoothstep(0.0, 0.65, bankDist) * 0.42 + smoothstep(1.8, 7.5, bankDist) * 1.8 + cos(xz.x * 0.9 - xz.y * 0.6) * 0.05;
+        }
+      }
+
+      // Evaluate 3D Scene SDF (Returns vec2(distance, materialID))
+      // Material IDs:
+      // 1: Terrain/Riverbed/Grass
+      // 2: Picnic Blanket (Gingham)
+      // 3: Wicker Basket & Cutting Board
+      // 4: Glass Pitcher & Wine Glasses
+      // 5: Food (Croissant, Baguette, Strawberries)
+      // 6: Sleeping Calico Cat
+      // 7: Straw Hat & Open Book
+      // 8: Picnic Lantern
+      // 9: Oak Tree Trunk & Wooden Arch Bridge
+      // 10: Tree Canopy Leaves & Willow Vines
+      // 11: Swimming Ducks
+      vec2 mapScene(vec3 p) {
+        float h = terrainHeight(p.xz);
+        vec2 res = vec2(p.y - h, 1.0);
+
+        // Bounds check for 3D props & trees
+        if (abs(p.z) < 9.5 && abs(p.x) < 9.5) {
+          // 1. Picnic Blanket on Right Bank (centered at x=2.65, z=0.2)
+          vec3 bp = p - vec3(2.65, 0.37, 0.2);
+          float dBlanket = sdBox(bp, vec3(1.18, 0.02, 1.25));
+          if (dBlanket < res.x) res = vec2(dBlanket, 2.0);
+
+          // 2. Wicker Picnic Basket (at x=3.25, z=-0.55)
+          vec3 bskP = p - vec3(3.25, 0.56, -0.55);
+          float dBasket = sdBox(bskP, vec3(0.32, 0.19, 0.24));
+          // Basket arched handle
+          float dHandle = sdBox(bskP - vec3(0.0, 0.26, 0.0), vec3(0.04, 0.09, 0.18));
+          dBasket = min(dBasket, dHandle);
+          // Wooden cutting board (at x=2.35, z=0.15)
+          float dBoard = sdBox(p - vec3(2.35, 0.40, 0.15), vec3(0.28, 0.02, 0.22));
+          float dWood = min(dBasket, dBoard);
+          if (dWood < res.x) res = vec2(dWood, 3.0);
+
+          // 3. Crystal Glass Pitcher & Wine Glasses (at x=2.05, z=-0.35)
+          float dPitcher = sdCylinder(p - vec3(2.05, 0.56, -0.35), 0.12, 0.18);
+          float dGlass1 = sdCylinder(p - vec3(1.85, 0.50, -0.12), 0.07, 0.11);
+          float dGlass2 = sdCylinder(p - vec3(1.92, 0.50, -0.55), 0.07, 0.11);
+          float dGlass = min(dPitcher, min(dGlass1, dGlass2));
+          if (dGlass < res.x) res = vec2(dGlass, 4.0);
+
+          // 4. Croissant, Strawberries & Baguette (Food)
+          float dCroissant = length((p - vec3(2.30, 0.45, 0.10)) * vec3(1.0, 1.6, 1.3)) - 0.11;
+          float dBerry1 = length(p - vec3(2.45, 0.44, 0.22)) - 0.055;
+          float dBerry2 = length(p - vec3(2.38, 0.44, 0.28)) - 0.05;
+          float dBaguette = sdCapsule(p, vec3(3.05, 0.68, -0.45), vec3(2.82, 0.82, -0.35), 0.06);
+          float dFood = min(min(dCroissant, dBaguette), min(dBerry1, dBerry2));
+          if (dFood < res.x) res = vec2(dFood, 5.0);
+
+          // 5. Sleeping Calico Cat curled up on blanket (at x=2.85, z=0.82) with Ears & Tail
+          float breath = 1.0 - sin(uTime * (2.0 * W0)) * 0.06;
+          vec3 catP = p - vec3(2.85, 0.46, 0.82);
+          float dCatBody = length(catP * vec3(1.1, 1.7 * breath, 1.3)) - 0.21;
+          vec3 headP = catP - vec3(-0.12, 0.04, -0.06);
+          float dCatHead = length(headP * vec3(1.2, 1.2, 1.2)) - 0.12;
+          float dEar1 = length((headP - vec3(-0.02, 0.10, -0.05)) * vec3(1.8, 1.1, 1.8)) - 0.045;
+          float dEar2 = length((headP - vec3( 0.04, 0.10,  0.04)) * vec3(1.8, 1.1, 1.8)) - 0.045;
+          float dCat = min(min(dCatBody, dCatHead), min(dEar1, dEar2));
+          if (dCat < res.x) res = vec2(dCat, 6.0);
+
+          // 6. Straw Hat & Open Book
+          vec3 hatP = p - vec3(3.38, 0.42, 0.55);
+          float dHatBrim = sdCylinder(hatP, 0.28, 0.02);
+          float dHatCrown = sdCylinder(hatP - vec3(0.0, 0.07, 0.0), 0.16, 0.07);
+          float pageFlutter = max(0.0, sin(uTime * (2.0 * W0))) * 0.04 * uWaveInt;
+          float dBook = sdBox(p - vec3(2.05, 0.41 + pageFlutter * 0.5, 0.68), vec3(0.20, 0.025 + pageFlutter, 0.15));
+          float dHatBook = min(min(dHatBrim, dHatCrown), dBook);
+          if (dHatBook < res.x) res = vec2(dHatBook, 7.0);
+
+          // 7. Warm Picnic Lantern near the water's edge (at x=1.55, z=-0.15) with Cap & Ring
+          vec3 lanP = p - vec3(1.55, 0.52, -0.15);
+          float dLantern = min(
+            sdCylinder(lanP, 0.11, 0.16),
+            sdCylinder(lanP - vec3(0.0, 0.17, 0.0), 0.14, 0.025)
+          );
+          if (dLantern < res.x) res = vec2(dLantern, 8.0);
+
+          // 8. ALL Tree Trunks & Supporting Branches (Grounded firmly into terrain!) + Wooden Arch Bridge
+          // (A) Main Right-Bank Giant Oak Trunk & 3 Boughs (Raised so standing humans walk comfortably underneath)
+          float dMainOak = sdCapsule(p, vec3(4.15, -0.1, -1.55), vec3(3.95, 4.05, -1.45), 0.44);
+          // Root flare at base of main oak
+          dMainOak = min(dMainOak, sdCapsule(p, vec3(4.15, 0.25, -1.55), vec3(3.55, 0.32, -1.25), 0.22));
+          float dOakBr1 = sdCapsule(p, vec3(3.98, 2.75, -1.45), vec3(2.35, 3.85, -0.45), 0.21);
+          float dOakBr2 = sdCapsule(p, vec3(4.02, 2.95, -1.45), vec3(3.15, 3.95,  0.70), 0.19);
+          float dOakBr3 = sdCapsule(p, vec3(3.92, 2.85, -1.48), vec3(1.70, 3.85, -1.50), 0.18);
+          float dTreeWood = min(min(dMainOak, dOakBr1), min(dOakBr2, dOakBr3));
+
+          // (B) Left-Bank Willow Tree #1 Trunk & Branch (at x=-3.20, z=-1.80)
+          float dTrunkL1 = sdCapsule(p, vec3(-3.25, -0.1, -1.85), vec3(-3.10, 2.95, -1.75), 0.29);
+          float dBrL1    = sdCapsule(p, vec3(-3.15, 2.05, -1.78), vec3(-2.45, 2.75, -1.45), 0.15);
+          dTreeWood = min(dTreeWood, min(dTrunkL1, dBrL1));
+
+          // (C) Left-Bank Tree #2 Trunk & Branch (at x=-3.60, z=0.85)
+          float dTrunkL2 = sdCapsule(p, vec3(-3.65, -0.1, 0.85), vec3(-3.50, 2.85, 0.80), 0.26);
+          float dBrL2    = sdCapsule(p, vec3(-3.55, 1.95, 0.82), vec3(-2.90, 2.60, 0.65), 0.14);
+          dTreeWood = min(dTreeWood, min(dTrunkL2, dBrL2));
+
+          // (D) Background Bridge-Side Tree #3 Trunk (Right Bank North at x=1.75, z=-6.25)
+          float dTrunkB1 = sdCapsule(p, vec3(1.75, -0.1, -6.25), vec3(1.65, 3.05, -6.15), 0.27);
+          dTreeWood = min(dTreeWood, dTrunkB1);
+
+          // (E) Background Bridge-Side Tree #4 Trunk (Left Bank North at x=-2.10, z=-6.05)
+          float dTrunkB2 = sdCapsule(p, vec3(-2.10, -0.1, -6.05), vec3(-2.00, 3.05, -5.95), 0.28);
+          dTreeWood = min(dTreeWood, dTrunkB2);
+
+          // (F) Foreground South-Right Tree #5 Trunk (at x=4.55, z=3.35)
+          float dTrunkS1 = sdCapsule(p, vec3(4.55, -0.1, 3.35), vec3(4.40, 3.25, 3.25), 0.28);
+          dTreeWood = min(dTreeWood, dTrunkS1);
+
+          // (G) Wooden Arch Footbridge spanning the river at z = -4.6 with Vertical Support Posts & Piers!
+          float bridgeArch = 0.55 - 0.14 * (p.x + 0.5) * (p.x + 0.5);
+          vec3 brP = p - vec3(-0.5, bridgeArch, -4.6);
+          float dBridgeDeck = sdBox(brP, vec3(2.12, 0.06, 0.56));
+          // Top handrails at +0.44m above deck
+          float dRailL = sdBox(brP - vec3(0.0, 0.44, -0.50), vec3(2.08, 0.04, 0.04));
+          float dRailR = sdBox(brP - vec3(0.0, 0.44,  0.50), vec3(2.08, 0.04, 0.04));
+          // Repeated vertical balustrade posts connecting deck to handrails (no floating rails!)
+          float postX = clamp(floor((p.x + 0.5) * 1.5 + 0.5) / 1.5 - 0.5, -2.35, 1.35);
+          float postArch = 0.55 - 0.14 * (postX + 0.5) * (postX + 0.5);
+          vec3 postP = vec3(p.x - postX, p.y - (postArch + 0.24), abs(p.z - (-4.6)) - 0.50);
+          float dPosts = sdBox(postP, vec3(0.045, 0.24, 0.045));
+          // Bridge bank support piers at both ends
+          float dPiers = min(
+            sdBox(p - vec3(-2.35, 0.18, -4.6), vec3(0.14, 0.35, 0.52)),
+            sdBox(p - vec3( 1.35, 0.18, -4.6), vec3(0.14, 0.35, 0.52))
+          );
+          float dBridge = min(min(dBridgeDeck, dPosts), min(min(dRailL, dRailR), dPiers));
+
+          float dAllWood = min(dTreeWood, dBridge);
+          if (dAllWood < res.x) res = vec2(dAllWood, 9.0);
+
+          // 9. Elevated Tree Canopy Clusters (All anchored to their trunks & branches!)
+          vec3 sway = vec3(sin(uTime * (2.0 * W0) + p.z) * 0.06 * uWaveInt, 0.0, cos(uTime * (2.0 * W0) + p.x) * 0.05 * uWaveInt);
+          vec3 cp = p + sway;
+          // Right-bank Main Oak Canopy (Elevated to y = 4.1 ~ 4.45 for clear human eye-level view underneath)
+          float dCanopy = length(cp - vec3(3.75, 4.35, -1.35)) - 1.55;
+          dCanopy = min(dCanopy, length(cp - vec3(2.35, 4.10, -0.45)) - 1.25);
+          dCanopy = min(dCanopy, length(cp - vec3(3.15, 4.20,  0.70)) - 1.30);
+          dCanopy = min(dCanopy, length(cp - vec3(1.70, 4.10, -1.50)) - 1.08);
+          // Left-bank Willow #1 Canopy (anchored to dTrunkL1 & dBrL1)
+          dCanopy = min(dCanopy, length(cp - vec3(-3.05, 3.20, -1.75)) - 1.42);
+          dCanopy = min(dCanopy, length(cp - vec3(-2.40, 2.85, -1.45)) - 1.05);
+          // Left-bank Tree #2 Canopy (anchored to dTrunkL2 & dBrL2)
+          dCanopy = min(dCanopy, length(cp - vec3(-3.45, 3.10,  0.80)) - 1.30);
+          dCanopy = min(dCanopy, length(cp - vec3(-2.85, 2.75,  0.65)) - 0.95);
+          // Background Bridge-Side Canopies (anchored to dTrunkB1 & dTrunkB2)
+          dCanopy = min(dCanopy, length(cp - vec3( 1.65, 3.35, -6.15)) - 1.38);
+          dCanopy = min(dCanopy, length(cp - vec3(-2.00, 3.35, -5.95)) - 1.42);
+          // Foreground South-Right Canopy (anchored to dTrunkS1)
+          dCanopy = min(dCanopy, length(cp - vec3( 4.40, 3.55,  3.25)) - 1.35);
+          // Scalloped pixel leaf cluster detail
+          dCanopy += (sin(p.x * 5.0) * cos(p.y * 5.0) * sin(p.z * 5.0)) * 0.08;
+          if (dCanopy < res.x) res = vec2(dCanopy, 10.0);
+
+          // 10. Swimming Duck Family on the 3D River (Synchronized to 6.0s loop W0!)
+          float glideZ = sin(uTime * W0) * 1.4 - 0.6;
+          float dirZ = cos(uTime * W0) >= 0.0 ? 1.0 : -1.0;
+          float duckX = riverCenter(glideZ) + 0.15;
+          vec3 d1P = p - vec3(duckX, 0.04, glideZ);
+          vec3 d2P = p - vec3(duckX - 0.18, 0.03, glideZ - dirZ * 0.42);
+          vec3 d3P = p - vec3(duckX - 0.08, 0.03, glideZ - dirZ * 0.76);
+          float dDuck1 = min(length(d1P * vec3(1.3, 1.8, 0.9)) - 0.14, length(d1P - vec3(0.0, 0.11, dirZ * 0.10)) - 0.075);
+          float dDuck2 = length(d2P * vec3(1.3, 1.8, 1.0)) - 0.09;
+          float dDuck3 = length(d3P * vec3(1.3, 1.8, 1.0)) - 0.085;
+          float dDucks = min(dDuck1, min(dDuck2, dDuck3));
+          if (dDucks < res.x) res = vec2(dDucks, 11.0);
+        }
+
+        return res;
+      }
+
+      vec3 calcNormal(vec3 p) {
+        vec2 e = vec2(0.008, 0.0);
+        return normalize(vec3(
+          mapScene(p + e.xyy).x - mapScene(p - e.xyy).x,
+          mapScene(p + e.yxy).x - mapScene(p - e.yxy).x,
+          mapScene(p + e.yyx).x - mapScene(p - e.yyx).x
+        ));
+      }
+
+      // 3D Water Wave Height & Quantized Pixel-Art Normal
+      float waterWaveHeight(vec2 xz) {
+        float w1 = sin(xz.x * 6.5 - xz.y * 4.2 - uTime * (3.0 * W0)) * 0.018;
+        float w2 = cos(xz.x * 4.8 + xz.y * 7.1 + uTime * (2.0 * W0)) * 0.014;
+        float w3 = sin(xz.y * 11.0 - uTime * (4.0 * W0)) * 0.008;
+        float h = (w1 + w2 + w3) * uWaveInt;
+
+        // Add interactive 3D ripples
+        vec4 rps[4];
+        rps[0] = uRipple0; rps[1] = uRipple1; rps[2] = uRipple2; rps[3] = uRipple3;
+        for (int i = 0; i < 4; i++) {
+          vec4 rp = rps[i];
+          if (rp.w > 0.01 && rp.z < 6.0) {
+            float d = length(xz - rp.xy);
+            float diff = abs(d - rp.z);
+            if (diff < 0.45) {
+              float fade = (1.0 - rp.z / 6.0) * (1.0 - diff / 0.45) * rp.w;
+              h += sin((d - rp.z) * 18.0) * 0.035 * fade;
+            }
+          }
+        }
+        return h;
+      }
+
+      vec3 calcWaterNormal(vec2 xz) {
+        // Quantize sample coordinates to a 3D pixel grid for authentic pixel-art water slices!
+        vec2 qxz = floor(xz * 28.0) / 28.0;
+        float eps = 0.035;
+        float hC = waterWaveHeight(qxz);
+        float hX = waterWaveHeight(qxz + vec2(eps, 0.0));
+        float hZ = waterWaveHeight(qxz + vec2(0.0, eps));
+        return normalize(vec3(hC - hX, eps, hC - hZ));
+      }
+
+      // Sky & Distant Mountains & Sun/Moon Color for any 3D Ray Direction
+      vec3 sampleSky(vec3 rd, float ditherVal) {
+        vec3 sunDir = normalize(vec3(-0.45, uMode == 1 ? 0.22 : 0.42, -0.78));
+
+        vec3 skyTop, skyMid, skyHor, sunCore, sunHalo, mtCol;
+        if (uMode == 0) {
+          skyTop = vec3(0.26, 0.59, 0.93);
+          skyMid = vec3(0.49, 0.78, 0.98);
+          skyHor = vec3(0.83, 0.96, 1.00);
+          sunCore = vec3(1.0, 0.99, 0.92);
+          sunHalo = vec3(1.0, 0.95, 0.70);
+          mtCol   = vec3(0.42, 0.62, 0.78);
+        } else if (uMode == 1) {
+          skyTop = vec3(0.23, 0.16, 0.42);
+          skyMid = vec3(0.70, 0.30, 0.44);
+          skyHor = vec3(1.00, 0.69, 0.36);
+          sunCore = vec3(1.0, 0.97, 0.82);
+          sunHalo = vec3(1.0, 0.55, 0.28);
+          mtCol   = vec3(0.45, 0.26, 0.44);
+        } else {
+          skyTop = vec3(0.05, 0.07, 0.17);
+          skyMid = vec3(0.09, 0.14, 0.30);
+          skyHor = vec3(0.16, 0.27, 0.44);
+          sunCore = vec3(0.96, 0.98, 1.00);
+          sunHalo = vec3(0.55, 0.72, 0.92);
+          mtCol   = vec3(0.10, 0.17, 0.30);
+        }
+
+        float elev = clamp(rd.y, 0.0, 1.0);
+        // Bayer-dithered sky bands
+        float band = clamp(elev * 2.2 + (ditherVal - 0.5) * 0.12, 0.0, 1.0);
+        vec3 col = band < 0.5
+          ? mix(skyHor, skyMid, floor(band * 8.0) / 4.0)
+          : mix(skyMid, skyTop, floor((band - 0.5) * 8.0) / 4.0);
+
+        // Distant Low-Poly Mountains along Horizon
+        float angle = atan(rd.x, -rd.z);
+        float mtH = 0.08 + abs(sin(angle * 3.5 + 0.4)) * 0.11 + cos(angle * 8.0) * 0.03;
+        if (rd.y > -0.02 && rd.y < mtH) {
+          col = mix(mtCol, skyHor, 0.25);
+        }
+
+        // Volumetric Pixel Clouds in Sky
+        if (rd.y > 0.08) {
+          vec2 cloudUV = rd.xz / (rd.y + 0.15);
+          cloudUV.x += sin(uTime * W0) * 0.12;
+          vec2 qCloud = floor(cloudUV * 6.0) / 6.0;
+          float cn = sin(qCloud.x * 1.8 + 1.2) * cos(qCloud.y * 2.1 - 0.5);
+          if (cn > 0.42 && rd.y > mtH) {
+            vec3 cLight = uMode == 0 ? vec3(1.0, 0.99, 0.97) : uMode == 1 ? vec3(1.0, 0.85, 0.62) : vec3(0.36, 0.48, 0.66);
+            vec3 cShade = uMode == 0 ? vec3(0.76, 0.86, 0.95) : uMode == 1 ? vec3(0.62, 0.35, 0.48) : vec3(0.18, 0.26, 0.42);
+            col = cn > 0.58 ? cLight : cShade;
+          }
+        }
+
+        // Stars in Night Mode
+        if (uMode == 2 && rd.y > mtH) {
+          vec2 starGrid = floor(rd.xz / (rd.y + 0.2) * 45.0);
+          float sh = hash21(starGrid);
+          if (sh > 0.965) {
+            float tw = 0.5 + 0.5 * sin(uTime * (3.0 * W0) + sh * 40.0);
+            col += vec3(0.8, 0.9, 1.0) * tw;
+          }
+        }
+
+        // Sun / Moon Disc
+        float sunDot = dot(rd, sunDir);
+        if (sunDot > 0.991) {
+          col = sunCore;
+        } else if (sunDot > 0.965) {
+          col = mix(col, sunHalo, 0.65);
+        }
+
+        return col;
+      }
+
+      // Shade 3D Material with Hue-Shifted Pixel Palette, Toon Posterization & Bayer Dither
+      vec3 shadeMaterial(vec3 p, vec3 n, float matID, float ditherVal) {
+        vec3 sunDir = normalize(vec3(-0.45, uMode == 1 ? 0.28 : 0.62, -0.65));
+        float ndl = max(0.0, dot(n, sunDir));
+
+        // Cast 3D Shadow Ray toward Sun (Canopy & Tree Shadow!)
+        float shadow = 1.0;
+        float st = 0.08;
+        for (int i = 0; i < 14; i++) {
+          vec2 shHit = mapScene(p + sunDir * st);
+          if (shHit.x < 0.02) {
+            shadow = 0.32;
+            break;
+          }
+          st += max(0.08, shHit.x * 0.7);
+          if (st > 5.0) break;
+        }
+
+        // Quantized Pixel-Art Lighting Band (3-4 discrete steps + Bayer dither!)
+        float lit = ndl * shadow + (ditherVal - 0.5) * 0.16;
+        float qLit = floor(clamp(lit, 0.0, 0.99) * 3.0) / 2.0;
+
+        vec3 baseShadow, baseMid, baseHi;
+
+        if (matID < 1.5) {
+          // Terrain: Riverbed Pebbles vs Shoreline Stones vs Stepping-Stone Path vs Grass Meadow
+          float pathCenter = 1.62 + sin(p.z * 0.45 + 0.6) * 0.18;
+          bool onFootpath = (p.z > -4.65 && p.z < 4.5 && abs(p.x - pathCenter) < 0.26);
+          if (p.y < 0.06) {
+            // Riverbed & Shoreline Stones
+            vec2 pg = floor(p.xz * 7.5);
+            float ph = hash21(pg);
+            baseShadow = vec3(0.22, 0.32, 0.38);
+            baseMid    = ph > 0.5 ? vec3(0.48, 0.54, 0.58) : vec3(0.36, 0.44, 0.48);
+            baseHi     = vec3(0.68, 0.72, 0.75);
+          } else if (onFootpath) {
+            // Riverside Stepping-Stone Footpath for Human Eye-Level Strolling
+            vec2 sg = floor(p.xz * 6.0);
+            float sh = hash21(sg);
+            if (sh > 0.22) {
+              baseShadow = vec3(0.36, 0.35, 0.34);
+              baseMid    = sh > 0.6 ? vec3(0.66, 0.63, 0.57) : vec3(0.54, 0.52, 0.48);
+              baseHi     = vec3(0.84, 0.80, 0.73);
+            } else {
+              baseShadow = vec3(0.16, 0.38, 0.23);
+              baseMid    = vec3(0.29, 0.58, 0.26);
+              baseHi     = vec3(0.62, 0.86, 0.36);
+            }
+          } else {
+            // Grass Meadow with Pixel Wildflowers
+            vec2 fg = floor(p.xz * 9.0);
+            float fh = hash21(fg);
+            if (fh > 0.965 && p.x > 1.5) {
+              return fh > 0.982 ? vec3(1.0, 0.95, 0.48) : vec3(1.0, 0.72, 0.84);
+            }
+            if (uMode == 0) {
+              baseShadow = vec3(0.14, 0.37, 0.23);
+              baseMid    = vec3(0.27, 0.57, 0.25);
+              baseHi     = vec3(0.62, 0.86, 0.36);
+            } else if (uMode == 1) {
+              baseShadow = vec3(0.22, 0.21, 0.22);
+              baseMid    = vec3(0.52, 0.44, 0.22);
+              baseHi     = vec3(0.85, 0.66, 0.29);
+            } else {
+              baseShadow = vec3(0.07, 0.16, 0.24);
+              baseMid    = vec3(0.14, 0.32, 0.38);
+              baseHi     = vec3(0.29, 0.54, 0.52);
+            }
+          }
+        } else if (matID < 2.5) {
+          // Red & White 3D Gingham Picnic Blanket
+          vec2 gUV = floor((p.xz - vec2(2.65, 0.2)) * 7.5);
+          float gx = mod(gUV.x, 2.0);
+          float gz = mod(gUV.y, 2.0);
+          vec3 cream = vec3(0.99, 0.96, 0.90);
+          vec3 redD  = vec3(0.80, 0.20, 0.25);
+          vec3 redM  = ditherVal > 0.4 ? vec3(0.92, 0.34, 0.36) : cream;
+          vec3 pat = (gx < 0.5 && gz < 0.5) ? cream : (gx >= 0.5 && gz >= 0.5) ? redD : redM;
+          // Golden refracted caustic spot on blanket next to glass pitcher!
+          float pitcherGlow = max(0.0, 1.0 - length(p.xz - vec2(2.22, -0.32)) * 5.5);
+          pat += vec3(0.45, 0.38, 0.05) * pitcherGlow;
+          baseShadow = pat * 0.55;
+          baseMid    = pat * 0.85;
+          baseHi     = pat * 1.05;
+        } else if (matID < 3.5) {
+          // Wicker Basket & Cutting Board
+          float weave = mod(floor(p.x * 24.0) + floor(p.y * 24.0) + floor(p.z * 24.0), 2.0);
+          vec3 wCol = weave > 0.5 ? vec3(0.89, 0.67, 0.38) : vec3(0.72, 0.49, 0.24);
+          baseShadow = wCol * 0.55;
+          baseMid    = wCol * 0.88;
+          baseHi     = wCol * 1.08;
+        } else if (matID < 4.5) {
+          // Crystal Glass Pitcher & Wine Glasses with Golden Lemonade Refraction!
+          float isRim = abs(n.y) > 0.7 || dot(n.xz, normalize(vec2(-1.0, -0.5))) > 0.75 ? 1.0 : 0.0;
+          vec3 liq = p.y < 0.58 ? vec3(0.98, 0.82, 0.32) : vec3(0.84, 0.96, 1.0);
+          return mix(liq, vec3(1.0, 1.0, 1.0), isRim * 0.75);
+        } else if (matID < 5.5) {
+          // Food: Strawberries vs Golden Croissant/Baguette
+          bool isBerry = (p.z > 0.16 && p.x < 2.55);
+          vec3 fCol = isBerry ? vec3(0.92, 0.18, 0.24) : vec3(0.95, 0.72, 0.30);
+          baseShadow = fCol * 0.6;
+          baseMid    = fCol * 0.9;
+          baseHi     = fCol * 1.12;
+        } else if (matID < 6.5) {
+          // Sleeping Calico Cat (White, Orange Patch, Dark Brown Patch)
+          vec3 cFur = vec3(0.98, 0.95, 0.92);
+          if (p.x > 2.88 && p.z > 0.80) cFur = vec3(0.90, 0.54, 0.24);
+          else if (p.x < 2.76 && p.z < 0.80) cFur = vec3(0.27, 0.22, 0.20);
+          baseShadow = cFur * 0.6;
+          baseMid    = cFur * 0.9;
+          baseHi     = cFur * 1.05;
+        } else if (matID < 7.5) {
+          // Straw Hat with Red Ribbon & Open Book
+          vec3 hbCol = p.x > 2.7 ? vec3(0.95, 0.83, 0.52) : vec3(0.98, 0.96, 0.90);
+          if (p.x > 2.7 && abs(p.y - 0.45) < 0.025) hbCol = vec3(0.84, 0.20, 0.25);
+          baseShadow = hbCol * 0.6;
+          baseMid    = hbCol * 0.9;
+          baseHi     = hbCol * 1.05;
+        } else if (matID < 8.5) {
+          // Glowing Picnic Lantern
+          if (abs(p.y - 0.52) < 0.09) {
+            return vec3(1.0, 0.92, 0.62);
+          }
+          return vec3(0.25, 0.24, 0.28);
+        } else if (matID < 9.5) {
+          // Differentiate Wooden Arch Bridge Planks vs Pixel-Bark Tree Trunks & Mossy Roots!
+          bool isBridgeWood = (abs(p.z - (-4.6)) < 0.72 && p.x > -2.55 && p.x < 1.55);
+          if (isBridgeWood) {
+            float plank = mod(floor(p.x * 11.0), 2.0);
+            vec3 cWood = plank > 0.5 ? vec3(0.56, 0.36, 0.23) : vec3(0.48, 0.30, 0.19);
+            baseShadow = cWood * 0.55;
+            baseMid    = cWood * 0.88;
+            baseHi     = cWood * 1.12;
+          } else {
+            // Tree Trunk Pixel Bark & Mossy Root Flare near ground
+            float bark = sin(p.x * 22.0 + p.z * 22.0 + floor(p.y * 8.0)) > 0.15 ? 1.0 : 0.86;
+            float groundH = terrainHeight(p.xz);
+            bool isRootMoss = (p.y < groundH + 0.18 && n.y > 0.15);
+            baseShadow = (isRootMoss ? vec3(0.16, 0.30, 0.18) : vec3(0.24, 0.15, 0.14)) * bark;
+            baseMid    = (isRootMoss ? vec3(0.25, 0.46, 0.22) : vec3(0.43, 0.27, 0.19)) * bark;
+            baseHi     = (isRootMoss ? vec3(0.45, 0.66, 0.28) : vec3(0.64, 0.43, 0.29)) * bark;
+          }
+        } else if (matID < 10.5) {
+          // Swaying Tree Canopy Leaves
+          if (uMode == 0) {
+            baseShadow = vec3(0.14, 0.38, 0.22);
+            baseMid    = vec3(0.32, 0.64, 0.26);
+            baseHi     = vec3(0.72, 0.90, 0.42);
+          } else if (uMode == 1) {
+            baseShadow = vec3(0.24, 0.18, 0.22);
+            baseMid    = vec3(0.55, 0.38, 0.22);
+            baseHi     = vec3(0.94, 0.72, 0.34);
+          } else {
+            baseShadow = vec3(0.06, 0.16, 0.25);
+            baseMid    = vec3(0.15, 0.34, 0.42);
+            baseHi     = vec3(0.35, 0.62, 0.68);
+          }
+        } else {
+          // Swimming Ducks
+          vec3 dCol = p.y > 0.10 ? vec3(0.18, 0.48, 0.34) : vec3(0.95, 0.92, 0.86);
+          baseShadow = dCol * 0.65;
+          baseMid    = dCol * 0.92;
+          baseHi     = dCol * 1.08;
+        }
+
+        vec3 col = qLit < 0.35 ? baseShadow : qLit < 0.75 ? baseMid : baseHi;
+
+        // 3D Contact Ambient Occlusion (Grounding shadows where trunks, bridge & props meet terrain)
+        float ao = clamp(mapScene(p + n * 0.14).x / 0.14, 0.48, 1.0);
+        col *= ao;
+
+        // 1. Secondary Water Caustic Bounce Light on Shoreline Stones, Trunk & Basket!
+        float rc = riverCenter(p.z);
+        float distToRiver = abs(p.x - rc) - 1.65;
+        if (uCausticInt > 0.05 && distToRiver > -0.2 && distToRiver < 1.2 && p.y > 0.0 && p.y < 0.85) {
+          float cw = sin(p.x * 9.0 - uTime * (3.0 * W0)) + cos(p.z * 9.0 + uTime * (2.0 * W0));
+          if (cw > 0.75) {
+            float bFade = (1.0 - distToRiver / 1.2) * (1.0 - p.y / 0.85) * uCausticInt * 0.42;
+            col += vec3(0.22, 0.45, 0.42) * bFade;
+          }
+        }
+
+        // 2. Warm 3D Point-Light Glow from the Picnic Lantern (Especially in Sunset & Night!)
+        vec3 lanPos = vec3(1.55, 0.55, -0.15);
+        float lanDist = length(p - lanPos);
+        if (lanDist < 2.4) {
+          float lInt = (uMode == 2 ? 0.95 : uMode == 1 ? 0.55 : 0.18);
+          float atten = pow(max(0.0, 1.0 - lanDist / 2.4), 2.0) * lInt;
+          col += vec3(1.0, 0.68, 0.24) * atten;
+        }
+
+        return col;
+      }
+
+      // Raymarch 3D Scene (Excluding Water Surface) - 84 steps for crisp distant trunks & posts
+      vec3 traceScene(vec3 ro, vec3 rd, float maxT, out vec3 hitPos, out float hitMat) {
+        float t = 0.02;
+        hitMat = -1.0;
+        for (int i = 0; i < 84; i++) {
+          vec3 p = ro + rd * t;
+          vec2 d = mapScene(p);
+          if (d.x < 0.010) {
+            hitPos = p;
+            hitMat = d.y;
+            break;
+          }
+          t += d.x * 0.72;
+          if (t >= maxT) break;
+        }
+        hitPos = ro + rd * t;
+        return hitPos;
+      }
+
+      // 3D Volumetric Komorebi Sunbeam Shafts (Bayer-Dithered God Rays Through Elevated Oak Canopy)
+      vec3 computeVolumetricGodRays(vec3 ro, vec3 rd, float maxDist, float ditherVal) {
+        if (uLightInt <= 0.05) return vec3(0.0);
+        vec3 sunDir = normalize(vec3(-0.45, uMode == 1 ? 0.34 : 0.58, -0.55));
+        float tMax = min(maxDist, 11.5);
+        float stepSize = tMax / 14.0;
+        float t = stepSize * ditherVal;
+        float accum = 0.0;
+
+        for (int i = 0; i < 14; i++) {
+          vec3 sp = ro + rd * t;
+          // Sunbeam shafts occur beneath and around the elevated right-bank oak canopy
+          if (sp.y > 0.05 && sp.y < 4.05 && sp.x > -0.8 && sp.x < 4.5 && abs(sp.z) < 3.8) {
+            // Project point along sun direction to the canopy plane y = 3.95
+            vec2 canopyUV = sp.xz - sunDir.xz * ((3.95 - sp.y) / sunDir.y);
+            // Slanted canopy leaf gap pattern (oscillating at 1 * W0)
+            float gap1 = sin(canopyUV.x * 3.2 + canopyUV.y * 2.4 + uTime * W0);
+            float gap2 = cos(canopyUV.x * 4.5 - canopyUV.y * 3.1 - uTime * W0);
+            float shaft = smoothstep(0.35, 0.85, (gap1 + gap2) * 0.5);
+            float env = smoothstep(4.2, 1.2, length(sp.xz - vec2(1.8, -0.3)));
+            accum += shaft * env * (1.0 / 14.0);
+          }
+          t += stepSize;
+        }
+
+        // Quantize volumetric light using 4x4 Bayer Matrix for authentic pixel-art light shafts!
+        float strength = accum * uLightInt * 1.45;
+        float qRay = strength > ditherVal * 0.65 ? strength : strength * 0.35;
+
+        vec3 rayCol = uMode == 0
+          ? vec3(0.95, 0.88, 0.45)
+          : uMode == 1
+          ? vec3(1.00, 0.58, 0.22)
+          : vec3(0.32, 0.58, 0.82);
+
+        return rayCol * qRay * 0.65;
+      }
+
+      void main() {
+        vec2 fragCoord = floor(vUV * uRes);
+        float ditherVal = bayer4(fragCoord);
+
+        // Camera Ray Setup
+        vec2 ndc = (fragCoord / uRes) * 2.0 - 1.0;
+        ndc.x *= uRes.x / uRes.y;
+        vec3 ro = uCamPos;
+        vec3 rd = normalize(uCamFwd + ndc.x * uCamRight * 0.65 + ndc.y * uCamUp * 0.65);
+
+        // Check Intersection with Water Plane y = 0.02
+        float waterY = 0.02;
+        float tWater = -1.0;
+        if (abs(rd.y) > 0.001) {
+          float tw = (waterY - ro.y) / rd.y;
+          if (tw > 0.05 && tw < 24.0) tWater = tw;
+        }
+
+        // Trace primary 3D scene
+        vec3 hitPos;
+        float hitMat;
+        traceScene(ro, rd, 22.0, hitPos, hitMat);
+        float tScene = hitMat > 0.0 ? length(hitPos - ro) : 999.0;
+
+        vec3 finalCol;
+        float viewDist = tScene;
+
+        // Did ray hit the 3D River Water Surface before hitting terrain/props?
+        if (tWater > 0.0 && tWater < tScene) {
+          vec3 wPos = ro + rd * tWater;
+          viewDist = tWater;
+
+          // Quantized 3D Pixel-Art Water Normal
+          vec3 wNorm = calcWaterNormal(wPos.xz);
+
+          // 1. 3D Planar/Ray Reflection of Upper Scene (Trees, Bridge, Picnic, Sky, Sun!)
+          vec3 reflDir = reflect(rd, wNorm);
+          reflDir.y = max(0.02, reflDir.y);
+          vec3 reflHitPos;
+          float reflMat;
+          traceScene(wPos + wNorm * 0.03, reflDir, 16.0, reflHitPos, reflMat);
+          vec3 reflCol;
+          if (reflMat > 0.0) {
+            vec3 rN = calcNormal(reflHitPos);
+            reflCol = shadeMaterial(reflHitPos, rN, reflMat, ditherVal);
+          } else {
+            reflCol = sampleSky(reflDir, ditherVal);
+          }
+
+          // 2. 3D Riverbed Refraction & Underwater Voronoi/Wave Caustics
+          vec3 underPos = hitPos;
+          float waterDepth = max(0.0, waterY - underPos.y);
+          vec3 bedCol = hitMat > 0.0
+            ? shadeMaterial(underPos, vec3(0.0, 1.0, 0.0), hitMat, ditherVal)
+            : vec3(0.1, 0.3, 0.5);
+
+          // Crisp 3D Underwater Caustics Mesh projected onto the 3D riverbed!
+          if (uCausticInt > 0.01 && waterDepth < 0.75) {
+            vec2 cUV = floor((underPos.xz + wNorm.xz * 0.35) * 18.0) / 18.0;
+            float c1 = sin(cUV.x * 9.5 + cUV.y * 7.2 - uTime * (2.0 * W0));
+            float c2 = cos(cUV.x * 8.1 - cUV.y * 10.4 + uTime * (2.0 * W0));
+            if ((c1 + c2) * 0.5 > 0.52) {
+              float cStrength = (1.0 - waterDepth / 0.75) * uCausticInt * 0.55;
+              bedCol += (uMode == 1 ? vec3(0.85, 0.55, 0.25) : vec3(0.42, 0.82, 0.78)) * cStrength;
+            }
+          }
+
+          // Depth-based water absorption tint (Shallow Emerald -> Deep Cerulean/Indigo)
+          vec3 shallowTint = uMode == 0 ? vec3(0.28, 0.74, 0.70) : uMode == 1 ? vec3(0.72, 0.44, 0.42) : vec3(0.12, 0.33, 0.46);
+          vec3 deepTint    = uMode == 0 ? vec3(0.10, 0.36, 0.56) : uMode == 1 ? vec3(0.24, 0.16, 0.36) : vec3(0.05, 0.12, 0.25);
+          float depthFactor = clamp(waterDepth * 1.65 + (ditherVal - 0.5) * 0.15, 0.0, 1.0);
+          vec3 waterBody = mix(shallowTint, deepTint, depthFactor);
+          float clarity = clamp((1.0 - depthFactor * 0.82) * uCausticInt, 0.15, 0.88);
+          vec3 refractedCol = mix(waterBody, bedCol, clarity);
+
+          // 3. Schlick's 3D Fresnel Equation (Grazing angle = mirror reflection, Top-down = clear riverbed!)
+          float cosTheta = clamp(dot(-rd, wNorm), 0.0, 1.0);
+          float fresnel = clamp(0.22 + 0.74 * pow(1.0 - cosTheta, 3.2), 0.20, 0.92);
+          finalCol = mix(refractedCol, reflCol, fresnel);
+
+          // 4. Warm Lantern Reflection on 3D Water Surface
+          float lanReflDist = length(wPos.xz - vec2(1.35, -0.15));
+          if (lanReflDist < 1.1) {
+            float lRefl = (1.0 - lanReflDist / 1.1) * (uMode == 2 ? 0.85 : 0.42);
+            if (mod(floor(wPos.z * 22.0 + uTime * (3.0 * W0)), 2.0) < 1.0) {
+              finalCol += vec3(1.0, 0.68, 0.22) * lRefl;
+            }
+          }
+
+          // 5. Shoreline Foam & Interactive Ripple Crests (1-2px crisp white/cyan border)
+          float foamWave = sin(wPos.z * 5.5 + uTime * (3.0 * W0)) * 0.025;
+          if (waterDepth < 0.065 + foamWave) {
+            finalCol = uMode == 1 ? vec3(1.0, 0.86, 0.72) : vec3(0.92, 0.98, 1.0);
+          }
+
+          // 6. 3D Specular Sun/Moon Glint Path on Water Waves
+          vec3 sunDir = normalize(vec3(-0.45, uMode == 1 ? 0.25 : 0.42, -0.78));
+          vec3 halfVec = normalize(sunDir - rd);
+          float spec = pow(max(0.0, dot(wNorm, halfVec)), 42.0);
+          if (spec > 0.24 * (1.8 - uLightInt * 0.6)) {
+            finalCol = spec > 0.52
+              ? vec3(1.0, 0.99, 0.90)
+              : mix(finalCol, vec3(0.82, 0.96, 1.0), 0.65);
+          }
+        } else if (hitMat > 0.0) {
+          vec3 n = calcNormal(hitPos);
+          finalCol = shadeMaterial(hitPos, n, hitMat, ditherVal);
+          // Distance atmospheric haze
+          float fog = smoothstep(9.0, 21.0, tScene);
+          finalCol = mix(finalCol, sampleSky(rd, ditherVal), fog * 0.55);
+        } else {
+          finalCol = sampleSky(rd, ditherVal);
+          viewDist = 18.0;
+        }
+
+        // Add 3D Volumetric Komorebi God-Ray Shafts
+        finalCol += computeVolumetricGodRays(ro, rd, viewDist, ditherVal);
+
+        // Final subtle color quantization (32 levels per channel for crisp 16-bit pixel art feel)
+        finalCol = floor(clamp(finalCol, 0.0, 1.0) * 31.0 + 0.5) / 31.0;
+
+        gl_FragColor = vec4(finalCol, 1.0);
+      }
+    `;
+
+    function compileShader(type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.error('Shader error:', gl.getShaderInfoLog(sh));
+      }
+      return sh;
+    }
+
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const aPosLoc = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPosLoc);
+    gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uLocs = {
+      uRes: gl.getUniformLocation(prog, 'uRes'),
+      uTime: gl.getUniformLocation(prog, 'uTime'),
+      uMode: gl.getUniformLocation(prog, 'uMode'),
+      uCamPos: gl.getUniformLocation(prog, 'uCamPos'),
+      uCamFwd: gl.getUniformLocation(prog, 'uCamFwd'),
+      uCamRight: gl.getUniformLocation(prog, 'uCamRight'),
+      uCamUp: gl.getUniformLocation(prog, 'uCamUp'),
+      uLightInt: gl.getUniformLocation(prog, 'uLightInt'),
+      uWaveInt: gl.getUniformLocation(prog, 'uWaveInt'),
+      uCausticInt: gl.getUniformLocation(prog, 'uCausticInt'),
+      uRipple0: gl.getUniformLocation(prog, 'uRipple0'),
+      uRipple1: gl.getUniformLocation(prog, 'uRipple1'),
+      uRipple2: gl.getUniformLocation(prog, 'uRipple2'),
+      uRipple3: gl.getUniformLocation(prog, 'uRipple3')
+    };
+
+    // ============================================================================
+    // 3D SCREEN-SPACE PIXEL SPARKLES (+ / ◇), PETALS & FIREFLIES OVERLAY
+    // ============================================================================
+    const particles3D = [];
+    for (let i = 0; i < 36; i++) {
+      const isWaterSparkle = i < 20;
+      particles3D.push({
+        isWaterSparkle,
+        x: isWaterSparkle ? (-1.2 + (i % 5) * 0.48 + Math.sin(i * 3.1) * 0.25) : (-1.5 + (i % 7) * 0.85),
+        y: isWaterSparkle ? 0.03 : (0.35 + (i % 4) * 0.45),
+        z: -3.5 + (i / 36) * 6.8,
+        phase: (i * 0.37) % 1.0
+      });
+    }
+
+    function project3DTo2D(px, py, pz, camPos, camFwd, camRight, camUp) {
+      const dx = px - camPos[0], dy = py - camPos[1], dz = pz - camPos[2];
+      const cz = dx * camFwd[0] + dy * camFwd[1] + dz * camFwd[2];
+      if (cz <= 0.15) return null;
+      const cx = (dx * camRight[0] + dy * camRight[1] + dz * camRight[2]) / (cz * 0.65 * (W / H));
+      const cy = (dx * camUp[0] + dy * camUp[1] + dz * camUp[2]) / (cz * 0.65);
+      const sx = Math.round((cx * 0.5 + 0.5) * W);
+      const sy = Math.round((0.5 - cy * 0.5) * H);
+      if (sx < 2 || sx >= W - 2 || sy < 2 || sy >= H - 2) return null;
+      return { x: sx, y: sy, depth: cz };
+    }
+
+    function render2DPixelOverlay(camPos, camFwd, camRight, camUp) {
+      fxCtx.clearRect(0, 0, W, H);
+      if (lightIntensity <= 0.05) return;
+
+      for (let i = 0; i < particles3D.length; i++) {
+        const pt = particles3D[i];
+        if (pt.isWaterSparkle) {
+          // 4-frame pixel-art cross (+) and diamond (◇) sparkles on the 3D river surface!
+          const cycle = (((time / LOOP_PERIOD) * 3.0 + pt.phase) % 1.0) * 4.0;
+          if (cycle > 1.7) continue;
+          const wx = pt.x + Math.sin(pt.z * 0.22) * 0.4;
+          const proj = project3DTo2D(wx, 0.04, pt.z, camPos, camFwd, camRight, camUp);
+          if (!proj) continue;
+
+          const sx = proj.x;
+          const sy = proj.y;
+          fxCtx.fillStyle = timeOfDay === 1 ? '#FFF4B8' : '#FFFFF0';
+          if (cycle < 0.4 || cycle > 1.3) {
+            fxCtx.fillRect(sx, sy, 1, 1);
+          } else if (cycle < 0.75 || cycle > 1.0) {
+            fxCtx.fillRect(sx - 1, sy, 3, 1);
+            fxCtx.fillRect(sx, sy - 1, 1, 3);
+          } else {
+            fxCtx.fillStyle = timeOfDay === 1 ? '#FFB868' : '#B8F4FF';
+            fxCtx.fillRect(sx - 2, sy, 5, 1);
+            fxCtx.fillRect(sx, sy - 2, 1, 5);
+            fxCtx.fillStyle = '#FFFFFF';
+            fxCtx.fillRect(sx - 1, sy, 3, 1);
+            fxCtx.fillRect(sx, sy - 1, 1, 3);
+          }
+        } else {
+          // 3D Floating Petals (Day/Sunset) or 3D Glowing Fireflies (Night/Sunset)
+          const angle = time * W0 + pt.phase * Math.PI * 2;
+          const px = pt.x + Math.sin(angle) * 0.45 * waveIntensity;
+          const py = pt.y + Math.cos(angle * 2.0) * 0.18;
+          const pz = pt.z + Math.cos(angle) * 0.35;
+          const proj = project3DTo2D(px, py, pz, camPos, camFwd, camRight, camUp);
+          if (!proj) continue;
+
+          if (timeOfDay === 2 || (timeOfDay === 1 && i % 2 === 0)) {
+            const blink = 0.5 + 0.5 * Math.sin(time * (3.0 * W0) + i * 1.9);
+            if (blink > 0.3) {
+              fxCtx.fillStyle = 'rgba(210, 255, 120, 0.35)';
+              fxCtx.fillRect(proj.x - 1, proj.y - 1, 3, 3);
+              fxCtx.fillStyle = '#F8FFA0';
+              fxCtx.fillRect(proj.x, proj.y, 1, 1);
+            }
+          } else {
+            fxCtx.fillStyle = i % 2 === 0 ? '#FFF0F5' : '#FFF8C8';
+            fxCtx.fillRect(proj.x, proj.y, 2, 1);
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 3D GROUND HEIGHTFIELD & OBJECT COLLISION ENGINE (地面・橋・物体の当たり判定)
+    // ============================================================================
+    function smoothstepJS(edge0, edge1, x) {
+      const t = Math.max(0.0, Math.min(1.0, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3.0 - 2.0 * t);
+    }
+
+    function getRiverCenterJS(z) {
+      return -0.65 + Math.sin(z * 0.22) * 0.55;
+    }
+
+    function getRiverHalfWidthJS(z) {
+      return 1.65 + Math.sin(z * 0.35) * 0.18;
+    }
+
+    // Exact JS counterpart to GLSL terrainHeight(xz) + Wooden Bridge & Blanket surfaces
+    function getGroundAndSurfaceInfo(x, z) {
+      const rc = getRiverCenterJS(z);
+      const dx = x - rc;
+      const riverHalfW = getRiverHalfWidthJS(z);
+
+      let terrainH = 0.0;
+      if (Math.abs(dx) < riverHalfW) {
+        const normD = Math.abs(dx) / riverHalfW;
+        terrainH = -0.68 * (1.0 - normD * normD * 0.82);
+      } else if (dx >= riverHalfW) {
+        const bankDist = dx - riverHalfW;
+        const terrace = smoothstepJS(0.0, 0.55, bankDist) * 0.36;
+        const backHill = smoothstepJS(3.2, 8.5, bankDist) * 1.4;
+        terrainH = terrace + backHill + Math.sin(x * 0.8 + z * 0.7) * 0.03;
+      } else {
+        const bankDist = -dx - riverHalfW;
+        terrainH = smoothstepJS(0.0, 0.65, bankDist) * 0.42 + smoothstepJS(1.8, 7.5, bankDist) * 1.8 + Math.cos(x * 0.9 - z * 0.6) * 0.05;
+      }
+
+      // 1. Check Wooden Arch Footbridge Deck (at z = -4.6, spanning x in [-2.60, 1.60])
+      if (x >= -2.60 && x <= 1.60 && z >= -5.06 && z <= -4.14) {
+        const bridgeArch = 0.55 - 0.14 * (x + 0.5) * (x + 0.5) + 0.06;
+        if (bridgeArch >= terrainH - 0.05) {
+          return { height: Math.max(terrainH, bridgeArch), surface: '🌉 太鼓橋 (木製デッキ)', isBridge: true };
+        }
+      }
+
+      // 2. Check Picnic Blanket on Right Bank (centered at x=2.65, z=0.2)
+      if (Math.abs(x - 2.65) <= 1.18 && Math.abs(z - 0.2) <= 1.25) {
+        return { height: terrainH + 0.025, surface: '🧺 ピクニックシート', isBlanket: true };
+      }
+
+      // 3. Check Riverside Stepping-Stone Footpath
+      const pathCenter = 1.62 + Math.sin(z * 0.45 + 0.6) * 0.18;
+      if (z > -4.65 && z < 4.5 && Math.abs(x - pathCenter) < 0.28) {
+        return { height: terrainH + 0.01, surface: '🪨 川辺の石畳パス', isPath: true };
+      }
+
+      return {
+        height: terrainH,
+        surface: dx >= 0 ? '🌿 右岸・草原テラス' : '🌲 左岸・柳の岸辺'
+      };
+    }
+
+    // 3D Solid Object Colliders (Cylinders & Oriented/Axis-Aligned Boxes matching all grounded trunks & props)
+    const OBJECT_COLLIDERS = [
+      { type: 'cylinder', x: 4.15, z: -1.55, r: 0.48, topY: 4.10, name: '🌳 オークの大木' },
+      { type: 'box',      x: 3.25, z: -0.55, hx: 0.34, hz: 0.26, topY: 0.78, name: '🧺 バスケット' },
+      { type: 'cylinder', x: 1.96, z: -0.34, r: 0.27, topY: 0.74, name: '🍷 ピッチャー＆グラス' },
+      { type: 'box',      x: 2.35, z:  0.16, hx: 0.30, hz: 0.24, topY: 0.52, name: '🥐 カッティングボード' },
+      { type: 'cylinder', x: 2.85, z:  0.82, r: 0.26, topY: 0.62, name: '🐱 眠る三毛猫' },
+      { type: 'cylinder', x: 3.38, z:  0.55, r: 0.29, topY: 0.52, name: '👒 麦わら帽子' },
+      { type: 'box',      x: 2.05, z:  0.68, hx: 0.22, hz: 0.17, topY: 0.48, name: '📖 開いた本' },
+      { type: 'cylinder', x: 1.55, z: -0.15, r: 0.17, topY: 0.72, name: '🏮 ランタン' },
+      { type: 'cylinder', x: -3.20, z: -1.82, r: 0.36, topY: 3.10, name: '🌳 対岸の柳の幹' },
+      { type: 'cylinder', x: -3.60, z:  0.83, r: 0.34, topY: 3.00, name: '🌳 対岸の木の幹' },
+      { type: 'cylinder', x:  1.72, z: -6.20, r: 0.35, topY: 3.10, name: '🌳 橋奥の木(右岸)' },
+      { type: 'cylinder', x: -2.05, z: -6.00, r: 0.35, topY: 3.10, name: '🌳 橋奥の木(左岸)' },
+      { type: 'cylinder', x:  4.50, z:  3.30, r: 0.35, topY: 3.30, name: '🌳 南側の木の幹' }
+    ];
+
+    // Resolve Horizontal (X, Z) Collisions with Sliding Response
+    function resolveHorizontalCollisions(oldX, oldZ, newX, newZ, currentFootY, radius) {
+      let x = Math.max(-6.4, Math.min(6.4, newX));
+      let z = Math.max(-6.4, Math.min(6.4, newZ));
+      let hitObject = '';
+
+      // 1. Wooden Arch Bridge Side Railings (at z = -5.08 and z = -4.12 for x in [-2.55, 1.55])
+      if (x > -2.55 && x < 1.55) {
+        const railNorthZ = -5.08;
+        const railSouthZ = -4.12;
+        const railR = 0.06 + radius;
+        if (Math.abs(z - railNorthZ) < railR) {
+          z = oldZ < railNorthZ ? railNorthZ - railR : railNorthZ + railR;
+          hitObject = '🌉 太鼓橋の手すり';
+        }
+        if (Math.abs(z - railSouthZ) < railR) {
+          z = oldZ > railSouthZ ? railSouthZ + railR : railSouthZ - railR;
+          hitObject = '🌉 太鼓橋の手すり';
+        }
+      }
+
+      // 2. River Channel Shoreline Barrier (when not crossing on the wooden bridge)
+      const onBridgeSpan = (z >= -5.06 && z <= -4.14 && x >= -2.62 && x <= 1.62);
+      if (!onBridgeSpan) {
+        const rc = getRiverCenterJS(z);
+        const halfW = getRiverHalfWidthJS(z) - 0.10;
+        const distFromRiverCenter = x - rc;
+        if (Math.abs(distFromRiverCenter) < halfW) {
+          const sign = distFromRiverCenter >= 0 || oldX >= rc ? 1.0 : -1.0;
+          x = rc + sign * halfW;
+          hitObject = '🌊 川岸の浅瀬';
+          // Spawn a subtle water ripple when the player's feet touch the shoreline!
+          if (Math.random() < 0.25) {
+            add3DRipple(rc + sign * (halfW - 0.18), z, 0.85);
+          }
+        }
+      }
+
+      // 3. Solid 3D Props & Trees (Smooth Push-Out for Tangential Sliding)
+      for (let i = 0; i < OBJECT_COLLIDERS.length; i++) {
+        const col = OBJECT_COLLIDERS[i];
+        // Allow stepping over low objects if jumping high enough
+        if (currentFootY > col.topY - 0.05) continue;
+
+        if (col.type === 'cylinder') {
+          const dx = x - col.x;
+          const dz = z - col.z;
+          const dist = Math.hypot(dx, dz);
+          const minDist = col.r + radius;
+          if (dist < minDist) {
+            const nx = dist > 0.0001 ? dx / dist : 1.0;
+            const nz = dist > 0.0001 ? dz / dist : 0.0;
+            x = col.x + nx * minDist;
+            z = col.z + nz * minDist;
+            hitObject = col.name;
+          }
+        } else if (col.type === 'box') {
+          const ex = col.hx + radius;
+          const ez = col.hz + radius;
+          const dx = x - col.x;
+          const dz = z - col.z;
+          if (Math.abs(dx) < ex && Math.abs(dz) < ez) {
+            const overlapX = ex - Math.abs(dx);
+            const overlapZ = ez - Math.abs(dz);
+            if (overlapX < overlapZ) {
+              x = col.x + (dx >= 0 ? ex : -ex);
+            } else {
+              z = col.z + (dz >= 0 ? ez : -ez);
+            }
+            hitObject = col.name;
+          }
+        }
+      }
+
+      return { x, z, hitObject };
+    }
+
+    // Prevent Orbit Camera from Clipping Underground or Inside Solid Objects
+    function clampCameraPointCollision(pos) {
+      const groundInfo = getGroundAndSurfaceInfo(pos[0], pos[2]);
+      const minCamY = Math.max(0.16, groundInfo.height + 0.18);
+      if (pos[1] < minCamY) pos[1] = minCamY;
+      const res = resolveHorizontalCollisions(pos[0], pos[2], pos[0], pos[2], pos[1] - 0.15, 0.16);
+      pos[0] = res.x;
+      pos[2] = res.z;
+      return pos;
+    }
+
+    // ============================================================================
+    // CAMERA CONTROLS (Human Walk WASD, Auto Stroll Pattern, Orbit, 6s Loop)
+    // ============================================================================
+    function togglePosture() {
+      isSitting = !isSitting;
+      const btn = document.getElementById('btn-posture');
+      btn.textContent = isSitting ? '🧎 座り目線' : '🧍 立ち目線';
+      updateSurfaceHUD();
+    }
+
+    function updateSurfaceHUD() {
+      const hudSurf = document.getElementById('hud-surface');
+      if (!hudSurf) return;
+      const info = getGroundAndSurfaceInfo(walkPos[0], walkPos[2]);
+      const postureStr = isSitting ? '座り目線' : '立ち目線';
+      if (collisionNoticeTimer > 0 && lastCollidedObject) {
+        hudSurf.textContent = `⚠️ ${lastCollidedObject} に接触 | ${info.surface}`;
+        hudSurf.className = 'absolute top-2 right-2 pointer-events-none bg-amber-950/80 backdrop-blur-xs text-amber-200 px-2 py-0.5 rounded text-xs border border-amber-400/40';
+      } else {
+        hudSurf.textContent = `${info.surface} (${postureStr})`;
+        hudSurf.className = 'absolute top-2 right-2 pointer-events-none bg-black/55 backdrop-blur-xs text-emerald-200 px-2 py-0.5 rounded text-xs border border-white/15';
+      }
+    }
+
+    function setCameraMode(mode) {
+      cameraMode = mode;
+      ['walk', 'stroll', 'orbit', 'loop'].forEach(m => {
+        const el = document.getElementById('cam-' + m);
+        if (!el) return;
+        if (m === mode) {
+          el.className = 'px-2 py-0.5 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)]';
+        } else {
+          el.className = 'px-2 py-0.5 rounded text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]';
+        }
+      });
+      const help = document.getElementById('hud-help');
+      if (mode === 'walk') {
+        help.textContent = 'WASD/矢印: 歩行(上下揺れ・当たり判定付) / Space: 小ジャンプ / C: 立ち・座り目線 / ドラッグ: 見回す';
+        document.getElementById('canvas-wrapper').focus();
+      } else if (mode === 'stroll') {
+        help.textContent = '👣 人物目線・自動散策中（石畳の遊歩道〜ピクニックシートを歩行揺れ付きで移動）';
+      } else if (mode === 'loop') {
+        help.textContent = '6.0秒周期でカメラが自動周回中（ループ動画保存に最適）';
+      } else {
+        help.textContent = 'ドラッグ: 3D回転 / ホイール: ズーム / 水面クリック: 3D波紋（地面当たり判定付）';
+      }
+    }
+
+    function applyCameraPreset(preset) {
+      if (preset === 'path') {
+        // Standing on the riverside stepping-stone path (raised 1.38m eye height)
+        isSitting = false;
+        document.getElementById('btn-posture').textContent = '🧍 立ち目線';
+        walkPos[0] = 1.56; walkPos[2] = 2.55;
+        footY = getGroundAndSurfaceInfo(walkPos[0], walkPos[2]).height;
+        walkPos[1] = footY + EYE_HEIGHT_STAND;
+        camYaw = -0.34; camPitch = 0.15;
+        setCameraMode('walk');
+      } else if (preset === 'sit') {
+        // Seated on the gingham picnic blanket (raised 0.76m seated eye height)
+        isSitting = true;
+        document.getElementById('btn-posture').textContent = '🧎 座り目線';
+        walkPos[0] = 2.62; walkPos[2] = 1.32;
+        footY = getGroundAndSurfaceInfo(walkPos[0], walkPos[2]).height;
+        walkPos[1] = footY + EYE_HEIGHT_SIT;
+        camYaw = 0.25; camPitch = 0.22;
+        setCameraMode('walk');
+      } else if (preset === 'bridge') {
+        // Standing at human eye level (1.38m) on the center of the arched wooden bridge!
+        isSitting = false;
+        document.getElementById('btn-posture').textContent = '🧍 立ち目線';
+        walkPos[0] = -0.35; walkPos[2] = -4.60;
+        footY = getGroundAndSurfaceInfo(walkPos[0], walkPos[2]).height;
+        walkPos[1] = footY + EYE_HEIGHT_STAND;
+        camYaw = 2.55; camPitch = 0.20;
+        setCameraMode('walk');
+      } else if (preset === 'top') {
+        camYaw = -0.45; camPitch = 0.88; camDist = 8.6;
+        camTarget = [0.65, 0.25, -0.4];
+        setCameraMode('orbit');
+      }
+      updateSurfaceHUD();
+    }
+
+    function cycleResolution() {
+      resIdx = (resIdx + 1) % RESOLUTIONS.length;
+      W = RESOLUTIONS[resIdx].w;
+      H = RESOLUTIONS[resIdx].h;
+      glCanvas.width = W;
+      glCanvas.height = H;
+      fxCanvas.width = W;
+      fxCanvas.height = H;
+      gl.viewport(0, 0, W, H);
+      document.getElementById('badge-res').textContent = RESOLUTIONS[resIdx].label;
+    }
+
+    function setTimeOfDay(mode) {
+      timeOfDay = mode;
+      const labels = ['☀️ 3D SUNNY AFTERNOON', '🌅 3D GOLDEN HOUR', '🌙 3D STARLIT FIREFLY NIGHT'];
+      document.getElementById('hud-mode').textContent = labels[mode];
+      const ids = ['btn-day', 'btn-sunset', 'btn-night'];
+      ids.forEach((id, idx) => {
+        const el = document.getElementById(id);
+        if (idx === mode) {
+          el.className = 'px-2 py-1 rounded text-xs font-medium transition-all bg-[var(--primary)] text-[var(--primary-foreground)] shadow-xs';
+        } else {
+          el.className = 'px-2 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]';
+        }
+      });
+    }
+
+    function computeCameraVectors() {
+      let pos, fwd;
+      if (cameraMode === 'loop') {
+        // 6.0-second seamless orbital arc around the riverside picnic!
+        const ang = time * W0;
+        const yaw = -0.65 + Math.sin(ang) * 0.38;
+        const pitch = 0.26 + Math.cos(ang) * 0.08;
+        const dist = 7.2 + Math.sin(ang * 2.0) * 0.4;
+        const cp = Math.cos(pitch), sp = Math.sin(pitch);
+        const cy = Math.cos(yaw), sy = Math.sin(yaw);
+        pos = clampCameraPointCollision([
+          camTarget[0] + dist * cp * sy,
+          camTarget[1] + dist * sp,
+          camTarget[2] + dist * cp * cy
+        ]);
+        fwd = [
+          camTarget[0] - pos[0],
+          camTarget[1] - pos[1],
+          camTarget[2] - pos[2]
+        ];
+      } else if (cameraMode === 'stroll') {
+        // Automated Human-Eye-Level Stroll Pattern along the Riverside Stepping-Stone Path & Bridge
+        // Synchronized to 6.0s loop (or continuous time) with natural footstep head-bobbing!
+        const ang = time * W0;
+        // Walk smoothly along the riverside stone path between z = 2.6 (south meadow) and z = -2.2 (near bridge)
+        const strollZ = 0.25 + Math.cos(ang) * 2.15;
+        const strollX = 1.60 + Math.sin(strollZ * 0.45 + 0.6) * 0.18;
+        const surf = getGroundAndSurfaceInfo(strollX, strollZ);
+
+        // 6 full stride cycles (12 footsteps) per 6.0s loop for natural human walking cadence
+        const stepPhase = ang * 6.0;
+        const speedFactor = 0.35 + 0.65 * Math.abs(Math.sin(ang));
+        const bobY = Math.sin(stepPhase * 2.0) * 0.032 * speedFactor;
+        const bobSide = Math.cos(stepPhase) * 0.014 * speedFactor;
+        const bobPitch = Math.cos(stepPhase * 2.0) * 0.005 * speedFactor;
+
+        walkPos[0] = strollX;
+        walkPos[2] = strollZ;
+        footY = surf.height;
+        walkPos[1] = footY + currentEyeOffset + bobY;
+
+        // Gently pan human gaze between the sparkling river/bridge and the picnic blanket
+        const lookTarget = [
+          2.25 + Math.sin(ang) * 0.45,
+          0.52 + bobPitch * 3.0,
+          -0.25 + Math.cos(ang * 0.5) * 0.35
+        ];
+        pos = [walkPos[0] + bobSide, walkPos[1], walkPos[2]];
+        fwd = [
+          lookTarget[0] - pos[0],
+          lookTarget[1] - pos[1],
+          lookTarget[2] - pos[2]
+        ];
+      } else if (cameraMode === 'walk') {
+        // Manual First-Person Human Walk Mode with Head-Bobbing (歩行時の上下の揺れ)
+        const bobY = Math.sin(walkPhase * 2.0) * 0.030 * walkBobBlend;
+        const bobSide = Math.cos(walkPhase) * 0.013 * walkBobBlend;
+        const effectivePitch = camPitch + Math.cos(walkPhase * 2.0) * 0.005 * walkBobBlend;
+
+        const cp = Math.cos(effectivePitch), sp = Math.sin(effectivePitch);
+        const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
+        fwd = [-cp * sy, -sp, -cp * cy];
+
+        // Sideways vector for subtle lateral stride sway
+        const rightX = -fwd[2], rightZ = fwd[0];
+        pos = [
+          walkPos[0] + rightX * bobSide,
+          walkPos[1] + bobY,
+          walkPos[2] + rightZ * bobSide
+        ];
+      } else {
+        // Orbit Mode (with ground & object collision clamping!)
+        const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+        const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
+        pos = clampCameraPointCollision([
+          camTarget[0] + camDist * cp * sy,
+          camTarget[1] + camDist * sp,
+          camTarget[2] + camDist * cp * cy
+        ]);
+        fwd = [
+          camTarget[0] - pos[0],
+          camTarget[1] - pos[1],
+          camTarget[2] - pos[2]
+        ];
+      }
+
+      const fLen = Math.hypot(fwd[0], fwd[1], fwd[2]) || 1;
+      fwd = [fwd[0] / fLen, fwd[1] / fLen, fwd[2] / fLen];
+
+      // Right = normalize(cross(fwd, [0,1,0]))
+      let rx = -fwd[2], ry = 0, rz = fwd[0];
+      const rLen = Math.hypot(rx, ry, rz) || 1;
+      const right = [rx / rLen, ry / rLen, rz / rLen];
+
+      // Up = cross(right, fwd)
+      const up = [
+        right[1] * fwd[2] - right[2] * fwd[1],
+        right[2] * fwd[0] - right[0] * fwd[2],
+        right[0] * fwd[1] - right[1] * fwd[0]
+      ];
+
+      return { pos, fwd, right, up };
+    }
+
+    // Pointer & Keyboard Listeners
+    const wrapper = document.getElementById('canvas-wrapper');
+    let isDragging = false;
+    let dragMoved = false;
+    let lastPX = 0, lastPY = 0;
+
+    wrapper.addEventListener('pointerdown', e => {
+      isDragging = true;
+      dragMoved = false;
+      lastPX = e.clientX;
+      lastPY = e.clientY;
+      wrapper.setPointerCapture(e.pointerId);
+      wrapper.focus();
+    });
+
+    wrapper.addEventListener('pointermove', e => {
+      if (!isDragging) return;
+      const dx = e.clientX - lastPX;
+      const dy = e.clientY - lastPY;
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+      lastPX = e.clientX;
+      lastPY = e.clientY;
+
+      if (cameraMode === 'loop') setCameraMode('orbit');
+      if (cameraMode === 'stroll') setCameraMode('walk');
+      camYaw -= dx * 0.0075;
+      const minPitch = (cameraMode === 'walk') ? -0.55 : 0.04;
+      camPitch = Math.max(minPitch, Math.min(1.22, camPitch + dy * 0.0065));
+    });
+
+    wrapper.addEventListener('pointerup', e => {
+      isDragging = false;
+      if (!dragMoved) {
+        // Raycast click onto the 3D water plane y = 0.02!
+        const rect = glCanvas.getBoundingClientRect();
+        const u = ((e.clientX - rect.left) / rect.width) * 2.0 - 1.0;
+        const v = 1.0 - ((e.clientY - rect.top) / rect.height) * 2.0;
+        const { pos, fwd, right, up } = computeCameraVectors();
+        const aspect = W / H;
+        let rdx = fwd[0] + u * aspect * 0.65 * right[0] + v * 0.65 * up[0];
+        let rdy = fwd[1] + u * aspect * 0.65 * right[1] + v * 0.65 * up[1];
+        let rdz = fwd[2] + u * aspect * 0.65 * right[2] + v * 0.65 * up[2];
+        const rLen = Math.hypot(rdx, rdy, rdz);
+        rdx /= rLen; rdy /= rLen; rdz /= rLen;
+        if (rdy < -0.01) {
+          const t = (0.02 - pos[1]) / rdy;
+          if (t > 0 && t < 20) {
+            const hx = pos[0] + rdx * t;
+            const hz = pos[2] + rdz * t;
+            add3DRipple(hx, hz, 1.45);
+          }
+        }
+      }
+    });
+
+    wrapper.addEventListener('wheel', e => {
+      e.preventDefault();
+      camDist = Math.max(2.2, Math.min(13.5, camDist + e.deltaY * 0.005));
+    }, { passive: false });
+
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'KeyC') {
+        togglePosture();
+      } else if (e.code === 'Space' && cameraMode === 'walk' && isGrounded) {
+        e.preventDefault();
+        velY = 2.35; // Gentle human hop
+        isGrounded = false;
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+        if (cameraMode !== 'walk') setCameraMode('walk');
+      } else if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+        if (cameraMode !== 'walk') setCameraMode('walk');
+      }
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // Sliders
+    document.getElementById('slider-light').addEventListener('input', e => {
+      lightIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-light').textContent = e.target.value + '%';
+    });
+    document.getElementById('slider-wave').addEventListener('input', e => {
+      waveIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-wave').textContent = e.target.value + '%';
+    });
+    document.getElementById('slider-caustics').addEventListener('input', e => {
+      causticsIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-caustics').textContent = e.target.value + '%';
+    });
+
+    // ============================================================================
+    // DIRECT ~/Downloads PNG & 60FPS MP4 VIDEO EXPORT
+    // ============================================================================
+    let isRecording = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordStartTime = 0;
+    let recordTargetDuration = LOOP_PERIOD;
+    let lastExportUrl = null;
+
+    function sync3DExportCanvas() {
+      exportCtx.imageSmoothingEnabled = false;
+      exportCtx.drawImage(glCanvas, 0, 0, 1280, 720);
+      exportCtx.drawImage(fxCanvas, 0, 0, 1280, 720);
+    }
+
+    function sendBlobToDownloadsBridge(blob, filename) {
+      fetch(`http://127.0.0.1:18923/save-blob?filename=${encodeURIComponent(filename)}`, {
+        method: 'POST',
+        body: blob
+      }).catch(() => {});
+    }
+
+    function triggerDirectDownload(url, filename) {
+      try {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { if (a.parentNode) document.body.removeChild(a); }, 1000);
+      } catch (e) {}
+    }
+
+    function showExportNotification(filename, blob) {
+      if (lastExportUrl) URL.revokeObjectURL(lastExportUrl);
+      lastExportUrl = URL.createObjectURL(blob);
+      const drawer = document.getElementById('export-drawer');
+      const title = document.getElementById('export-title');
+      const link = document.getElementById('export-download-link');
+      drawer.classList.remove('hidden');
+      title.textContent = `✅ ~/Downloads/${filename} に保存しました`;
+      link.href = lastExportUrl;
+      link.download = filename;
+    }
+
+    function export3DPNG() {
+      sync3DExportCanvas();
+      const modeNames = ['day', 'sunset', 'night'];
+      const filename = `riverside-picnic-3d-${modeNames[timeOfDay]}.png`;
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      triggerDirectDownload(dataUrl, filename);
+
+      exportCanvas.toBlob(blob => {
+        if (!blob) return;
+        sendBlobToDownloadsBridge(blob, filename);
+        showExportNotification(filename, blob);
+      }, 'image/png');
+    }
+
+    const durationInput = document.getElementById('input-duration');
+    durationInput.addEventListener('input', () => {
+      if (isRecording) return;
+      const val = parseFloat(durationInput.value) || LOOP_PERIOD;
+      const btn = document.getElementById('btn-video');
+      const ratio = val / LOOP_PERIOD;
+      btn.textContent = (Math.abs(ratio - Math.round(ratio)) < 0.05 && ratio >= 1)
+        ? `🎬 動画保存 (${Math.round(ratio)}周期)`
+        : `🎬 動画保存 (${val}s)`;
+    });
+
+    function toggle3DVideoRecording() {
+      if (isRecording) stop3DVideoRecording();
+      else start3DVideoRecording();
+    }
+
+    function start3DVideoRecording() {
+      const durVal = parseFloat(durationInput.value);
+      recordTargetDuration = (!isNaN(durVal) && durVal >= 0.5) ? Math.min(60, durVal) : LOOP_PERIOD;
+      time = 0;
+
+      sync3DExportCanvas();
+      const candidates = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+      let mime = 'video/webm';
+      for (const c of candidates) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) { mime = c; break; }
+      }
+
+      const stream = exportCanvas.captureStream(60);
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 14000000 });
+      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: mime });
+        const modeNames = ['day', 'sunset', 'night'];
+        const durStr = Number.isInteger(recordTargetDuration) ? `${recordTargetDuration}s` : `${recordTargetDuration.toFixed(1)}s`;
+        const filename = `riverside-picnic-3d-${modeNames[timeOfDay]}-${durStr}.mp4`;
+        sendBlobToDownloadsBridge(blob, filename);
+        showExportNotification(filename, blob);
+        triggerDirectDownload(lastExportUrl, filename);
+      };
+
+      isRecording = true;
+      recordStartTime = performance.now();
+      mediaRecorder.start(100);
+      document.getElementById('hud-rec').classList.remove('hidden');
+      const btn = document.getElementById('btn-video');
+      btn.className = 'px-2.5 py-1 rounded text-xs font-medium bg-rose-600 text-white hover:bg-rose-500 transition shadow-xs flex items-center gap-1';
+    }
+
+    function stop3DVideoRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      document.getElementById('hud-rec').classList.add('hidden');
+      const btn = document.getElementById('btn-video');
+      btn.className = 'px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition shadow-xs flex items-center gap-1';
+      const val = parseFloat(durationInput.value) || LOOP_PERIOD;
+      const ratio = val / LOOP_PERIOD;
+      btn.textContent = (Math.abs(ratio - Math.round(ratio)) < 0.05 && ratio >= 1)
+        ? `🎬 動画保存 (${Math.round(ratio)}周期)`
+        : `🎬 動画保存 (${val}s)`;
+    }
+
+    // ============================================================================
+    // MAIN 3D RENDER LOOP
+    // ============================================================================
+    let lastTime = performance.now();
+    let frameCount = 0, fpsAccum = 0;
+
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (isRecording) {
+        const elapsed = (now - recordStartTime) / 1000;
+        time = elapsed;
+        document.getElementById('btn-video').textContent = `⏹ 停止 (${Math.min(recordTargetDuration, elapsed).toFixed(1)}/${recordTargetDuration}s)`;
+        if (elapsed >= recordTargetDuration) stop3DVideoRecording();
+      } else {
+        time = (time + dt) % (LOOP_PERIOD * 100);
+      }
+
+      frameCount++;
+      fpsAccum += dt;
+      if (fpsAccum >= 0.5) {
+        document.getElementById('hud-fps').textContent = Math.round(frameCount / fpsAccum) + ' FPS';
+        frameCount = 0;
+        fpsAccum = 0;
+      }
+
+      // Update 3D ripples
+      for (let i = 0; i < 4; i++) {
+        if (ripples3D[i][2] < 6.5) {
+          ripples3D[i][2] += dt * 1.45;
+        }
+      }
+
+      // Smooth eye-level posture interpolation (Standing 0.88m vs Seated 0.36m)
+      const targetEyeOffset = isSitting ? EYE_HEIGHT_SIT : EYE_HEIGHT_STAND;
+      currentEyeOffset += (targetEyeOffset - currentEyeOffset) * Math.min(1.0, dt * 10.0);
+
+      if (collisionNoticeTimer > 0) {
+        collisionNoticeTimer = Math.max(0, collisionNoticeTimer - dt);
+      }
+
+      // First-Person Human Walk Physics, Ground/Bridge/Object Collisions & Head-Bobbing
+      if (cameraMode === 'walk') {
+        const fwdX = -Math.sin(camYaw);
+        const fwdZ = -Math.cos(camYaw);
+        const rightX = Math.cos(camYaw);
+        const rightZ = -Math.sin(camYaw);
+
+        let inX = 0.0, inZ = 0.0;
+        if (keys['KeyW'] || keys['ArrowUp'])    { inX += fwdX;   inZ += fwdZ; }
+        if (keys['KeyS'] || keys['ArrowDown'])  { inX -= fwdX;   inZ -= fwdZ; }
+        if (keys['KeyD'] || keys['ArrowRight']) { inX += rightX; inZ += rightZ; }
+        if (keys['KeyA'] || keys['ArrowLeft'])  { inX -= rightX; inZ -= rightZ; }
+
+        const inLen = Math.hypot(inX, inZ);
+        const walkSpeed = (isSitting ? 1.15 : 2.15) * dt;
+
+        if (inLen > 0.001) {
+          inX = (inX / inLen) * walkSpeed;
+          inZ = (inZ / inLen) * walkSpeed;
+
+          const colRes = resolveHorizontalCollisions(
+            walkPos[0], walkPos[2],
+            walkPos[0] + inX, walkPos[2] + inZ,
+            footY, PLAYER_RADIUS
+          );
+
+          const actualDist = Math.hypot(colRes.x - walkPos[0], colRes.z - walkPos[2]);
+          walkPos[0] = colRes.x;
+          walkPos[2] = colRes.z;
+
+          if (colRes.hitObject) {
+            lastCollidedObject = colRes.hitObject;
+            collisionNoticeTimer = 0.75;
+          }
+
+          // Advance walking head-bobbing phase (歩行時の上下の揺れ)
+          if (isGrounded) {
+            walkPhase += Math.max(actualDist, walkSpeed * 0.35) * 3.8;
+            walkBobBlend = Math.min(1.0, walkBobBlend + dt * 8.5);
+          }
+        } else {
+          // Smoothly settle head-bobbing back to neutral when stopping
+          walkBobBlend = Math.max(0.0, walkBobBlend - dt * 7.5);
+        }
+
+        // Ground & Arched Wooden Bridge Elevation + Gravity Physics
+        const surfInfo = getGroundAndSurfaceInfo(walkPos[0], walkPos[2]);
+        if (!isGrounded || velY > 0.0) {
+          velY -= 7.8 * dt;
+          footY += velY * dt;
+          if (footY <= surfInfo.height) {
+            footY = surfInfo.height;
+            velY = 0.0;
+            isGrounded = true;
+          }
+        } else {
+          // Smoothly follow terrain slopes, stone steps, and the arched wooden footbridge!
+          footY += (surfInfo.height - footY) * Math.min(1.0, dt * 16.0);
+        }
+
+        walkPos[1] = footY + currentEyeOffset;
+      }
+
+      updateSurfaceHUD();
+      const { pos, fwd, right, up } = computeCameraVectors();
+
+      // Draw WebGL 3D Scene
+      gl.uniform2f(uLocs.uRes, W, H);
+      gl.uniform1f(uLocs.uTime, time);
+      gl.uniform1i(uLocs.uMode, timeOfDay);
+      gl.uniform3fv(uLocs.uCamPos, pos);
+      gl.uniform3fv(uLocs.uCamFwd, fwd);
+      gl.uniform3fv(uLocs.uCamRight, right);
+      gl.uniform3fv(uLocs.uCamUp, up);
+      gl.uniform1f(uLocs.uLightInt, lightIntensity);
+      gl.uniform1f(uLocs.uWaveInt, waveIntensity);
+      gl.uniform1f(uLocs.uCausticInt, causticsIntensity);
+      gl.uniform4fv(uLocs.uRipple0, ripples3D[0]);
+      gl.uniform4fv(uLocs.uRipple1, ripples3D[1]);
+      gl.uniform4fv(uLocs.uRipple2, ripples3D[2]);
+      gl.uniform4fv(uLocs.uRipple3, ripples3D[3]);
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      // Draw 2D Screen-Space Pixel Sparkles & Fireflies Overlay
+      render2DPixelOverlay(pos, fwd, right, up);
+
+      if (isRecording) {
+        sync3DExportCanvas();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

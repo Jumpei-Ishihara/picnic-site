@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>川辺のピクニック</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    /* ピクニックだけで使うもの */
+    .rec-hide { display: none !important; } /* 録画中は操作UIを隠す */
+    #help { top: 52px; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- 風景を優先：場所の表示と小さなドックだけ。操作がないと .fade は消える -->
+  <div id="hud-tl" class="box chip fade"><div id="loc">📍 川辺の石畳</div></div>
+
+  <button id="prompt" class="small fade hidden"></button>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ C: 座る・立つ ・ F: 水切り ・ E: 座る ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
+  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box dock fade">
+    <button id="m-mode" title="おまかせ散策にする" aria-label="歩き方の切り替え">🚶</button>
+    <button id="s-pause" title="散策を一時停止（Space）" aria-label="散策を一時停止">⏸</button>
+    <span class="sep"></span>
+    <button id="a-sit" title="シートに座る（C で座る・立つ）" aria-label="シートに座る">🧺</button>
+    <button id="a-sunset" title="夕景：シートに座って夕日を眺める" aria-label="夕景">🌅</button>
+    <button id="a-export" title="書き出し：PNG・ループ動画（P / R）" aria-label="書き出し">📷</button>
+    <button id="o-more" title="時刻・表示・音の設定" aria-label="設定">⚙️</button>
+  </div>
+
+  <div id="menu" class="box hidden">
+    <div class="row"><span>時刻</span><label id="time-label">15:30</label><input id="time" type="range" min="0" max="24" step="0.05" value="15.5" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span></span><button id="t-day">☀️ 昼下がり</button><button id="t-dusk">🌅 夕暮れ</button><button id="t-night">🌙 星と蛍</button></div>
+    <div class="row"><span>歩き方</span><button id="m-walk" class="on">🚶 自由歩行</button><button id="m-stroll">👣 おまかせ散策</button></div>
+    <div class="row"><span>寄り道</span><button id="a-bridge">🌉 太鼓橋へ</button><button id="a-stone">🪨 水切り（F）</button></div>
+    <div class="row"><span>表示</span><button id="o-pal" title="43色の固定パレットで減色（オフで各色32段階）">🎨 43色パレット</button><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button></div>
+    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button><button id="o-help">❔ 操作説明</button></div>
+  </div>
+
+  <div id="export" class="box hidden">
+    <div class="ex-head"><strong>📷 書き出し</strong><span id="x-bridge"></span><button id="x-close" aria-label="閉じる">✕</button></div>
+    <div class="ex-row">
+      <button id="x-png">🖼️ PNG</button>
+      <button id="x-v1">🎬 6秒ループ</button>
+      <button id="x-v2">🎬 12秒（2周）</button>
+    </div>
+    <div id="x-note" class="ex-note">いまの視点と時刻のまま、1280×720 で書き出します。動画は最後と最初がつながるループです。</div>
+  </div>
+  <div id="rec" class="box hidden"><span class="rec-dot"></span>REC <span id="rec-time">0.0 / 6.0 秒</span><button id="rec-stop">■ 停止</button></div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🧺 川辺のピクニック</h1>
+      <p>木陰にシートを広げた、初夏の午後の川辺です。シートに座って川を眺めたり、橋を渡ったり、水切りをしてみましょう。</p>
+      <div class="btns">
+        <button id="s-sit">🧺 シートに座る</button>
+        <button id="s-walk" class="sub">🚶 自由に歩く</button>
+        <button id="s-stroll" class="sub">👣 おまかせ散策</button>
+      </div>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、C で座る・立つ、F で水切り ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ 📷 でいまの景色を PNG・ループ動画に書き出せます</small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { MASTER_PALETTE, PPM, mulberry32, makePicker, makeCanvas, pixelTex, createToon, RAMP, rampify } from './engine/pixel-kit.js';
+    import { createPixelRenderer } from './engine/pixel-renderer.js';
+    import { createSky } from './engine/sky.js';
+    import { createLights, createTimeOfDay, DEFAULT_TOD_KEYS } from './engine/time-of-day.js';
+    import { createCollider } from './engine/collision.js';
+    import { createPlayerController } from './engine/player.js';
+    import { createAudio } from './engine/audio.js';
+    import { createPixelWater } from './engine/water.js';
+    import { bindButton as btn, createToast, bindTimeControls, fmtTime, createAutoHide } from './engine/ui.js';
+    import { createCapture } from './engine/capture.js';
+
+    // すべての動き（波・アヒル・木や草の揺れ）はこの周期でループする。動画書き出しで継ぎ目が出ないように。
+    const LOOP = 6;
+    const W0 = Math.PI * 2 / LOOP;
+
+    const rnd = mulberry32(20261018);
+    const pick = makePicker(rnd);
+    const toon = createToon();
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+
+    // ============================================================================
+    // 地形：川・岸・丘の高さ（描画・水深・当たり判定・足元の高さすべての元データ）
+    // ============================================================================
+    const WATER_Y = 0;
+    const riverCenter = z => -1.6 + Math.sin(z * 0.16) * 1.4;
+    const riverHalf = z => 2.3 + Math.sin(z * 0.31 + 1) * 0.3;
+    const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const BLANKET = { x: 5.0, z: 0.5, half: 1.4 };
+    const RIGHT_BANK = 0.38, LEFT_BANK = 0.45;
+
+    function terrainHeight(x, z) {
+      const d = x - riverCenter(z), hw = riverHalf(z), a = Math.abs(d);
+      if (a < hw) {
+        const t = a / hw;
+        return -0.85 * (1 - t * t);                       // 川底
+      }
+      const right = d > 0;
+      const top = right ? RIGHT_BANK : LEFT_BANK;
+      let h = top * smooth(0, 0.8, a - hw);               // 岸の斜面
+      h += right ? smooth(7, 16, a) * 3.2 : smooth(5, 14, a) * 3.5;  // 背後の丘
+      h += smooth(14, 26, Math.abs(z)) * 2.0 * smooth(0.5, 3, a - hw); // 上流・下流の谷
+      // ゆるい起伏（シートの周りは平らに）
+      const nearBlanket = smooth(2.0, 3.6, Math.hypot(x - BLANKET.x, z - BLANKET.z));
+      h += 0.06 * Math.sin(x * 0.7 + z * 0.5) * Math.cos(z * 0.4 - x * 0.2) * nearBlanket * smooth(0.6, 1.5, a - hw);
+      // シートの下とその周り30cmは完全に平らにし、外へなだらかにつなぐ（丘の斜面に食い込まないように）
+      if (right) {
+        const ox = Math.max(0, Math.abs(x - BLANKET.x) - BLANKET.half), oz = Math.max(0, Math.abs(z - BLANKET.z) - BLANKET.half);
+        const flat = 1 - smooth(0.3, 1.8, Math.hypot(ox, oz));
+        h += (RIGHT_BANK - h) * flat;
+      }
+      return h;
+    }
+    const isWater = (x, z) => Math.abs(x - riverCenter(z)) < riverHalf(z) - 0.05;
+    const pathX = z => riverCenter(z) + riverHalf(z) + 1.5 + Math.sin(z * 0.4) * 0.2;
+
+    // 太鼓橋（z = -8 で川を渡る）
+    const BRIDGE = (() => {
+      const z = -8, cx = riverCenter(z), hw = riverHalf(z);
+      return { z, cx, half: hw + 1.0, depth: 1.0, rise: 0.6, x0: cx - hw - 1.0, x1: cx + hw + 1.0, waterHalf: hw }; // depth = 幅の半分（幅 2m）
+    })();
+    const onBridge = (x, z) => Math.abs(z - BRIDGE.z) < BRIDGE.depth && x > BRIDGE.x0 && x < BRIDGE.x1;
+    const deckY = x => { const u = (x - BRIDGE.cx) / BRIDGE.half; return RIGHT_BANK + 0.02 + BRIDGE.rise * Math.max(0, 1 - u * u); };
+    const groundAt = (x, z) => onBridge(x, z) ? Math.max(terrainHeight(x, z), deckY(x) + 0.06) : terrainHeight(x, z);
+
+    // ============================================================================
+    // レンダラー・空・光
+    // ============================================================================
+    const canvas = document.getElementById('view');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xb6dcf6, 20, 60);
+    const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 320);
+    camera.rotation.order = 'YXZ';
+    const pixel = createPixelRenderer({ canvas, scene, camera, palette: MASTER_PALETTE });
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 26 });
+    const sky = createSky(scene, { rnd });
+    pixel.hideInNormalPass.add(sky.mesh);
+    pixel.setBloom(1.0); // 太陽・水面のきらめき・ランタンをにじませる
+    // 色：固定パレットをやめ、旧版と同じ各色32段階に（なめらかな光のグラデーションを残す）
+    pixel.setPaletteOn(false);
+    pixel.setQuantize(32, 0.032);
+
+    const TAP_TARGETS = [];
+
+    // ============================================================================
+    // 地面：高さに沿ったメッシュ＋上から見たドット絵テクスチャ
+    // ============================================================================
+    // ============================================================================
+    // 木漏れ日：影を描くパスで葉を間引き、葉の影にすき間をあける（地面・シート・小物に本物の光の粒が落ちる）。
+    // すき間は「光の向きから見た平面」の上で決めるので、葉の塊の表と裏で同じ場所が抜けて地面まで光が届く。
+    // 風で少しずつずれて、光の粒がちらちら動く（6秒ループ）。
+    // ============================================================================
+    const LEAF = { time: { value: 0 }, light: { value: new THREE.Vector3(0, 1, 0) } };
+    const LEAF_GAP_GLSL = `
+      uniform float uLeafTime; uniform vec3 uLeafLight; varying vec3 vLeafW;
+      float leafHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      bool leafGap(vec3 w) {
+        vec3 L = normalize(uLeafLight);
+        vec3 T = normalize(cross(L, vec3(0.0, 0.0, 1.0)));
+        vec2 p = vec2(dot(w, T), dot(w, cross(L, T)));
+        float t = uLeafTime * ${W0.toFixed(6)};
+        p += vec2(sin(t + p.y * 0.9), cos(t + p.x * 0.8)) * 0.05;   // wind
+        return leafHash(floor(p / 0.26)) < 0.36 || leafHash(floor(p / 0.85 + 0.37) + 17.0) < 0.18; // small specks + larger gaps
+      }
+`;
+    const leafDepthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    leafDepthMat.onBeforeCompile = sh => {
+      sh.uniforms.uLeafTime = LEAF.time;
+      sh.uniforms.uLeafLight = LEAF.light;
+      sh.vertexShader = 'varying vec3 vLeafW;\n' + sh.vertexShader.replace('#include <project_vertex>',
+        '#include <project_vertex>\n  vLeafW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = LEAF_GAP_GLSL + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (leafGap(vLeafW)) discard;');
+    };
+    // 葉の見た目：葉の房ごとの明暗のまだら（揺れても模様がずれないよう、メッシュ自身の座標で決める）
+    function leafify(mat) {
+      mat.onBeforeCompile = sh => {
+        sh.vertexShader = 'varying vec3 vLeafL;\n' + sh.vertexShader.replace('#include <project_vertex>',
+          '#include <project_vertex>\n  vLeafL = transformed * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));');
+        sh.fragmentShader = 'varying vec3 vLeafL;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+          {
+            float n = fract(sin(dot(floor(vLeafL * 5.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            diffuseColor.rgb *= n < 0.22 ? 0.8 : (n > 0.86 ? 1.18 : 1.0);
+          }`);
+      };
+      mat.customProgramCacheKey = () => 'leaf';
+      return mat;
+    }
+
+    const TERRAIN = 64; // 64m 四方
+    function buildTerrain() {
+      const N = 200; // 約0.3m 間隔（岸の線をなめらかに）
+      const geo = new THREE.PlaneGeometry(TERRAIN, TERRAIN, N, N).rotateX(-Math.PI / 2);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, terrainHeight(pos.getX(i), pos.getZ(i)));
+      geo.computeVertexNormals();
+
+      const GPPM = PPM * 2; // 地面だけ 16ドット/m（足元の粗さを抑える）
+      const S = TERRAIN * GPPM; // 1024px
+      const [cv, g] = makeCanvas(S, S);
+      const img = g.createImageData(S, S);
+      const put = (px, py, hex) => {
+        if (px < 0 || py < 0 || px >= S || py >= S) return;
+        const n = parseInt(hex.slice(1), 16), o = (py * S + px) * 4;
+        img.data[o] = n >> 16; img.data[o + 1] = (n >> 8) & 255; img.data[o + 2] = n & 255; img.data[o + 3] = 255;
+      };
+      const toWorld = p => (p + 0.5) / GPPM - TERRAIN / 2;
+      for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+        const x = toWorld(px), z = toWorld(py), h = terrainHeight(x, z);
+        const a = Math.abs(x - riverCenter(z)), hw = riverHalf(z);
+        const r = rnd();
+        let c;
+        if (a < hw - 0.15) {                                   // 川底：泥と小石
+          c = r < 0.12 ? '#9497a0' : r < 0.2 ? '#6d6d78' : r < 0.6 ? '#7f5639' : '#5b3d2b';
+        } else if (a < hw + 0.35) {                            // 岸：砂利
+          c = r < 0.3 ? '#cf9f6b' : r < 0.5 ? '#a8774c' : r < 0.6 ? '#9497a0' : '#e8c99a';
+        } else if (h > 1.4) {                                  // 丘：少し濃い草
+          c = r < 0.12 ? '#2e5a3a' : r < 0.25 ? '#4f9042' : '#3f7d3c';
+        } else {                                               // 草原：ノイズは控えめ、ときどき花
+          c = r < 0.08 ? '#4f9042' : r < 0.14 ? '#8ac35b' : '#5fa04a';
+          if (r > 0.986 && x > 1) c = pick(['#ffe79a', '#e88a8e', '#f4f4f2', '#b35a7a']);
+        }
+        put(px, py, c);
+      }
+      // 石畳の飛び石（右岸の遊歩道）
+      for (let z = -7.4; z < 13; z += 0.8) {
+        const cx = pathX(z) + (rnd() - 0.5) * 0.2, cz = z + (rnd() - 0.5) * 0.1;
+        const rx = 0.36 + rnd() * 0.1, rz = 0.28 + rnd() * 0.06;
+        const col = pick(['#c3c4c8', '#9497a0', '#c3c4c8']);
+        for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) {
+          const wx = (dx + 0.5) / GPPM, wz = (dy + 0.5) / GPPM;
+          const e = (wx / rx) ** 2 + (wz / rz) ** 2;
+          if (e > 1) continue;
+          const px = Math.floor((cx + wx + TERRAIN / 2) * GPPM), py = Math.floor((cz + wz + TERRAIN / 2) * GPPM);
+          // 縁は暗く、左上に光
+          put(px, py, e > 0.7 ? '#6d6d78' : (wx < 0 && wz < 0 && e > 0.25) ? '#f4f4f2' : col);
+        }
+      }
+      g.putImageData(img, 0, 0);
+
+      const ground = new THREE.Mesh(geo, toon({ map: pixelTex(cv) }));
+      ground.receiveShadow = true;
+      ground.castShadow = true;
+      scene.add(ground);
+      TAP_TARGETS.push(ground);
+
+      // 地形の外側の野原
+      const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600).rotateX(-Math.PI / 2), toon({ color: '#3f7d3c' }));
+      outer.position.y = -1.0; // 川底より下。地形の端の外だけに見える
+      scene.add(outer);
+    }
+    buildTerrain();
+
+    // ============================================================================
+    // 川の水面
+    // ============================================================================
+    const water = createPixelWater({
+      renderer: pixel.renderer, scene, camera, level: WATER_Y, loop: LOOP,
+      bounds: { x0: -12, z0: -32, x1: 9, z1: 32 }, groundHeight: terrainHeight
+    });
+    TAP_TARGETS.push(water.mesh);
+
+    // ============================================================================
+    // 木（葉の塊を組み合わせる）
+    // ============================================================================
+    const leafGeo = new THREE.IcosahedronGeometry(1, 1);
+    const trunkMat = toon({ color: '#5b3d2b' });
+    const SWAY = []; // 風で揺れるもの { obj, amp, phase, axis }
+    const TREE_COLLIDERS = [];
+
+    function addBranch(group, from, to, r, mat) {
+      const dir = new THREE.Vector3().subVectors(to, from);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, dir.length(), 6), mat);
+      m.position.copy(from).addScaledVector(dir, 0.5);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      m.castShadow = m.receiveShadow = true;
+      group.add(m);
+    }
+
+    function makeTree({ x, z, height = 3.6, trunk = 0.3, clusters, leaf = '#3f7d3c', light = '#5fa04a', lean = [0, 0] }) {
+      const g = new THREE.Group();
+      g.position.set(x, terrainHeight(x, z) - 0.1, z);
+      const top = new THREE.Vector3(lean[0], height, lean[1]);
+      addBranch(g, new THREE.Vector3(0, 0, 0), top, trunk, trunkMat);
+      const leafMat = leafify(toon({ color: leaf, flatShading: true })), lightMat = leafify(toon({ color: light, flatShading: true }));
+      const foliage = new THREE.Group();
+      // 葉の塊の重心（大きい塊ほど重く）を幹の先端の真上に移して、幹が枝葉の中央に来るようにする
+      let wsum = 0, mx = 0, mz = 0;
+      for (const [cx, , cz, r] of clusters) { const w = r ** 3; wsum += w; mx += cx * w; mz += cz * w; }
+      const shiftX = top.x - mx / wsum, shiftZ = top.z - mz / wsum;
+      clusters = clusters.map(([cx, cy, cz, r]) => [cx + shiftX, cy, cz + shiftZ, r]);
+      for (const [cx, cy, cz, r] of clusters) {
+        const c = new THREE.Vector3(cx, cy, cz);
+        if (c.distanceTo(top) > r * 0.8) addBranch(g, top, c.clone().lerp(top, 0.35), trunk * 0.45, trunkMat);
+        const m = new THREE.Mesh(leafGeo, cy > height + 0.6 ? lightMat : leafMat);
+        m.position.copy(c);
+        m.scale.set(r, r * 0.82, r);
+        m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+        m.castShadow = m.receiveShadow = true;
+        m.customDepthMaterial = leafDepthMat; // 影にすき間（木漏れ日）
+        foliage.add(m);
+      }
+      g.add(foliage);
+      SWAY.push({ obj: foliage, amp: 0.012, phase: rnd() * 6 });
+      scene.add(g);
+      TREE_COLLIDERS.push([x, z, trunk + 0.15]);
+      return g;
+    }
+
+    // シートに木陰を落とすオークの大木
+    makeTree({ x: 8.2, z: -2.4, height: 3.6, trunk: 0.42, leaf: '#3f7d3c', light: '#5fa04a', lean: [-0.3, 0.2],
+      clusters: [[-0.8, 4.4, 1.0, 1.9], [-2.6, 4.0, 2.2, 1.5], [0.6, 4.6, -0.6, 1.6], [-1.2, 5.3, 0.4, 1.4], [0.8, 3.9, 1.6, 1.2]] });
+    // 川へ枝を張り出した木：午後の日差しで、シートにまだらな木陰を落とす
+    // 太陽は北西から差すので、シートの北西に立てる（午後の影がシートにかかる。座った目線では右手に幹、正面の橋はふさがない）
+    const SHADE_TREE = { x: 3.9, z: -2.9 };
+    makeTree({ x: SHADE_TREE.x, z: SHADE_TREE.z, height: 3.6, trunk: 0.34, leaf: '#3f7d3c', light: '#8ac35b', lean: [-0.35, 0.05],
+      // 幹を中心に左右へ大きく広げた樹冠（影がシートの東半分まで届く）
+      clusters: [[0, 4.7, 0, 1.8], [-1.9, 4.4, 0.5, 1.5], [1.9, 4.5, -0.4, 1.5], [-0.6, 4.5, 1.9, 1.4], [0.7, 4.6, -1.9, 1.4], [0.1, 5.6, 0.2, 1.3]] });
+    // 太鼓橋のそばの木
+    makeTree({ x: 2.4, z: -11.0, height: 3.0, trunk: 0.3, leaf: '#2e5a3a', light: '#3f7d3c', clusters: [[0, 3.6, 0, 1.6], [0.6, 4.3, 0.4, 1.1]] });
+    makeTree({ x: -8.0, z: -11.5, height: 3.2, trunk: 0.32, leaf: '#3f7d3c', light: '#5fa04a', clusters: [[0, 3.7, 0, 1.7], [-0.5, 4.4, -0.3, 1.2]] });
+    // 対岸の木と手前の木
+    // 対岸の2本：シートから見て、夕日がこの間に沈む
+    makeTree({ x: -8.2, z: 1.4, height: 3.0, trunk: 0.3, leaf: '#4f9042', light: '#8ac35b', clusters: [[0, 3.4, 0, 1.5], [0.7, 3.9, 0.3, 1.1], [-0.6, 3.2, 0.5, 1.0]] });
+    makeTree({ x: -8.6, z: 10.2, height: 3.4, trunk: 0.32, leaf: '#3f7d3c', light: '#5fa04a', clusters: [[0, 3.8, 0, 1.6], [0.5, 4.4, -0.4, 1.1]] });
+    makeTree({ x: 9.6, z: 8.6, height: 3.2, trunk: 0.32, leaf: '#3f7d3c', light: '#5fa04a', clusters: [[0, 3.8, 0, 1.6], [-0.6, 4.4, -0.4, 1.2]] });
+    // 丘の上の小さな木々（奥行き）
+    for (let i = 0; i < 18; i++) {
+      const side = i % 2 ? 1 : -1;
+      const z = -26 + rnd() * 52;
+      const x = riverCenter(z) + side * (riverHalf(z) + 8 + rnd() * 9);
+      if (Math.hypot(x - BLANKET.x, z - BLANKET.z) < 6) continue;
+      const s = 0.6 + rnd() * 0.5;
+      makeTree({ x, z, height: 2.4 * s, trunk: 0.2 * s, leaf: pick(['#2e5a3a', '#3f7d3c', '#1f3b2d']), light: '#4f9042', clusters: [[0, 2.8 * s, 0, 1.2 * s], [0.4 * s, 3.3 * s, 0.2 * s, 0.8 * s]] });
+    }
+
+    // 対岸の大きな木（ほかの木と同じ作り）：川べりの目印になる
+    makeTree({ x: -7.2, z: -2.5, height: 3.3, trunk: 0.34, leaf: '#4f9042', light: '#8ac35b',
+      clusters: [[0, 3.9, 0, 1.8], [-1.4, 3.6, 0.5, 1.3], [1.3, 3.7, -0.4, 1.3], [0.2, 4.7, 0.2, 1.3], [-0.4, 3.6, -1.3, 1.1]] });
+
+    // ============================================================================
+    // 太鼓橋
+    // ============================================================================
+    function buildBridge() {
+      const plankMats = [toon({ color: '#a8774c' }), toon({ color: '#9a6c44' })];
+      const railMat = toon({ color: '#7f5639' }), stoneMat = toon({ color: '#9497a0' });
+      const step = 0.3;
+      let k = 0;
+      for (let x = BRIDGE.x0 + step / 2; x < BRIDGE.x1; x += step, k++) {
+        const slope = (deckY(x + 0.05) - deckY(x - 0.05)) / 0.1;
+        const p = new THREE.Mesh(new THREE.BoxGeometry(step * 0.92, 0.08, BRIDGE.depth * 2), plankMats[k % 2]);
+        p.position.set(x, deckY(x), BRIDGE.z);
+        p.rotation.z = Math.atan(slope);
+        p.castShadow = p.receiveShadow = true;
+        scene.add(p);
+      }
+      // 欄干：柱と手すり
+      for (const side of [-1, 1]) {
+        const z = BRIDGE.z + side * (BRIDGE.depth - 0.05);
+        let prev = null;
+        for (let x = BRIDGE.x0 + 0.2; x <= BRIDGE.x1 - 0.2 + 1e-6; x += (BRIDGE.x1 - BRIDGE.x0 - 0.4) / 8) {
+          const y = deckY(x);
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.1), railMat);
+          post.position.set(x, y + 0.45, z);
+          post.castShadow = true;
+          scene.add(post);
+          const top = new THREE.Vector3(x, y + 0.88, z);
+          if (prev) {
+            const d = new THREE.Vector3().subVectors(top, prev);
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(d.length(), 0.08, 0.1), railMat);
+            rail.position.copy(prev).addScaledVector(d, 0.5);
+            rail.rotation.z = Math.atan2(d.y, d.x);
+            rail.castShadow = true;
+            scene.add(rail);
+          }
+          prev = top;
+        }
+      }
+      // 両岸の石の橋台
+      for (const x of [BRIDGE.cx - BRIDGE.waterHalf - 0.3, BRIDGE.cx + BRIDGE.waterHalf + 0.3]) {
+        const pier = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.0, BRIDGE.depth * 2 + 0.2), stoneMat);
+        pier.position.set(x, -0.1, BRIDGE.z);
+        pier.castShadow = pier.receiveShadow = true;
+        scene.add(pier);
+      }
+    }
+    buildBridge();
+
+    // ============================================================================
+    // ピクニック：シート・バスケット・ピッチャー・食べ物・帽子・本・ランタン
+    // ============================================================================
+    const PROPS = {}; // 動かすもの
+    const PROP_COLLIDERS = [];
+    function buildPicnic() {
+      const y0 = RIGHT_BANK + 0.02;
+      const at = (m, x, y, z) => { m.position.set(x, y0 + y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
+
+      // ギンガムチェックのシート
+      const [gc, gg] = makeCanvas(24, 24);
+      for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+        const sx = Math.floor(x / 3) % 2, sy = Math.floor(y / 3) % 2;
+        gg.fillStyle = sx && sy ? '#b8463f' : (sx || sy) ? '#e88a8e' : '#fff6d6';
+        gg.fillRect(x, y, 1, 1);
+      }
+      gg.fillStyle = '#8c2f39';
+      gg.fillRect(0, 0, 24, 1); gg.fillRect(0, 23, 24, 1); gg.fillRect(0, 0, 1, 24); gg.fillRect(23, 0, 1, 24);
+      const S = BLANKET.half * 2;
+      const blanket = new THREE.Mesh(new THREE.BoxGeometry(S, 0.03, S), toon({ map: pixelTex(gc) }));
+      blanket.position.set(BLANKET.x, RIGHT_BANK + 0.005, BLANKET.z);
+      blanket.rotation.y = 0.06;
+      blanket.receiveShadow = true;
+      scene.add(blanket);
+      TAP_TARGETS.push(blanket);
+
+      // バスケット（編み目）と取っ手
+      const [wc, wg] = makeCanvas(8, 8);
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { wg.fillStyle = (x + y) % 2 ? '#cf9f6b' : '#a8774c'; wg.fillRect(x, y, 1, 1); }
+      wg.fillStyle = '#7f5639'; wg.fillRect(0, 0, 8, 1);
+      const wicker = pixelTex(wc, true);
+      wicker.repeat.set(3, 2);
+      at(new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, 0.55), toon({ map: wicker })), 5.9, 0.22, -0.35);
+      at(new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.06, 0.6), toon({ color: '#7f5639' })), 5.9, 0.47, -0.35);
+      const handle = at(new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 4, 10, Math.PI), toon({ color: '#7f5639' })), 5.9, 0.48, -0.35);
+      handle.rotation.y = Math.PI / 2;
+      PROP_COLLIDERS.push([5.9, -0.35, 0.45]);
+
+      // ガラスのピッチャーとグラス（レモネード）
+      const glass = toon({ color: '#e2f3fb', transparent: true, opacity: 0.55 });
+      const lemonade = toon({ color: '#f6c95b', emissive: 0xf6c95b, emissiveIntensity: 0.15 });
+      const pitcher = new THREE.LatheGeometry([[0, 0], [0.16, 0], [0.17, 0.1], [0.14, 0.32], [0.12, 0.4], [0.15, 0.44]].map(([r, y]) => new THREE.Vector2(r, y)), 10);
+      at(new THREE.Mesh(pitcher, glass), 4.2, 0, -0.3);
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.28, 10), lemonade), 4.2, 0.15, -0.3);
+      for (const [x, z] of [[4.05, 0.08], [4.5, -0.65]]) {
+        at(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.18, 8), glass), x, 0.09, z);
+        at(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.11, 8), lemonade), x, 0.06, z);
+      }
+      PROP_COLLIDERS.push([4.25, -0.3, 0.45]);
+
+      // まな板と食べ物（クロワッサン・いちご・バゲット）
+      at(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.48), toon({ color: '#cf9f6b' })), 4.95, 0.02, 0.35);
+      const croissant = at(new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.06, 5, 8, Math.PI * 1.3), toon({ color: '#e0a04a' })), 4.85, 0.09, 0.32);
+      croissant.rotation.set(-Math.PI / 2, 0, 0.5);
+      for (const [x, z] of [[5.12, 0.45], [5.2, 0.3], [5.05, 0.52]]) {
+        const berry = at(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 6), toon({ color: '#b8463f' })), x, 0.08, z);
+        berry.rotation.x = Math.PI;
+        at(new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.03, 5), toon({ color: '#5fa04a' })), x, 0.14, z);
+      }
+      const baguette = at(new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.55, 3, 6), toon({ color: '#cf9f6b' })), 5.55, 0.35, -0.2);
+      baguette.rotation.set(0.2, 0.3, 1.1);
+      PROP_COLLIDERS.push([4.95, 0.35, 0.4]);
+
+      // 麦わら帽子（赤いリボン）
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.38, 0.03, 12), toon({ color: '#f6c95b' })), 6.05, 0.02, 0.9);
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.16, 10), toon({ color: '#f6c95b' })), 6.05, 0.1, 0.9);
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.05, 10), toon({ color: '#b8463f' })), 6.05, 0.06, 0.9);
+      PROP_COLLIDERS.push([6.05, 0.9, 0.4]);
+
+      // 開いた本：右ページが風でめくれる
+      const page = toon({ color: '#fff6d6' }), cover = toon({ color: '#2c4a7a' });
+      const book = new THREE.Group();
+      book.position.set(5.75, y0 + 0.02, 1.5); // 座った目線の手前をふさがないよう、シートの東側に
+      book.rotation.y = -0.5;
+      const coverMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.02, 0.42), cover);
+      book.add(coverMesh);
+      const left = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.38), page);
+      left.position.set(-0.15, 0.02, 0); left.rotation.z = 0.08;
+      book.add(left);
+      const flip = new THREE.Group();
+      flip.position.set(0, 0.03, 0);
+      const right = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.38).translate(0.14, 0, 0), page);
+      flip.add(right);
+      book.add(flip);
+      book.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+      scene.add(book);
+      PROPS.page = flip;
+      PROP_COLLIDERS.push([5.75, 1.5, 0.35]);
+
+      // ランタン（夜に灯る）
+      const lanX = 3.75, lanZ = -0.65;
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.05, 8), toon({ color: '#26304f' })), lanX, 0.03, lanZ);
+      const glow = toon({ color: '#fff6d6', emissive: 0xffd98a, emissiveIntensity: 0.3 });
+      at(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.24, 8), glow), lanX, 0.18, lanZ);
+      const cap = at(new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.12, 4), toon({ color: '#26304f' })), lanX, 0.36, lanZ);
+      cap.rotation.y = Math.PI / 4;
+      const ring = at(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 4, 8), toon({ color: '#26304f' })), lanX, 0.46, lanZ);
+      ring.rotation.y = 0.5;
+      const lanLight = new THREE.PointLight(0xffc870, 0, 7, 1.6);
+      lanLight.position.set(lanX, y0 + 0.4, lanZ);
+      scene.add(lanLight);
+      PROPS.lantern = { mat: glow, light: lanLight };
+      PROP_COLLIDERS.push([lanX, lanZ, 0.25]);
+    }
+    buildPicnic();
+
+    // ============================================================================
+    // 草の房と野の花：インスタンス描画。頂点シェーダーで風に揺らす（6秒ループ）
+    // ============================================================================
+    const GRASS_TIME = { value: 0 };
+    function buildGrass() {
+      const pos = [];
+      for (let k = 0; k < 3; k++) {
+        const a = k / 3 * Math.PI, w = 0.07, h = 0.26 + k * 0.05, lean = 0.05 * (k - 1);
+        const c = Math.cos(a), sn = Math.sin(a);
+        const P = (x, y) => [x * c, y, x * sn];
+        pos.push(...P(-w / 2, 0), ...P(w / 2, 0), ...[lean * c, h, lean * sn]);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => (i % 3 === 1 ? 1 : 0)), 3)); // 地面と同じ向きに照らす
+      // 深度を書かない：細い葉に輪郭線が付いて黒い棘に見えるのを防ぐ
+      const mat = toon({ color: '#ffffff', side: THREE.DoubleSide, transparent: true, depthWrite: false });
+      mat.onBeforeCompile = sh => {
+        sh.uniforms.uGrassTime = GRASS_TIME;
+        sh.vertexShader = 'uniform float uGrassTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vec2 ip = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
+            float sw = sin(uGrassTime * ${W0.toFixed(6)} + ip.x * 0.7 + ip.y * 0.45) * 0.22
+                     + sin(uGrassTime * ${(2 * W0).toFixed(6)} + ip.x * 1.9 - ip.y) * 0.08;
+            transformed.x += sw * position.y;
+            transformed.z += sw * 0.5 * position.y;
+          #endif`);
+      };
+      mat.customProgramCacheKey = () => 'grass';
+
+      const N = IS_TOUCH ? 1600 : 2600;
+      const mesh = new THREE.InstancedMesh(geo, mat, N);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+      const greens = ['#5fa04a', '#8ac35b', '#4f9042', '#5fa04a', '#3f7d3c'], flowers = ['#ffe79a', '#e88a8e', '#f4f4f2', '#b35a7a'];
+      const nearAny = (list, x, z, pad) => list.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r + pad);
+      let n = 0;
+      for (let tries = 0; n < N && tries < N * 8; tries++) {
+        const x = -12 + rnd() * 25, z = -12 + rnd() * 24;
+        if (Math.abs(x - riverCenter(z)) < riverHalf(z) + 0.35) continue;
+        if (x > riverCenter(z) && Math.abs(x - pathX(z)) < 0.5) continue;
+        if (Math.abs(x - BLANKET.x) < BLANKET.half + 0.15 && Math.abs(z - BLANKET.z) < BLANKET.half + 0.15) continue;
+        if (Math.abs(z - BRIDGE.z) < BRIDGE.depth + 0.3 && x > BRIDGE.x0 - 0.3 && x < BRIDGE.x1 + 0.3) continue;
+        if (nearAny(TREE_COLLIDERS, x, z, 0.2) || nearAny(PROP_COLLIDERS, x, z, 0.1)) continue;
+        const flower = rnd() < 0.06;
+        const s = flower ? 0.7 + rnd() * 0.3 : 0.7 + rnd() * 0.5;
+        q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rnd() * Math.PI);
+        m.compose(p.set(x, terrainHeight(x, z) - 0.02, z), q, sc.set(s, s * (flower ? 1.1 : 1), s));
+        mesh.setMatrixAt(n, m);
+        mesh.setColorAt(n, col.set(flower ? pick(flowers) : pick(greens)));
+        n++;
+      }
+      mesh.count = n;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      pixel.hideInNormalPass.add(mesh); // 揺れが法線パスとずれて輪郭が乱れないように
+    }
+    buildGrass();
+
+    // ============================================================================
+    // アヒルの親子（川を楕円にぐるりと泳ぐ）
+    // ============================================================================
+    const DUCKS = [];
+    function makeDuck(scale, bodyCol, headCol) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 5), toon({ color: bodyCol }));
+      body.scale.set(1.0, 0.75, 1.4); body.position.y = 0.06;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 5), toon({ color: headCol }));
+      head.position.set(0, 0.22, 0.2);
+      const beak = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.09), toon({ color: '#f29a6b' }));
+      beak.position.set(0, 0.2, 0.31);
+      const tailF = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), toon({ color: bodyCol }));
+      tailF.position.set(0, 0.14, -0.26); tailF.rotation.x = -1.1;
+      for (const m of [body, head, beak, tailF]) { m.castShadow = true; g.add(m); }
+      g.scale.setScalar(scale);
+      scene.add(g);
+      return g;
+    }
+    DUCKS.push({ g: makeDuck(1.0, '#f4f4f2', '#2e5a3a'), lag: 0 });
+    DUCKS.push({ g: makeDuck(0.6, '#cf9f6b', '#a8774c'), lag: 0.16 });
+    DUCKS.push({ g: makeDuck(0.55, '#cf9f6b', '#a8774c'), lag: 0.3 });
+    function duckPos(t) {
+      const a = t * W0;
+      const z = 3.0 + Math.cos(a) * 2.4;
+      return new THREE.Vector3(riverCenter(z) + 0.3 + Math.sin(a) * 0.9, WATER_Y, z);
+    }
+
+    // ============================================================================
+    // 花びら（昼）と蛍（夜）
+    // ============================================================================
+    function makeParticles(n, color, size, init) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      // 深度を書かない：透明でも輪郭線の対象にならないように
+      // 大きさは画面上のドット数で固定（近くでも大きな四角にならないように）
+      const mat = new THREE.PointsMaterial({ color, size, sizeAttenuation: false, transparent: true, opacity: 1, fog: true, depthWrite: false });
+      const pts = new THREE.Points(geo, mat);
+      pts.frustumCulled = false;
+      scene.add(pts);
+      pixel.hideInNormalPass.add(pts);
+      return { pts, mat, seeds: Array.from({ length: n }, (_, i) => init(i)) };
+    }
+    const petals = makeParticles(36, 0xf4b6c2, 2, () => ({ x: 2 + rnd() * 8, z: -5 + rnd() * 9, y: 1 + rnd() * 3.5, ph: rnd() }));
+    const fireflies = makeParticles(40, 0xf6ff9a, 2, () => ({ x: -6 + rnd() * 13, z: -7 + rnd() * 14, y: 0.4 + rnd() * 1.6, ph: rnd() }));
+
+    // ============================================================================
+    // 時間帯
+    // ============================================================================
+    // 夕暮れは逆光で手前が黒くつぶれやすいので、空と地面からの照り返しを少し強める
+    const PICNIC_TOD_KEYS = DEFAULT_TOD_KEYS.map(k => k.h === 18.6 ? { ...k, hs: '#b08aa8', hg: '#5a3a44', hi: 0.9 } : k.h === 17.4 ? { ...k, hi: 0.95 } : k);
+    const tod = createTimeOfDay({
+      keys: PICNIC_TOD_KEYS,
+      // 太陽は北側を通す：いつもの視点（北の太鼓橋を眺める）が逆光になり、水面のきらめき・木漏れ日の筋・葉の縁の光が見える
+      sunZ: -0.45, moonDir: [-0.5, 0.7, -0.35],
+      scene, sky, sun, hemi, hour: 15.5, fogFar: 60, fogNightShrink: 14, fogSkyMix: 0.35,
+      onApply({ night, hour }) {
+        const dusk = Math.max(0, 1 - Math.abs(hour - 18.6) / 1.2); // 夕暮れどき
+        PROPS.lantern.mat.emissiveIntensity = 0.3 + night * 2.2 + dusk * 0.8;
+        PROPS.lantern.light.intensity = night * 4.5 + dusk * 1.2;
+      }
+    });
+
+    // ============================================================================
+    // 当たり判定
+    // ============================================================================
+    const collider = createCollider({ cell: 2 });
+    collider.setBounds(-14, -16, 14, 14);
+    for (const [x, z, r] of TREE_COLLIDERS) collider.addCircle(x, z, r, 'tree');
+    for (const [x, z, r] of PROP_COLLIDERS) collider.addCircle(x, z, r, 'prop');
+    // 川：橋の上以外は入れない。橋の上では欄干の外に出られない
+    collider.addDynamic((x, z, r) => {
+      if (onBridge(x, z)) {
+        const overWater = Math.abs(x - BRIDGE.cx) < BRIDGE.waterHalf + 0.3;
+        return overWater && Math.abs(z - BRIDGE.z) > BRIDGE.depth - 0.12 - r;
+      }
+      return Math.abs(x - riverCenter(z)) < riverHalf(z) + 0.1; // 足元が水際で止まる
+    });
+
+    // ============================================================================
+    // プレイヤー
+    // ============================================================================
+    const audio = createAudio();
+    const toast = createToast(document.getElementById('toast'));
+    let started = false, sitting = false;
+    const EYE_STAND = 1.55, EYE_SIT = 0.85;
+
+    const WPs = [
+      [pathX(9), 9], [pathX(5), 5], [pathX(1), 1], [pathX(-3), -3], [pathX(-6), -6], [0.4, -7.6],
+      [BRIDGE.cx, -7.6], [BRIDGE.x0 - 0.3, -7.6], [-6.6, -5.5], [-6.0, -1.0], [-6.2, 2.0], [-5.6, 3.0],
+      [-5.6, -1.2], [-5.9, -6.0], [BRIDGE.x0 - 0.3, -8.4], [BRIDGE.cx, -8.4], [0.4, -8.4],
+      [2.6, -7.0], [5.2, -5.6], [10.2, -3.9], [10.6, 0.2], [9.4, 4.6], [7.0, 7.6]
+    ];
+    const route = new THREE.CatmullRomCurve3(WPs.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'catmullrom', 0.3);
+
+    const controls = createPlayerController({
+      canvas, camera, scene, collider, route,
+      start: { x: pathX(6.5), z: 6.5, yaw: 0.2, pitch: 0.02 },
+      eye: EYE_STAND, radius: 0.3, isTouch: IS_TOUCH, strollSpeed: 1.2,
+      heightAt: groundAt,
+      joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
+      tapTargets: TAP_TARGETS,
+      isInputEnabled: () => started && !capture.recording,
+      isFrozen: () => capture.recording,
+      onPointerDown: () => audio.init(),
+      resolveTap(hit) {
+        let o = hit.object;
+        if (o === water.mesh) { water.addRipple(hit.point.x, hit.point.z, 1.2); plip(0); return null; }
+        return { x: hit.point.x, z: hit.point.z };
+      },
+      onStuck: () => toast.show('ここから先へは進めないみたい'),
+      onStep: (x, z) => audio.footstep(onBridge(x, z) ? 'wood' : Math.abs(x - pathX(z)) < 0.45 ? 'stone' : 'grass'),
+      onStateChange: updateModeUI
+    });
+    const player = controls.player;
+
+    function setSitting(on) {
+      sitting = on;
+      controls.setEye(on ? EYE_SIT : EYE_STAND);
+      document.getElementById('a-sit').classList.toggle('on', on);
+    }
+    function teleport(x, z, yaw, pitch) {
+      controls.cancelWalk();
+      player.x = x; player.z = z; player.yaw = yaw; player.pitch = pitch;
+    }
+    // 構図を決めた視点：シートの手前から川と太鼓橋を眺める
+    function sitOnBlanket() {
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      teleport(4.75, 2.05, 0.75, -0.16);
+      setSitting(true);
+      sitPos = { x: player.x, z: player.z };
+    }
+    // 夕景：シートの西の川べりに腰を下ろし、川の向こうに沈む夕日を眺める
+    function sunsetView() {
+      setHour(18.35);
+      tod.apply(18.35);
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      const sd = tod.state.sunDir;
+      teleport(1.3, -1.75, Math.atan2(-sd.x, -sd.z), -0.03); // 川べりに座る：夕日が対岸の大きな木と橋のそばの木の間に沈み、川面に映る
+      setSitting(true);
+      sitPos = { x: player.x, z: player.z };
+    }
+    function goBridge() {
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      setSitting(false);
+      teleport(BRIDGE.cx, BRIDGE.z, Math.PI - 0.15, -0.12);
+    }
+    let sitPos = null;
+
+
+    // 水切り：向いている方向（川が無ければ川の方）へ、石が跳ねるたびに波紋
+    function plip(delay) { audio.tone('sine', 900, 1500, 0.08, 0.06, delay); }
+    function skipStone() {
+      let dx = -Math.sin(player.yaw), dz = -Math.cos(player.yaw);
+      let firstD = -1;
+      for (let d = 0.5; d < 8; d += 0.25) if (isWater(player.x + dx * d, player.z + dz * d)) { firstD = d; break; }
+      if (firstD < 0) {
+        dx = Math.sign(riverCenter(player.z) - player.x) || -1; dz = 0;
+        for (let d = 0.5; d < 12; d += 0.25) if (isWater(player.x + dx * d, player.z)) { firstD = d; break; }
+      }
+      if (firstD < 0) { toast.show('川が遠すぎるみたい'); return; }
+      const gaps = [0, 1.3, 2.4, 3.3, 4.0, 4.5, 4.85];
+      let bounces = 0;
+      gaps.forEach((gp, i) => {
+        const x = player.x + dx * (firstD + gp), z = player.z + dz * (firstD + gp);
+        if (!isWater(x, z)) return;
+        bounces++;
+        setTimeout(() => water.addRipple(x, z, 1.3 - i * 0.15), i * 260);
+        plip(i * 0.26);
+      });
+      toast.show(`🪨 ${bounces}回はねた！`);
+    }
+
+    // ============================================================================
+    // 調べる（E）：シートに座る・立つ
+    // ============================================================================
+    const promptEl = document.getElementById('prompt');
+    let near = null;
+    function updatePrompt() {
+      let t = null;
+      if (controls.mode === 'walk' && started && exportEl.classList.contains('hidden') && !capture.recording) {
+        if (!sitting && Math.abs(player.x - BLANKET.x) < BLANKET.half + 0.8 && Math.abs(player.z - BLANKET.z) < BLANKET.half + 0.8) t = 'sit';
+      }
+      if (t === near) return;
+      near = t;
+      if (!t) { promptEl.classList.add('hidden'); return; }
+      promptEl.innerHTML = { sit: '<kbd>E</kbd>🧺 シートに座る', stand: '<kbd>E</kbd>🧍 立ち上がる' }[t];
+      promptEl.classList.remove('hidden');
+    }
+    function interact() {
+      if (near === 'sit') { setSitting(true); sitPos = { x: player.x, z: player.z }; }
+      else if (near === 'stand') setSitting(false);
+    }
+    promptEl.addEventListener('click', interact);
+
+    window.addEventListener('keydown', e => {
+      if (e.repeat || !started) return;
+      if (e.code === 'KeyE') interact();
+      if (e.code === 'KeyC' && controls.mode === 'walk') { setSitting(!sitting); sitPos = { x: player.x, z: player.z }; }
+      if (e.code === 'KeyF') skipStone();
+      if (e.code === 'KeyP') exportPNG();
+      if (e.code === 'KeyR') recordLoop(1);
+      if (e.code === 'Space') { e.preventDefault(); if (controls.mode === 'stroll') controls.togglePause(); }
+    });
+
+    // ============================================================================
+    // UI
+    // ============================================================================
+    const timeInput = document.getElementById('time');
+    const timeUI = bindTimeControls({ tod, input: timeInput, label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
+    const setHour = h => { tod.hour = h; timeInput.value = h; };
+    function updateModeUI() {
+      const m = controls ? controls.mode : 'walk';
+      const mm = document.getElementById('m-mode');
+      mm.textContent = m === 'walk' ? '🚶' : '👣';
+      mm.title = m === 'walk' ? 'おまかせ散策にする' : '自由歩行にする';
+      document.getElementById('m-walk').classList.toggle('on', m === 'walk');
+      document.getElementById('m-stroll').classList.toggle('on', m === 'stroll');
+      const pause = document.getElementById('s-pause');
+      pause.classList.toggle('show', m === 'stroll');
+      pause.textContent = controls && controls.paused ? '▶️' : '⏸';
+      document.getElementById('help').textContent = m === 'walk'
+        ? 'WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ C: 座る・立つ ・ F: 水切り ・ E: 座る ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる'
+        : 'ホイール: 進む・戻る ・ ドラッグ: 見回す ・ Space: 一時停止 ・ WASD で自由歩行に戻る ・ Esc: メニューを閉じる';
+    }
+    btn('m-walk', () => controls.setMode('walk'));
+    btn('m-stroll', () => { setSitting(false); controls.setMode('stroll'); });
+    btn('s-pause', () => controls.togglePause());
+    // 設定メニューと書き出しパネルは、ドックのすぐ上に1つだけ開く
+    const menuEl = document.getElementById('menu');
+    function placeAboveDock(el) {
+      const bar = document.getElementById('bar').getBoundingClientRect();
+      el.style.bottom = `${window.innerHeight - bar.top + 8}px`;
+    }
+    function togglePanel(el) {
+      const open = el.classList.contains('hidden');
+      for (const other of [menuEl, document.getElementById('export')]) other.classList.add('hidden');
+      document.getElementById('o-more').classList.remove('on');
+      document.getElementById('a-export').classList.remove('on');
+      if (open) { el.classList.remove('hidden'); placeAboveDock(el); autoHide.show(); }
+      return open;
+    }
+    btn('o-more', el => { if (togglePanel(menuEl)) el.classList.add('on'); });
+    btn('m-mode', () => { setSitting(false); controls.setMode(controls.mode === 'walk' ? 'stroll' : 'walk'); });
+    btn('o-help', el => { document.getElementById('help').classList.toggle('hidden'); el.classList.toggle('on'); });
+    const autoHide = createAutoHide({ isPinned: () => !menuEl.classList.contains('hidden') || !document.getElementById('export').classList.contains('hidden') || !started });
+    window.addEventListener('keydown', e => { if (e.code === 'Escape') { menuEl.classList.add('hidden'); document.getElementById('export').classList.add('hidden'); document.getElementById('o-more').classList.remove('on'); document.getElementById('a-export').classList.remove('on'); } });
+    btn('a-sit', () => sitting ? setSitting(false) : sitOnBlanket());
+    btn('a-bridge', goBridge);
+    btn('a-sunset', sunsetView);
+    btn('a-stone', skipStone);
+    btn('t-day', () => setHour(15.5));
+    btn('t-dusk', () => setHour(18.3));
+    btn('t-night', () => setHour(21.5));
+    btn('o-pal', el => { pixel.setPaletteOn(!pixel.paletteOn); el.classList.toggle('on', pixel.paletteOn); });
+    btn('o-line', el => { pixel.setOutline(!pixel.outline); el.classList.toggle('on', pixel.outline); });
+    btn('o-px', el => { const s = [2, 3, 4, 5]; pixel.setPixelScale(s[(s.indexOf(pixel.pixelScale) + 1) % s.length]); el.textContent = `🔍 ×${pixel.pixelScale}`; });
+    btn('o-snd', el => { audio.setEnabled(!audio.enabled); el.classList.toggle('on', audio.enabled); el.textContent = audio.enabled ? '🔊' : '🔈'; });
+
+    function begin(m) {
+      started = true;
+      document.getElementById('start').classList.add('hidden');
+      audio.init();
+      if (m === 'sit') { controls.setMode('walk'); sitOnBlanket(); }
+      else controls.setMode(m);
+    }
+    btn('s-sit', () => begin('sit'));
+    btn('s-walk', () => begin('walk'));
+    btn('s-stroll', () => begin('stroll'));
+    if (IS_TOUCH) document.getElementById('help').classList.add('hidden');
+    if (IS_TOUCH) document.getElementById('o-px').classList.add('hidden');
+
+    function zoneName(x, z) {
+      if (onBridge(x, z)) return '🌉 太鼓橋';
+      if (Math.abs(x - BLANKET.x) < BLANKET.half + 0.3 && Math.abs(z - BLANKET.z) < BLANKET.half + 0.3) return sitting ? '🧺 シートでひと休み' : '🧺 ピクニックシート';
+      if (x < riverCenter(z)) return '🌿 対岸の木立';
+      if (Math.abs(x - pathX(z)) < 0.7) return '🪨 川辺の石畳';
+      return '🌼 木陰の草原';
+    }
+
+    // ============================================================================
+    // メインループ
+    // ============================================================================
+    let last = performance.now(), elapsed = 0, birdTimer = 2;
+    const tmp = new THREE.Vector3();
+
+    const mix3 = (pairs) => [0, 1, 2].map(i => pairs.reduce((a, [w, v]) => a + w * v[i], 0));
+    let warmNow = 0;
+    function updateLook() {
+      const h = tod.hour, night = tod.night, sd = tod.state.sunDir;
+      const dusk = Math.max(0, 1 - Math.abs(h - 18.4) / 1.3), dawn = Math.max(0, 1 - Math.abs(h - 6.3) / 1.1);
+      const warm = Math.max(dusk, dawn) * (1 - night * 0.6), day = Math.max(0, 1 - warm - night);
+      warmNow = warm;
+      // 素材ごとの3色：影・中間・光に掛ける色（線形）。昼は影を青緑へ、夕方は影を紫・光を橙へ、夜は青へ
+      RAMP.shadow.value.fromArray(mix3([[day, [0.24, 0.3, 0.36]], [warm, [0.3, 0.2, 0.36]], [night, [0.2, 0.24, 0.36]]]));
+      RAMP.mid.value.fromArray(mix3([[day, [0.74, 0.77, 0.78]], [warm, [0.82, 0.68, 0.66]], [night, [0.62, 0.7, 0.86]]]));
+      RAMP.high.value.fromArray(mix3([[day, [1.2, 1.15, 0.95]], [warm, [1.28, 1.02, 0.78]], [night, [1.05, 1.0, 0.95]]]));
+      // 仕上げの色ずらしは控えめに（3色塗りが主役）
+      pixel.setGrade({
+        shadow: mix3([[day, [0, 0, 0.015]], [warm, [0.015, -0.01, 0.03]], [night, [-0.01, 0, 0.025]]]),
+        highlight: mix3([[day, [0.01, 0.005, -0.01]], [warm, [0.03, 0.01, -0.025]], [night, [0, 0, 0.01]]])
+      });
+      // 空気中の光の筋：葉のすき間を通る光が空気に見える（朝夕は強く、夜は月明かりでかすかに）
+      pixel.setVolumetric(sun, day * 0.3 + warm * 1.1 + night * 0.35, sun.color, 28);
+      // 太陽そのものからの光の筋（画面に太陽があるときだけ）
+      pixel.setSunRays(sd, sd.y > 0.02 ? warm * 0.9 : 0, sun.color);
+      // 木漏れ日：葉のすき間を、いまの光の向きで計算する
+      LEAF.light.value.copy(sun.position).normalize();
+      LEAF.time.value = elapsed;
+      GRASS_TIME.value = elapsed;
+    }
+
+    function updateWorld(dt) {
+      const t = elapsed * W0;
+      for (const s of SWAY) {
+        s.obj.rotation.x = Math.sin(t + s.phase) * s.amp;
+        s.obj.rotation.z = Math.cos(t + s.phase) * s.amp;
+      }
+      // 本のページ
+      PROPS.page.rotation.z = -(Math.max(0, Math.sin(t)) ** 3) * 1.2;
+      // アヒル
+      for (const d of DUCKS) {
+        const p = duckPos(elapsed - d.lag * LOOP), ahead = duckPos(elapsed - d.lag * LOOP + 0.05);
+        d.g.position.set(p.x, WATER_Y + Math.sin(t * 3 + d.lag * 10) * 0.012, p.z);
+        d.g.rotation.y = Math.atan2(ahead.x - p.x, ahead.z - p.z);
+      }
+      // 花びら：オークの下を舞い落ちる（昼〜夕方）
+      const pp = petals.pts.geometry.attributes.position;
+      petals.mat.opacity = Math.max(0, 1 - tod.night * 2);
+      petals.pts.visible = petals.mat.opacity > 0.02;
+      petals.seeds.forEach((s, i) => {
+        const f = (elapsed / LOOP + s.ph) % 1; // 6秒で1周（ループ動画用）
+        pp.setXYZ(i, s.x + Math.sin(t + i) * 0.4 - f * 1.5, RIGHT_BANK + s.y * (1 - f), s.z + Math.cos(t * 0.5 + i) * 0.3);
+      });
+      pp.needsUpdate = true;
+      // 蛍：夜だけ、ゆらゆら明滅
+      const fp = fireflies.pts.geometry.attributes.position;
+      fireflies.mat.opacity = Math.min(1, Math.max(0, (tod.night - 0.35) * 2.5)) * (0.65 + 0.35 * Math.sin(t * 3));
+      fireflies.pts.visible = fireflies.mat.opacity > 0.02;
+      fireflies.seeds.forEach((s, i) => {
+        const a = t + s.ph * 6.28;
+        fp.setXYZ(i, s.x + Math.sin(a) * 0.5, Math.max(WATER_Y, terrainHeight(s.x, s.z)) + s.y + Math.sin(a * 2) * 0.2, s.z + Math.cos(a) * 0.4);
+      });
+      fp.needsUpdate = true;
+
+      water.update(dt, elapsed, { sun, night: tod.night, warm: warmNow, fog: scene.fog });
+      const dEdge = Math.max(0, Math.abs(player.x - riverCenter(player.z)) - riverHalf(player.z));
+      audio.setWater(0.22 * Math.max(0, 1 - dEdge / 10), dt);
+      birdTimer -= dt;
+      if (birdTimer < 0) { birdTimer = 2 + Math.random() * 5; if (tod.night < 0.4 && started) audio.chirp(); }
+      toast.update(dt);
+    }
+
+    function step(dt) {
+      // 録画中は録画開始からの経過時間を時計にする（0秒から始まり、周期の倍数で終わる）
+      if (capture.recording) elapsed = capture.elapsed();
+      else elapsed += dt;
+      tod.update(dt);
+      timeUI.update();
+      if (!started) player.yaw += dt * 0.05;
+      controls.update(dt);
+      // 座ったまま歩き出したら立ち上がる
+      if (sitting && sitPos && Math.hypot(player.x - sitPos.x, player.z - sitPos.z) > 0.15) setSitting(false);
+      updateWorld(dt);
+      sky.update(capture.recording ? 0 : dt, elapsed, camera.position); // 録画中は雲を止める
+      updateLook();
+      updatePrompt();
+      document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
+      water.renderReflection(pixel.size.width, pixel.size.height);
+      pixel.render();
+      capture.frame();
+    }
+
+    // ============================================================================
+    // 書き出し（PNG・ループ動画）
+    // ============================================================================
+    // 時間を進めずに1フレーム描く（PNG 用。解像度を変えた直後に使う）
+    function renderOnly() {
+      updateLook();
+      water.renderReflection(pixel.size.width, pixel.size.height);
+      pixel.render();
+    }
+    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly });
+    const exportEl = document.getElementById('export'), xNote = document.getElementById('x-note'), xBridge = document.getElementById('x-bridge');
+    const recEl = document.getElementById('rec'), recTime = document.getElementById('rec-time');
+    const pad = n => String(n).padStart(2, '0');
+    function fileBase() {
+      const d = new Date();
+      const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      return `riverside-picnic_${fmtTime(tod.hour).replace(':', '')}_${stamp}`;
+    }
+    function showResult(res) {
+      const where = res.where === 'downloads' ? `~/Downloads に保存しました` : 'ブラウザのダウンロードに保存しました';
+      toast.show(`✅ ${where}`, 3);
+      xNote.innerHTML = '';
+      xNote.append(`✅ ${res.filename} — ${where} `);
+      const a = document.createElement('a');
+      a.href = res.url; a.download = res.filename; a.textContent = 'もう一度保存';
+      xNote.append(a);
+    }
+    async function refreshBridge() {
+      const dir = await capture.bridgeAvailable();
+      xBridge.textContent = dir ? '🟢 ~/Downloads に直接保存' : '⚪ ブラウザのダウンロードに保存';
+      xBridge.title = dir ? dir : 'ターミナルで node tools/export_server.js --bridge-only を起動すると ~/Downloads に直接保存します';
+    }
+    async function exportPNG() {
+      if (capture.recording) return;
+      controls.marker.visible = false;
+      showResult(await capture.png(fileBase()));
+    }
+    async function recordLoop(cycles) {
+      if (capture.recording) { capture.stopVideo(); return; }
+      // ループがつながるように：時間の自動進行を止め、波紋を消し、歩きと散策を止める
+      if (tod.auto) document.getElementById('t-auto').click();
+      water.clearRipples();
+      controls.cancelWalk();
+      controls.settle();
+      if (controls.mode === 'stroll' && !controls.paused) controls.togglePause();
+      const duration = LOOP * cycles;
+      exportEl.classList.add('hidden');
+      recEl.classList.remove('hidden');
+      for (const id of ['bar', 'help', 'hud-tl', 'menu']) document.getElementById(id).classList.add('rec-hide');
+      const res = await capture.startVideo({
+        duration, filename: `${fileBase()}_${duration}s`,
+        onProgress: (t, d) => { recTime.textContent = `${t.toFixed(1)} / ${d.toFixed(1)} 秒`; }
+      });
+      recEl.classList.add('hidden');
+      for (const id of ['bar', 'help', 'hud-tl', 'menu']) document.getElementById(id).classList.remove('rec-hide');
+      exportEl.classList.remove('hidden');
+      placeExportPanel();
+      showResult(res);
+    }
+    const placeExportPanel = () => placeAboveDock(exportEl);
+    window.addEventListener('resize', () => { for (const el of [exportEl, menuEl]) if (!el.classList.contains('hidden')) placeAboveDock(el); });
+    btn('a-export', el => { if (togglePanel(exportEl)) { el.classList.add('on'); refreshBridge(); } });
+    btn('x-close', () => { exportEl.classList.add('hidden'); document.getElementById('a-export').classList.remove('on'); });
+    btn('x-png', exportPNG);
+    btn('x-v1', () => recordLoop(1));
+    btn('x-v2', () => recordLoop(2));
+    btn('rec-stop', () => capture.stopVideo());
+    // 3色塗り：場面のすべてのトゥーン素材に適用。基準の明るさは真昼の光で決める
+    {
+      const h0 = tod.hour;
+      tod.apply(12);
+      const e = new THREE.Color().copy(sun.color).multiplyScalar(sun.intensity).add(new THREE.Color().copy(hemi.color).multiplyScalar(hemi.intensity));
+      RAMP.dayRef.value = (0.299 * e.r + 0.587 * e.g + 0.114 * e.b) / Math.PI;
+      tod.apply(h0);
+      scene.traverse(o => { if (o.isMesh || o.isPoints) for (const m of [].concat(o.material)) rampify(m); });
+    }
+    function frame(now) {
+      step(Math.min(0.05, (now - last) / 1000));
+      last = now;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // 動作確認用（URL末尾に #debug を付けたときだけ）
+    if (location.hash === '#debug') {
+      window.__picnic = { player, controls, camera, PROPS, sunsetView, pixel, tod, LEAF, RAMP, capture, exportPNG, recordLoop, step, sitOnBlanket, goBridge, skipStone, water, setHour, collider, groundAt, isWater, BRIDGE, get sitting() { return sitting; }, get near() { return near; } };
+    }
+  </script>
+</body>
+</html>

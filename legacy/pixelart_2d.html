@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riverside Picnic — Pixel Art Animation</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --background: #0f172a;
+      --foreground: #f8fafc;
+      --card: #1e293b;
+      --content: #0f172a;
+      --border: #334155;
+      --primary: #10b981;
+      --primary-foreground: #052e16;
+      --secondary: #334155;
+      --secondary-foreground: #f1f5f9;
+      --muted-foreground: #94a3b8;
+    }
+    .pixel-canvas {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    input[type="range"] {
+      accent-color: var(--primary);
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 select-none min-h-screen">
+  <div class="max-w-3xl mx-auto bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-sm space-y-3">
+    <!-- Header & Time of Day Presets -->
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <h1 class="text-[var(--foreground)] font-semibold text-base tracking-tight">
+          川辺の理想的なピクニック
+        </h1>
+        <span class="text-xs px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] font-mono">
+          320×180 (周期: 6.0s)
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1 bg-[var(--content)] p-1 rounded-lg border border-[var(--border)]">
+        <button id="btn-day" onclick="setTimeOfDay('day')" class="px-2.5 py-1 rounded text-xs font-medium transition-all bg-[var(--primary)] text-[var(--primary-foreground)] shadow-xs">
+          ☀️ 昼下がり
+        </button>
+        <button id="btn-sunset" onclick="setTimeOfDay('sunset')" class="px-2.5 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🌅 夕暮れ
+        </button>
+        <button id="btn-night" onclick="setTimeOfDay('night')" class="px-2.5 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          🌙 星と蛍
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Viewport Container -->
+    <div class="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-inner cursor-crosshair" id="canvas-wrapper">
+      <canvas id="pixel-canvas" width="320" height="180" class="pixel-canvas w-full h-full block"></canvas>
+
+      <!-- Pixel Loupe (8x Magnifier) -->
+      <div id="loupe-box" class="hidden pointer-events-none absolute w-32 h-32 rounded-full border-2 border-white/90 shadow-2xl overflow-hidden bg-black z-20">
+        <canvas id="loupe-canvas" width="144" height="144" class="pixel-canvas w-full h-full"></canvas>
+        <div class="absolute bottom-1 inset-x-0 text-center text-xs font-mono text-white bg-black/60 py-0.5">
+          8× LOUPE
+        </div>
+      </div>
+
+      <!-- Subtle HUD Overlay -->
+      <div class="absolute top-2 left-2 pointer-events-none flex items-center gap-1.5 bg-black/55 backdrop-blur-xs text-white px-2 py-0.5 rounded text-xs font-mono border border-white/15">
+        <span id="hud-mode">☀️ SUNNY AFTERNOON</span>
+        <span class="opacity-40">|</span>
+        <span id="hud-fps">60 FPS</span>
+        <span id="hud-rec" class="hidden text-rose-400 font-bold animate-pulse">| 🔴 REC</span>
+      </div>
+
+      <div class="absolute bottom-2 right-2 pointer-events-none bg-black/55 backdrop-blur-xs text-white/90 px-2 py-0.5 rounded text-xs border border-white/15">
+        水面クリック: 波紋 / 岸辺: 水切り / 木々: 花びら
+      </div>
+    </div>
+
+    <!-- Quick Action & Export Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+      <div class="flex flex-wrap items-center gap-1">
+        <button onclick="skipStone()" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          🪨 水切り
+        </button>
+        <button onclick="triggerFishJump()" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          🐟 小魚
+        </button>
+        <button onclick="triggerPetalBreeze()" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          🍃 そよ風
+        </button>
+        <button onclick="toggleLoupe()" id="btn-loupe" class="px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+          🔍 ルーペ: OFF
+        </button>
+      </div>
+
+      <!-- PNG & Video Export Controls (Default 6.0s = 1 Full Animation Loop Cycle) -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button id="btn-png" onclick="exportPNG()" class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)] flex items-center gap-1">
+          📷 PNG保存
+        </button>
+
+        <div class="flex items-center bg-[var(--content)] rounded border border-[var(--border)] px-1.5 py-0.5 gap-1" title="アニメーション基本周期は6.0秒（3.0秒で半周期、6.0秒で完全1周期ループ）">
+          <label for="input-duration" class="text-xs text-[var(--muted-foreground)]">秒数:</label>
+          <input id="input-duration" type="number" min="1" max="60" step="0.5" value="6.0" class="w-12 bg-transparent text-xs font-mono text-center text-[var(--foreground)] focus:outline-none" />
+          <span class="text-xs text-[var(--muted-foreground)]">秒</span>
+        </div>
+
+        <button id="btn-video" onclick="toggleVideoRecording()" class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition shadow-xs flex items-center gap-1">
+          🎬 動画保存 (1周期)
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline Export Result / Fallback Drawer -->
+    <div id="export-drawer" class="hidden bg-[var(--content)] border border-[var(--border)] rounded-lg p-2.5 space-y-2">
+      <div class="flex items-center justify-between">
+        <span id="export-title" class="text-xs font-semibold text-[var(--foreground)]">💾 エクスポート完了</span>
+        <div class="flex items-center gap-1.5">
+          <button id="btn-copy-clipboard" onclick="copyCurrentPNGToClipboard()" class="hidden px-2 py-1 rounded text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 border border-[var(--border)]">
+            📋 クリップボードにコピー
+          </button>
+          <a id="export-download-link" href="#" download="riverside-picnic.png" class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90">
+            ⬇️ ファイルを保存
+          </a>
+          <button onclick="closeExportDrawer()" class="px-1.5 py-0.5 rounded text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            ✕
+          </button>
+        </div>
+      </div>
+      <p id="export-hint" class="text-xs text-[var(--muted-foreground)]">
+        「⬇️ ファイルを保存」をクリックするか、下のプレビューを右クリックして「名前を付けて画像/動画を保存」を選択してください。
+      </p>
+      <div class="flex justify-center bg-black/40 rounded p-1.5 overflow-hidden max-h-40">
+        <img id="export-img-preview" class="hidden pixel-canvas max-h-36 w-auto rounded border border-white/20" alt="PNG Preview" />
+        <video id="export-video-preview" class="hidden pixel-canvas max-h-36 w-auto rounded border border-white/20" controls loop autoplay muted playsinline></video>
+      </div>
+    </div>
+
+    <!-- Compact Sliders Row -->
+    <div class="grid grid-cols-3 gap-2 pt-1 border-t border-[var(--border)]">
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">✨ 木漏れ日・光</span>
+          <span id="val-light" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-light" type="range" min="20" max="160" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">🌊 水面・風速</span>
+          <span id="val-wave" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-wave" type="range" min="10" max="200" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+      <div>
+        <div class="flex justify-between text-xs">
+          <span class="text-[var(--muted-foreground)]">💎 水中光・透過</span>
+          <span id="val-caustics" class="font-mono text-[var(--foreground)]">100%</span>
+        </div>
+        <input id="slider-caustics" type="range" min="0" max="160" value="100" class="w-full h-1.5 cursor-pointer" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const W = 320;
+    const H = 180;
+    const LOOP_PERIOD = 6.0;
+    const W0 = (Math.PI * 2) / LOOP_PERIOD;
+
+    const canvas = document.getElementById('pixel-canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = false;
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = W * 4;
+    exportCanvas.height = H * 4;
+    const exportCtx = exportCanvas.getContext('2d', { alpha: false });
+    exportCtx.imageSmoothingEnabled = false;
+
+    const loupeBox = document.getElementById('loupe-box');
+    const loupeCanvas = document.getElementById('loupe-canvas');
+    const loupeCtx = loupeCanvas.getContext('2d', { alpha: false });
+    loupeCtx.imageSmoothingEnabled = false;
+
+    const sceneImgData = ctx.createImageData(W, H);
+    const sceneBuf = new Uint32Array(sceneImgData.data.buffer);
+
+    const outImgData = ctx.createImageData(W, H);
+    const outBuf = new Uint32Array(outImgData.data.buffer);
+
+    const BAYER4 = [
+      [ 0,  8,  2, 10],
+      [12,  4, 14,  6],
+      [ 3, 11,  1,  9],
+      [15,  7, 13,  5]
+    ];
+
+    let currentMode = 'day';
+    let lightIntensity = 1.0;
+    let waveIntensity = 1.0;
+    let causticsIntensity = 1.0;
+    let showLoupe = false;
+    let mouseX = 160;
+    let mouseY = 110;
+    let time = 0;
+
+    let isRecording = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordStartTime = 0;
+    let recordTargetDuration = LOOP_PERIOD;
+    let lastExportBlob = null;
+    let lastExportUrl = null;
+
+    function rgb(r, g, b) {
+      return (255 << 24) | ((b & 255) << 16) | ((g & 255) << 8) | (r & 255);
+    }
+
+    function mixColor(c1, c2, t) {
+      if (t <= 0) return c1;
+      if (t >= 1) return c2;
+      const r1 = c1 & 255, g1 = (c1 >> 8) & 255, b1 = (c1 >> 16) & 255;
+      const r2 = c2 & 255, g2 = (c2 >> 8) & 255, b2 = (c2 >> 16) & 255;
+      const r = (r1 + (r2 - r1) * t) | 0;
+      const g = (g1 + (g2 - g1) * t) | 0;
+      const b = (b1 + (b2 - b1) * t) | 0;
+      return (255 << 24) | (b << 16) | (g << 8) | r;
+    }
+
+    function addLight(c, rAdd, gAdd, bAdd) {
+      const r = Math.min(255, Math.max(0, (c & 255) + rAdd)) | 0;
+      const g = Math.min(255, Math.max(0, ((c >> 8) & 255) + gAdd)) | 0;
+      const b = Math.min(255, Math.max(0, ((c >> 16) & 255) + bAdd)) | 0;
+      return (255 << 24) | (b << 16) | (g << 8) | r;
+    }
+
+    function ditherColor(x, y, c1, c2, t) {
+      const threshold = (BAYER4[y & 3][x & 3] + 0.5) / 16.0;
+      return t > threshold ? c2 : c1;
+    }
+
+    function hash2D(x, y) {
+      let n = (x * 374761393 + y * 668265263) ^ (x * 1274126177);
+      n = (n ^ (n >> 13)) * 1274126177;
+      return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+    }
+
+    const PALETTES = {
+      day: {
+        skyTop: rgb(68, 152, 238),
+        skyMid: rgb(125, 198, 250),
+        skyHorizon: rgb(212, 244, 255),
+        sunCore: rgb(255, 255, 240),
+        sunHalo: rgb(255, 244, 180),
+        cloudLight: rgb(255, 253, 248),
+        cloudMid: rgb(224, 238, 250),
+        cloudShadow: rgb(172, 200, 230),
+        mtFar: rgb(138, 178, 218),
+        mtNear: rgb(95, 146, 184),
+        farTreesLit: rgb(118, 188, 112),
+        farTreesMid: rgb(68, 142, 96),
+        farTreesDark: rgb(38, 92, 82),
+        grassHi: rgb(166, 222, 92),
+        grassLit: rgb(112, 188, 74),
+        grassMid: rgb(68, 144, 64),
+        grassShadow: rgb(36, 94, 58),
+        grassDeep: rgb(22, 60, 48),
+        barkLit: rgb(156, 110, 74),
+        barkMid: rgb(108, 70, 52),
+        barkDark: rgb(64, 40, 38),
+        leafSpark: rgb(216, 245, 130),
+        leafHi: rgb(148, 212, 82),
+        leafMid: rgb(82, 162, 66),
+        leafShadow: rgb(42, 106, 60),
+        leafDeep: rgb(22, 62, 48),
+        waterShallow: rgb(74, 186, 178),
+        waterMid: rgb(38, 132, 168),
+        waterDeep: rgb(24, 82, 136),
+        waterSparkle: rgb(255, 255, 235),
+        waterSubSparkle: rgb(195, 248, 255),
+        foam: rgb(235, 252, 255),
+        rayR: 72, rayG: 64, rayB: 28,
+        causticR: 55, causticG: 85, causticB: 70
+      },
+      sunset: {
+        skyTop: rgb(58, 42, 108),
+        skyMid: rgb(178, 76, 112),
+        skyHorizon: rgb(255, 176, 92),
+        sunCore: rgb(255, 250, 210),
+        sunHalo: rgb(255, 140, 72),
+        cloudLight: rgb(255, 220, 156),
+        cloudMid: rgb(232, 128, 110),
+        cloudShadow: rgb(112, 62, 104),
+        mtFar: rgb(128, 78, 124),
+        mtNear: rgb(88, 52, 98),
+        farTreesLit: rgb(186, 112, 78),
+        farTreesMid: rgb(104, 62, 76),
+        farTreesDark: rgb(54, 34, 62),
+        grassHi: rgb(218, 168, 74),
+        grassLit: rgb(156, 128, 58),
+        grassMid: rgb(98, 92, 52),
+        grassShadow: rgb(56, 54, 52),
+        grassDeep: rgb(34, 30, 44),
+        barkLit: rgb(198, 114, 68),
+        barkMid: rgb(112, 58, 52),
+        barkDark: rgb(58, 30, 42),
+        leafSpark: rgb(255, 206, 108),
+        leafHi: rgb(196, 142, 62),
+        leafMid: rgb(114, 88, 54),
+        leafShadow: rgb(62, 48, 54),
+        leafDeep: rgb(34, 26, 42),
+        waterShallow: rgb(184, 114, 102),
+        waterMid: rgb(118, 68, 104),
+        waterDeep: rgb(54, 38, 84),
+        waterSparkle: rgb(255, 246, 190),
+        waterSubSparkle: rgb(255, 172, 98),
+        foam: rgb(255, 214, 175),
+        rayR: 96, rayG: 52, rayB: 14,
+        causticR: 88, causticG: 54, causticB: 28
+      },
+      night: {
+        skyTop: rgb(12, 18, 44),
+        skyMid: rgb(22, 36, 76),
+        skyHorizon: rgb(42, 68, 112),
+        sunCore: rgb(245, 250, 255),
+        sunHalo: rgb(140, 185, 235),
+        cloudLight: rgb(92, 122, 168),
+        cloudMid: rgb(52, 74, 118),
+        cloudShadow: rgb(26, 38, 72),
+        mtFar: rgb(30, 48, 86),
+        mtNear: rgb(20, 34, 66),
+        farTreesLit: rgb(46, 86, 108),
+        farTreesMid: rgb(26, 54, 78),
+        farTreesDark: rgb(14, 30, 52),
+        grassHi: rgb(74, 138, 132),
+        grassLit: rgb(46, 98, 104),
+        grassMid: rgb(28, 66, 82),
+        grassShadow: rgb(18, 42, 60),
+        grassDeep: rgb(10, 24, 40),
+        barkLit: rgb(88, 78, 92),
+        barkMid: rgb(52, 46, 66),
+        barkDark: rgb(28, 24, 42),
+        leafSpark: rgb(130, 198, 210),
+        leafHi: rgb(68, 128, 142),
+        leafMid: rgb(38, 82, 102),
+        leafShadow: rgb(20, 48, 70),
+        leafDeep: rgb(12, 28, 46),
+        waterShallow: rgb(32, 84, 118),
+        waterMid: rgb(20, 54, 92),
+        waterDeep: rgb(12, 30, 62),
+        waterSparkle: rgb(235, 250, 255),
+        waterSubSparkle: rgb(135, 215, 245),
+        foam: rgb(160, 215, 240),
+        rayR: 26, rayG: 48, rayB: 68,
+        causticR: 28, causticG: 68, causticB: 88
+      }
+    };
+
+    const farShoreY = new Int16Array(W);
+    const nearBankY = new Int16Array(W);
+
+    for (let x = 0; x < W; x++) {
+      farShoreY[x] = Math.round(74 + Math.sin(x * 0.025) * 3 + Math.cos(x * 0.06) * 1.5);
+      if (x < 36) {
+        nearBankY[x] = Math.round(164 + (x / 36) * 18 + Math.sin(x * 0.25) * 1.5);
+      } else if (x < 102) {
+        nearBankY[x] = 190;
+      } else {
+        const u = Math.min(1, (x - 102) / 145);
+        const smooth = u * u * (3 - 2 * u);
+        const wave = Math.sin(x * 0.08) * 2.2 + Math.cos(x * 0.19) * 1.2;
+        nearBankY[x] = Math.round(180 - smooth * 80 + wave);
+      }
+    }
+
+    const pebbles = [];
+    for (let i = 0; i < 190; i++) {
+      const px = (hash2D(i, 11) * W) | 0;
+      const py = (76 + hash2D(i, 23) * 102) | 0;
+      const rx = 2 + ((hash2D(i, 37) * 4) | 0);
+      const ry = 1 + ((hash2D(i, 53) * 2) | 0);
+      const shade = hash2D(i, 71);
+      pebbles.push({ x: px, y: py, rx, ry, shade });
+    }
+
+    const canopyClusters = [
+      { cx: 295, cy: 12, r: 34, layer: 0 },
+      { cx: 262, cy: 16, r: 30, layer: 0 },
+      { cx: 230, cy: 14, r: 26, layer: 0 },
+      { cx: 202, cy: 10, r: 22, layer: 0 },
+      { cx: 310, cy: 36, r: 28, layer: 1 },
+      { cx: 278, cy: 30, r: 25, layer: 1 },
+      { cx: 245, cy: 25, r: 22, layer: 1 },
+      { cx: 216, cy: 20, r: 18, layer: 1 },
+      { cx: 190, cy: 14, r: 15, layer: 1 },
+      { cx: 288, cy: 22, r: 20, layer: 2 },
+      { cx: 255, cy: 18, r: 18, layer: 2 },
+      { cx: 225, cy: 15, r: 15, layer: 2 },
+      { cx: 12, cy: 10, r: 24, layer: 0 },
+      { cx: 38, cy: 8, r: 20, layer: 1 },
+      { cx: 20, cy: 22, r: 18, layer: 2 }
+    ];
+
+    const sunRays = [
+      { xTop: 155, width: 22, phase: 0.0, weight: 1.0 },
+      { xTop: 192, width: 16, phase: 1.4, weight: 0.85 },
+      { xTop: 224, width: 26, phase: 2.7, weight: 1.1 },
+      { xTop: 264, width: 18, phase: 4.1, weight: 0.9 },
+      { xTop: 118, width: 15, phase: 5.2, weight: 0.65 }
+    ];
+
+    const ripples = [];
+    function addRipple(x, y, maxR = 28, strength = 2.6) {
+      ripples.push({ x, y, r: 1.0, maxR, strength, age: 0 });
+    }
+
+    const skippingStones = [];
+    function skipStone(targetX, targetY) {
+      const startX = 165;
+      const startY = 135;
+      const dirX = targetX !== undefined ? (targetX - startX) / 3 : -38;
+      const dirY = targetY !== undefined ? (targetY - startY) / 3 : -14;
+      skippingStones.push({
+        x: startX,
+        y: startY,
+        vx: (dirX / 22),
+        vy: (dirY / 22),
+        z: 8,
+        vz: 1.8,
+        bounces: 0,
+        maxBounces: 4
+      });
+    }
+
+    const jumpingFish = [];
+    function triggerFishJump() {
+      const fx = 55 + Math.random() * 75;
+      const fy = 102 + Math.random() * 42;
+      addRipple(fx, fy, 26, 2.5);
+      jumpingFish.push({
+        startX: fx,
+        startY: fy,
+        t: 0,
+        dir: Math.random() > 0.5 ? 1 : -1
+      });
+    }
+
+    const petals = [];
+    for (let i = 0; i < 24; i++) {
+      petals.push({
+        baseX: 40 + hash2D(i, 19) * 265,
+        baseY: 16 + hash2D(i, 29) * 145,
+        offset: hash2D(i, 41),
+        ampX: 8 + hash2D(i, 59) * 10,
+        colorType: i % 3,
+        onWater: (76 + hash2D(i, 29) * 95) > 98 && (40 + hash2D(i, 19) * 265) < 135
+      });
+    }
+
+    function triggerPetalBreeze() {
+      addRipple(85, 118, 22, 1.8);
+      addRipple(115, 136, 18, 1.5);
+    }
+
+    const flyers = [];
+    for (let i = 0; i < 18; i++) {
+      flyers.push({
+        x: 30 + hash2D(i, 73) * 265,
+        y: 45 + hash2D(i, 89) * 112,
+        phase: hash2D(i, 97) * Math.PI * 2,
+        harmX: (i % 2) + 1,
+        harmY: (i % 3) + 1
+      });
+    }
+
+    const clouds = [
+      { baseX: 42, y: 22, w: 46, h: 14, phase: 0.2 },
+      { baseX: 128, y: 16, w: 58, h: 17, phase: 1.7 },
+      { baseX: 215, y: 28, w: 38, h: 11, phase: 3.1 },
+      { baseX: 280, y: 19, w: 44, h: 13, phase: 4.8 }
+    ];
+
+    const ducks = [
+      { baseX: 82, y: 106, isMother: true, offset: 0.0 },
+      { baseX: 70, y: 108, isMother: false, offset: 0.35 },
+      { baseX: 61, y: 109, isMother: false, offset: 0.7 }
+    ];
+
+    function setPx(buf, x, y, col) {
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        buf[y * W + x] = col;
+      }
+    }
+
+    function getPx(buf, x, y) {
+      const cx = x < 0 ? 0 : (x >= W ? W - 1 : x);
+      const cy = y < 0 ? 0 : (y >= H ? H - 1 : y);
+      return buf[cy * W + cx];
+    }
+
+    function fillRect(buf, x0, y0, w, h, col) {
+      const sx = Math.max(0, x0 | 0);
+      const sy = Math.max(0, y0 | 0);
+      const ex = Math.min(W, (x0 + w) | 0);
+      const ey = Math.min(H, (y0 + h) | 0);
+      for (let y = sy; y < ey; y++) {
+        const row = y * W;
+        for (let x = sx; x < ex; x++) {
+          buf[row + x] = col;
+        }
+      }
+    }
+
+    function fillCircleDither(buf, cx, cy, r, colInner, colOuter) {
+      const r2 = r * r;
+      const sx = Math.max(0, Math.floor(cx - r));
+      const ex = Math.min(W - 1, Math.ceil(cx + r));
+      const sy = Math.max(0, Math.floor(cy - r));
+      const ey = Math.min(H - 1, Math.ceil(cy + r));
+      for (let y = sy; y <= ey; y++) {
+        for (let x = sx; x <= ex; x++) {
+          const dx = x - cx;
+          const dy = y - cy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= r2) {
+            const u = Math.sqrt(d2) / r;
+            buf[y * W + x] = ditherColor(x, y, colInner, colOuter, u * u);
+          }
+        }
+      }
+    }
+
+    function renderScenePass(pal) {
+      const skyH = 82;
+      for (let y = 0; y < skyH; y++) {
+        const t = y / skyH;
+        const row = y * W;
+        for (let x = 0; x < W; x++) {
+          let c;
+          if (t < 0.5) {
+            c = ditherColor(x, y, pal.skyTop, pal.skyMid, t * 2.0);
+          } else {
+            c = ditherColor(x, y, pal.skyMid, pal.skyHorizon, (t - 0.5) * 2.0);
+          }
+          sceneBuf[row + x] = c;
+        }
+      }
+
+      if (currentMode === 'night') {
+        for (let i = 0; i < 65; i++) {
+          const sx = (hash2D(i, 101) * W) | 0;
+          const sy = (hash2D(i, 202) * 58) | 0;
+          const twinkle = Math.sin(time * (3 * W0) + i * 1.7);
+          if (twinkle > -0.2) {
+            const bright = twinkle > 0.7 ? rgb(255, 255, 255) : rgb(165, 205, 245);
+            setPx(sceneBuf, sx, sy, bright);
+          }
+        }
+      }
+
+      const sunX = 96;
+      const sunY = currentMode === 'sunset' ? 44 : 26;
+      const sunR = currentMode === 'sunset' ? 16 : 11;
+      fillCircleDither(sceneBuf, sunX, sunY, sunR + 12, pal.sunHalo, pal.skyMid);
+      for (let y = sunY - sunR; y <= sunY + sunR; y++) {
+        for (let x = sunX - sunR; x <= sunX + sunR; x++) {
+          const dx = x - sunX, dy = y - sunY;
+          if (dx * dx + dy * dy <= sunR * sunR) {
+            if (currentMode === 'night' && (dx - 4) * (dx - 4) + (dy - 2) * (dy - 2) <= (sunR - 2) * (sunR - 2)) {
+              continue;
+            }
+            setPx(sceneBuf, x, y, pal.sunCore);
+          }
+        }
+      }
+
+      for (const cl of clouds) {
+        const cx = Math.round(cl.baseX + Math.sin(time * W0 + cl.phase) * 4 * waveIntensity);
+        const cy = cl.y;
+        const puffs = [
+          { dx: 0, dy: 2, r: cl.h * 0.6 },
+          { dx: cl.w * 0.28, dy: -2, r: cl.h * 0.8 },
+          { dx: cl.w * 0.58, dy: 0, r: cl.h * 0.7 },
+          { dx: cl.w * 0.82, dy: 3, r: cl.h * 0.5 }
+        ];
+        for (const pf of puffs) {
+          const px = Math.round(cx + pf.dx);
+          const py = Math.round(cy + pf.dy);
+          const pr = Math.round(pf.r);
+          for (let y = py - pr; y <= py + 4; y++) {
+            for (let x = px - pr; x <= px + pr; x++) {
+              const dx = x - px, dy = y - py;
+              if (dx * dx + dy * dy <= pr * pr) {
+                let col = pal.cloudLight;
+                if (dy > pr * 0.35) col = pal.cloudShadow;
+                else if (dy > 0 || dx > pr * 0.4) col = ditherColor(x, y, pal.cloudLight, pal.cloudMid, 0.5);
+                setPx(sceneBuf, x, y, col);
+              }
+            }
+          }
+        }
+      }
+
+      for (let x = 0; x < W; x++) {
+        const m1 = Math.round(46 - Math.sin(x * 0.018 + 0.5) * 14 - Math.cos(x * 0.045) * 6);
+        const m2 = Math.round(56 - Math.sin(x * 0.028 + 2.1) * 9 - Math.sin(x * 0.08) * 3);
+        const shore = farShoreY[x];
+
+        for (let y = Math.max(0, m1); y <= shore; y++) {
+          if (y < m2) {
+            const t = (y - m1) / Math.max(1, m2 - m1);
+            setPx(sceneBuf, x, y, ditherColor(x, y, pal.mtFar, pal.skyHorizon, t * 0.45));
+          } else {
+            setPx(sceneBuf, x, y, pal.mtNear);
+          }
+        }
+
+        const treeTop = Math.round(
+          shore - 15 - Math.abs(Math.sin(x * 0.09)) * 11 - Math.sin(x * 0.23) * 4
+        );
+        for (let y = treeTop; y <= shore; y++) {
+          const relY = (y - treeTop) / Math.max(1, shore - treeTop);
+          const n = hash2D(x >> 1, y >> 1);
+          let col = pal.farTreesMid;
+          if (relY < 0.32 && (x % 14 < 8)) {
+            col = n > 0.35 ? pal.farTreesLit : pal.farTreesMid;
+          } else if (relY > 0.72 || n < 0.3) {
+            col = pal.farTreesDark;
+          }
+          setPx(sceneBuf, x, y, col);
+        }
+
+        setPx(sceneBuf, x, shore - 1, pal.grassMid);
+        setPx(sceneBuf, x, shore, pal.barkMid);
+      }
+
+      for (let x = 36; x <= 68; x++) {
+        const u = (x - 52) / 16;
+        const archY = Math.round(69 + u * u * 5);
+        setPx(sceneBuf, x, archY, pal.barkLit);
+        setPx(sceneBuf, x, archY + 1, pal.barkMid);
+        if ((x - 36) % 5 === 0) {
+          for (let y = archY - 4; y < archY; y++) setPx(sceneBuf, x, y, pal.barkMid);
+        }
+        setPx(sceneBuf, x, archY - 4, pal.barkLit);
+      }
+
+      for (let y = 18; y <= 108; y++) {
+        const flare = y > 75 ? Math.pow((y - 75) / 33, 1.8) * 14 : 0;
+        const leftEdge = Math.round(276 - flare + Math.sin(y * 0.12) * 1.5);
+        const rightEdge = Math.round(302 + flare * 0.7);
+        for (let x = leftEdge; x <= rightEdge; x++) {
+          const u = (x - leftEdge) / Math.max(1, rightEdge - leftEdge);
+          const barkTex = hash2D(x >> 1, (y / 3) | 0);
+          let col = pal.barkMid;
+          if (u < 0.22 + barkTex * 0.12) col = pal.barkLit;
+          else if (u > 0.65 - barkTex * 0.15) col = pal.barkDark;
+          setPx(sceneBuf, x, y, col);
+        }
+      }
+
+      const windOffset = Math.sin(time * (2 * W0)) * waveIntensity;
+      for (let x = 0; x < W; x++) {
+        const bankTop = nearBankY[x];
+        if (bankTop >= H) continue;
+
+        const lipH = x < 45 ? 4 : 5;
+        for (let y = bankTop; y < Math.min(H, bankTop + lipH); y++) {
+          const stoneCluster = Math.sin(x * 0.35) + Math.cos(y * 0.5);
+          if (stoneCluster > 0.2) {
+            const isTop = y <= bankTop + 1;
+            setPx(sceneBuf, x, y, isTop ? rgb(172, 178, 186) : rgb(105, 112, 124));
+          } else {
+            setPx(sceneBuf, x, y, y === bankTop ? pal.barkLit : pal.barkDark);
+          }
+        }
+
+        for (let y = bankTop + lipH; y < H; y++) {
+          const depthY = (y - bankTop) / Math.max(1, H - bankTop);
+          const swayX = Math.round(x + Math.sin(y * 0.35 + time * (2 * W0)) * 0.8 * waveIntensity);
+          const n = hash2D(swayX >> 1, y >> 1);
+          const inCanopyShadow = (x > 245 && y < 130 && ((x - 245) + (130 - y) > 35));
+
+          let col = pal.grassMid;
+          if (inCanopyShadow) {
+            col = n > 0.45 ? pal.grassShadow : pal.grassDeep;
+          } else if (depthY < 0.28) {
+            col = ditherColor(x, y, pal.grassHi, pal.grassLit, depthY * 3.0);
+          } else if (n > 0.68) {
+            col = pal.grassHi;
+          } else if (n > 0.32) {
+            col = pal.grassLit;
+          } else if (n < 0.14) {
+            col = pal.grassShadow;
+          }
+          setPx(sceneBuf, x, y, col);
+        }
+
+        if (x % 2 === 0 && bankTop > 80 && bankTop < 178) {
+          const bladeH = 2 + ((hash2D(x, 9) * 4) | 0);
+          const tipBend = Math.round(windOffset * 0.8);
+          for (let b = 0; b < bladeH; b++) {
+            const bx = x + (b === bladeH - 1 ? tipBend : 0);
+            const by = bankTop - b;
+            setPx(sceneBuf, bx, by, b >= bladeH - 1 ? pal.grassHi : pal.grassLit);
+          }
+        }
+      }
+
+      const flowerSpots = [
+        { x: 142, y: 158, c: rgb(255, 245, 130) },
+        { x: 155, y: 146, c: rgb(255, 255, 255) },
+        { x: 168, y: 166, c: rgb(255, 165, 195) },
+        { x: 248, y: 112, c: rgb(255, 245, 130) },
+        { x: 262, y: 120, c: rgb(255, 255, 255) },
+        { x: 302, y: 132, c: rgb(255, 180, 210) },
+        { x: 288, y: 158, c: rgb(255, 240, 120) },
+        { x: 128, y: 168, c: rgb(255, 255, 255) }
+      ];
+      for (const fl of flowerSpots) {
+        const sway = Math.round(Math.sin(time * (2 * W0) + fl.x) * 0.7 * waveIntensity);
+        setPx(sceneBuf, fl.x + sway, fl.y, fl.c);
+        setPx(sceneBuf, fl.x + sway + 1, fl.y, fl.c);
+        setPx(sceneBuf, fl.x + sway, fl.y + 1, rgb(255, 200, 60));
+      }
+
+      renderPicnicProps(pal);
+      renderCanopyFoliage(pal);
+    }
+
+    function renderPicnicProps(pal) {
+      const redDark = currentMode === 'night' ? rgb(118, 38, 62) : rgb(204, 52, 64);
+      const redMid  = currentMode === 'night' ? rgb(148, 56, 78) : rgb(236, 82, 88);
+      const cream   = currentMode === 'night' ? rgb(172, 182, 205) : rgb(252, 244, 230);
+      const fringe  = currentMode === 'night' ? rgb(140, 148, 175) : rgb(235, 222, 198);
+
+      for (let y = 118; y <= 165; y++) {
+        const dy = y - 141;
+        const leftX = Math.round(166 - dy * 0.55);
+        const rightX = Math.round(268 + dy * 0.35);
+        for (let x = leftX; x <= rightX; x++) {
+          const fold = Math.sin((x + y) * 0.15) * 0.5;
+          const u = Math.floor((x - leftX + fold) / 5);
+          const v = Math.floor((y - 118) / 4);
+
+          if (y === 165 || x === rightX) {
+            setPx(sceneBuf, x, y, pal.grassDeep);
+            continue;
+          }
+          if ((x <= leftX + 1 || y >= 163) && ((x + y) % 2 === 0)) {
+            setPx(sceneBuf, x, y, fringe);
+            continue;
+          }
+
+          const checkU = u & 1;
+          const checkV = v & 1;
+          let col;
+          if (checkU === 0 && checkV === 0) col = cream;
+          else if (checkU === 1 && checkV === 1) col = redDark;
+          else col = ditherColor(x, y, redMid, cream, 0.35);
+
+          setPx(sceneBuf, x, y, col);
+        }
+      }
+
+      const wicLit = rgb(228, 172, 96);
+      const wicMid = rgb(184, 126, 62);
+      const wicDark = rgb(124, 78, 38);
+      fillRect(sceneBuf, 230, 133, 30, 3, rgb(95, 35, 42));
+      for (let y = 118; y <= 133; y++) {
+        for (let x = 232; x <= 257; x++) {
+          const weave = ((x + y) % 3 === 0);
+          let c = weave ? wicLit : wicMid;
+          if (x > 250 || y > 130) c = weave ? wicMid : wicDark;
+          if (y === 120 || y === 121) c = wicDark;
+          setPx(sceneBuf, x, y, c);
+        }
+      }
+      for (let x = 240; x <= 249; x++) {
+        const hy = 111 + Math.round(Math.pow((x - 244.5) / 4.5, 2) * 5);
+        setPx(sceneBuf, x, hy, wicLit);
+        setPx(sceneBuf, x, hy + 1, wicDark);
+      }
+      for (let i = 0; i < 9; i++) {
+        setPx(sceneBuf, 227 + i, 117 - (i >> 1), rgb(242, 188, 94));
+        setPx(sceneBuf, 227 + i, 118 - (i >> 1), rgb(204, 138, 52));
+      }
+
+      for (let y = 138; y <= 146; y++) {
+        for (let x = 196; x <= 220; x++) {
+          if ((x === 196 || x === 220) && (y === 138 || y === 146)) continue;
+          setPx(sceneBuf, x, y, y === 146 ? wicDark : wicLit);
+        }
+      }
+      fillRect(sceneBuf, 200, 136, 8, 5, rgb(235, 168, 68));
+      fillRect(sceneBuf, 202, 135, 5, 4, rgb(252, 204, 102));
+      setPx(sceneBuf, 204, 136, rgb(255, 235, 165));
+      const berries = [{ x: 212, y: 138 }, { x: 216, y: 140 }, { x: 211, y: 142 }];
+      for (const b of berries) {
+        fillRect(sceneBuf, b.x, b.y, 3, 3, rgb(235, 42, 58));
+        setPx(sceneBuf, b.x + 1, b.y, rgb(255, 145, 155));
+        setPx(sceneBuf, b.x, b.y - 1, rgb(72, 185, 76));
+      }
+
+      const glintPulse = Math.sin(time * (3 * W0)) > 0.25;
+      for (let y = 121; y <= 135; y++) {
+        const w = y < 125 ? 3 : 4;
+        for (let x = 186 - w; x <= 186 + w; x++) {
+          const isEdge = (x === 186 - w || x === 186 + w || y === 135);
+          if (isEdge) {
+            setPx(sceneBuf, x, y, rgb(220, 245, 255));
+          } else if (y >= 125) {
+            const liqCol = y < 128 ? rgb(255, 242, 135) : rgb(248, 198, 68);
+            setPx(sceneBuf, x, y, liqCol);
+          } else {
+            const bg = getPx(sceneBuf, x, y);
+            setPx(sceneBuf, x, y, addLight(bg, 45, 55, 65));
+          }
+        }
+      }
+      setPx(sceneBuf, 183, 126, rgb(255, 255, 255));
+      setPx(sceneBuf, 183, 127, rgb(255, 255, 255));
+      if (glintPulse) {
+        setPx(sceneBuf, 182, 125, rgb(255, 255, 255));
+        setPx(sceneBuf, 184, 125, rgb(255, 255, 255));
+      }
+      setPx(sceneBuf, 192, 136, rgb(255, 245, 160));
+      setPx(sceneBuf, 193, 136, rgb(255, 235, 130));
+
+      const glasses = [{ cx: 173, by: 136 }, { cx: 178, by: 138 }];
+      for (const g of glasses) {
+        fillRect(sceneBuf, g.cx - 2, g.by - 7, 5, 4, rgb(215, 242, 255));
+        fillRect(sceneBuf, g.cx - 1, g.by - 6, 3, 3, rgb(255, 215, 90));
+        setPx(sceneBuf, g.cx - 2, g.by - 6, rgb(255, 255, 255));
+        setPx(sceneBuf, g.cx, g.by - 3, rgb(215, 242, 255));
+        setPx(sceneBuf, g.cx, g.by - 2, rgb(215, 242, 255));
+        fillRect(sceneBuf, g.cx - 1, g.by - 1, 3, 1, rgb(225, 248, 255));
+      }
+
+      fillRect(sceneBuf, 172, 150, 17, 7, rgb(142, 74, 52));
+      fillRect(sceneBuf, 173, 149, 7, 7, rgb(252, 248, 235));
+      fillRect(sceneBuf, 181, 149, 7, 7, rgb(242, 236, 220));
+      setPx(sceneBuf, 180, 150, rgb(180, 170, 155));
+      for (let py = 151; py <= 154; py += 2) {
+        fillRect(sceneBuf, 174, py, 5, 1, rgb(165, 158, 148));
+        fillRect(sceneBuf, 182, py, 5, 1, rgb(165, 158, 148));
+      }
+      const pageLift = Math.round(Math.max(0, Math.sin(time * (2 * W0))) * 2 * waveIntensity);
+      if (pageLift > 0) {
+        fillRect(sceneBuf, 181, 149 - pageLift, 6, 2, rgb(255, 253, 245));
+      }
+
+      for (let y = 148; y <= 155; y++) {
+        const rx = y < 152 ? 5 : 9;
+        for (let x = 248 - rx; x <= 248 + rx; x++) {
+          let c = (x + y) % 2 === 0 ? rgb(245, 212, 132) : rgb(222, 182, 98);
+          if (y === 151 && Math.abs(x - 248) <= 5) c = rgb(212, 52, 64);
+          setPx(sceneBuf, x, y, c);
+        }
+      }
+
+      const breath = Math.sin(time * (2 * W0)) > 0 ? 1 : 0;
+      for (let y = 150 - breath; y <= 157; y++) {
+        for (let x = 213; x <= 225; x++) {
+          const dx = (x - 219) / 6;
+          const dy = (y - 154) / 4;
+          if (dx * dx + dy * dy <= 1.0) {
+            let c = rgb(250, 244, 236);
+            if (x > 220 && y < 154) c = rgb(230, 138, 62);
+            else if (x < 216 && y < 154) c = rgb(68, 56, 52);
+            setPx(sceneBuf, x, y, c);
+          }
+        }
+      }
+      setPx(sceneBuf, 214, 149 - breath, rgb(68, 56, 52));
+      setPx(sceneBuf, 217, 149 - breath, rgb(230, 138, 62));
+      const tailWag = Math.round(Math.sin(time * W0) * 1);
+      fillRect(sceneBuf, 225, 155 + tailWag, 4, 2, rgb(230, 138, 62));
+
+      fillRect(sceneBuf, 155, 141, 6, 2, rgb(62, 58, 66));
+      fillRect(sceneBuf, 155, 134, 6, 2, rgb(62, 58, 66));
+      setPx(sceneBuf, 157, 133, rgb(90, 85, 95));
+      setPx(sceneBuf, 158, 133, rgb(90, 85, 95));
+      const lanternCore = currentMode === 'night' ? rgb(255, 248, 200) : rgb(255, 225, 130);
+      const lanternMid  = rgb(255, 180, 68);
+      fillRect(sceneBuf, 156, 136, 4, 5, lanternMid);
+      fillRect(sceneBuf, 157, 137, 2, 3, lanternCore);
+
+      if (currentMode !== 'day') {
+        const glowR = currentMode === 'night' ? 28 : 16;
+        for (let y = 138 - glowR; y <= 138 + glowR; y++) {
+          for (let x = 158 - glowR; x <= 158 + glowR; x++) {
+            const d = Math.hypot(x - 158, y - 138);
+            if (d < glowR) {
+              const falloff = Math.pow(1 - d / glowR, 2) * (currentMode === 'night' ? 0.65 : 0.35);
+              const cur = getPx(sceneBuf, x, y);
+              setPx(sceneBuf, x, y, addLight(cur, 180 * falloff, 115 * falloff, 30 * falloff));
+            }
+          }
+        }
+      }
+    }
+
+    function renderCanopyFoliage(pal) {
+      for (const cl of canopyClusters) {
+        const swayX = Math.round(Math.sin(time * (2 * W0) + cl.cx * 0.05) * (1.2 + cl.layer * 0.5) * waveIntensity);
+        const swayY = Math.round(Math.cos(time * (2 * W0) + cl.cy * 0.05) * 0.7 * waveIntensity);
+        const cx = cl.cx + swayX;
+        const cy = cl.cy + swayY;
+        const r = cl.r;
+
+        const sx = Math.max(0, cx - r - 2);
+        const ex = Math.min(W - 1, cx + r + 2);
+        const sy = Math.max(0, cy - r - 2);
+        const ey = Math.min(H - 1, cy + r + 2);
+
+        for (let y = sy; y <= ey; y++) {
+          for (let x = sx; x <= ex; x++) {
+            const dx = x - cx;
+            const dy = y - cy;
+            const angle = Math.atan2(dy, dx);
+            const leafBump = Math.sin(angle * 7 + cl.cx) * 2.2 + Math.cos(angle * 11) * 1.3;
+            const dist = Math.hypot(dx, dy);
+            if (dist <= r + leafBump) {
+              const lightVal = (-dx * 0.55 - dy * 0.65) / r + cl.layer * 0.22;
+              const dither = (BAYER4[y & 3][x & 3] - 7.5) / 32.0;
+              const v = lightVal + dither;
+
+              let col;
+              if (v > 0.52) col = pal.leafSpark;
+              else if (v > 0.22) col = pal.leafHi;
+              else if (v > -0.12) col = pal.leafMid;
+              else if (v > -0.42) col = pal.leafShadow;
+              else col = pal.leafDeep;
+
+              setPx(sceneBuf, x, y, col);
+            }
+          }
+        }
+      }
+
+      for (let vx = 8; vx <= 50; vx += 6) {
+        const vineLen = 22 + ((vx * 7) % 18);
+        for (let vy = 12; vy < 12 + vineLen; vy++) {
+          const sway = Math.round(Math.sin(time * (2 * W0) + vy * 0.12 + vx) * ((vy - 10) * 0.09) * waveIntensity);
+          const x = vx + sway;
+          if (vy % 2 === 0) {
+            setPx(sceneBuf, x, vy, vy > 12 + vineLen - 5 ? pal.leafSpark : pal.leafHi);
+          } else {
+            setPx(sceneBuf, x, vy, pal.leafMid);
+          }
+        }
+      }
+    }
+
+    function renderWaterAndLightPass(pal) {
+      outBuf.set(sceneBuf);
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        rp.r += 0.42;
+        rp.age += 1;
+        if (rp.r >= rp.maxR) ripples.splice(i, 1);
+      }
+
+      const sunX = 96;
+
+      for (let x = 0; x < W; x++) {
+        const yStart = farShoreY[x] + 1;
+        const yEnd = Math.min(H - 1, nearBankY[x] - 1);
+        if (yStart > yEnd) continue;
+
+        for (let y = yStart; y <= yEnd; y++) {
+          const distFromFarShore = y - yStart;
+          const distToNearBank = nearBankY[x] - y;
+          const persp = Math.min(1, distFromFarShore / 95);
+          const shallowNear = Math.max(0, 1 - distToNearBank / 28);
+          const shallowFar = Math.max(0, 1 - distFromFarShore / 12);
+          const shallowness = Math.max(shallowNear, shallowFar * 0.65);
+
+          const freqY = 0.48 - persp * 0.26;
+          const wave1 = Math.sin(y * freqY - time * (3 * W0) + x * 0.03) * (1.2 + persp * 2.6);
+          const wave2 = Math.cos(y * (freqY * 1.7) + time * (2 * W0) - x * 0.05) * (0.8 + persp * 1.5);
+          let rawDx = (wave1 + wave2) * waveIntensity;
+          let rawDy = Math.sin(x * 0.11 + y * 0.32 - time * (3 * W0)) * (0.7 + persp * 1.2) * waveIntensity;
+
+          let rippleHighlight = 0;
+          for (let rIdx = 0; rIdx < ripples.length; rIdx++) {
+            const rp = ripples[rIdx];
+            const rdx = x - rp.x;
+            const rdy = (y - rp.y) * 2.2;
+            const dist = Math.hypot(rdx, rdy);
+            const ringDiff = Math.abs(dist - rp.r);
+            if (ringDiff < 3.2) {
+              const fade = (1 - rp.r / rp.maxR) * (1 - ringDiff / 3.2);
+              const phase = Math.sin((dist - rp.r) * 1.8);
+              rawDx += (rdx / (dist + 1)) * phase * rp.strength * fade * 2.5;
+              rawDy += phase * rp.strength * fade * 1.5;
+              if (phase > 0.55) rippleHighlight = Math.max(rippleHighlight, fade);
+            }
+          }
+
+          const snapDx = Math.round(rawDx);
+          const snapDy = Math.round(rawDy);
+
+          let reflCol;
+          if (x > 96 && distToNearBank < 42 && y > 105) {
+            const skyRefY = Math.round(yStart - distFromFarShore * 0.78 + snapDy);
+            reflCol = getPx(sceneBuf, x + snapDx, skyRefY);
+          } else {
+            const refY = Math.round(yStart - distFromFarShore * 0.82 + snapDy);
+            reflCol = getPx(sceneBuf, x + snapDx, refY);
+          }
+
+          let waterBase = ditherColor(
+            x, y,
+            pal.waterMid,
+            pal.waterDeep,
+            Math.min(1, persp * 1.15)
+          );
+          if (shallowness > 0.15) {
+            waterBase = ditherColor(x, y, waterBase, pal.waterShallow, shallowness * 0.85);
+          }
+
+          if (causticsIntensity > 0.01 && (shallowness > 0.05 || persp > 0.35)) {
+            const cx1 = Math.sin((x + snapDx) * 0.22 + y * 0.35 - time * (2 * W0));
+            const cx2 = Math.cos((x - snapDx) * 0.19 - y * 0.41 + time * (2 * W0));
+            const causticVal = (cx1 + cx2) * 0.5;
+            if (causticVal > 0.58) {
+              const cBoost = (shallowness * 0.7 + 0.3) * causticsIntensity;
+              waterBase = addLight(
+                waterBase,
+                pal.causticR * cBoost,
+                pal.causticG * cBoost,
+                pal.causticB * cBoost
+              );
+            }
+          }
+
+          const reflWeight = Math.max(0.28, 0.68 - shallowness * 0.32 - persp * 0.12);
+          let finalCol = mixColor(waterBase, reflCol, reflWeight);
+
+          const lanternDistX = Math.abs((x + snapDx) - 156);
+          if (lanternDistX < 12 && y > 135 && y < 168) {
+            const lGlow = (1 - lanternDistX / 12) * (1 - (y - 135) / 33) * (currentMode === 'night' ? 0.95 : 0.45);
+            const shimmerStep = Math.floor(((time / LOOP_PERIOD) * 12) % 2);
+            if (((y + shimmerStep) & 1) === 0) {
+              finalCol = addLight(finalCol, 220 * lGlow, 145 * lGlow, 40 * lGlow);
+            }
+          }
+
+          const crest = Math.sin(y * 0.65 - time * (4 * W0) + x * 0.08 + rawDx * 0.4);
+          if (crest > 0.86 && ((x + y) % 2 === 0)) {
+            finalCol = mixColor(finalCol, pal.waterSubSparkle, 0.38);
+          }
+
+          if (rippleHighlight > 0.25) {
+            finalCol = mixColor(finalCol, pal.foam, Math.min(0.85, rippleHighlight));
+          }
+
+          const foamWave = Math.sin(x * 0.18 + time * (3 * W0)) * 1.2;
+          const foamPhase = Math.floor(((time / LOOP_PERIOD) * 18) % 3);
+          if (distFromFarShore <= 1 + (foamWave > 0.4 ? 1 : 0)) {
+            if ((x + foamPhase) % 3 !== 0) finalCol = pal.foam;
+          } else if (distToNearBank <= 2 + Math.round(Math.max(0, foamWave))) {
+            if (distToNearBank === 1 || ((x + y) % 2 === 0)) {
+              finalCol = pal.foam;
+            }
+          }
+
+          const sunPathWidth = 22 + distFromFarShore * 0.42;
+          const distFromSunPath = Math.abs((x + snapDx * 1.4) - sunX);
+          if (distFromSunPath < sunPathWidth && crest > 0.62 * (2.0 - lightIntensity * 0.7)) {
+            const pathFactor = 1 - distFromSunPath / sunPathWidth;
+            if (crest > 0.84 || (pathFactor > 0.6 && ((y + foamPhase) % 3 === 0))) {
+              finalCol = pal.waterSparkle;
+            } else {
+              finalCol = pal.waterSubSparkle;
+            }
+          }
+
+          outBuf[y * W + x] = finalCol;
+        }
+      }
+
+      if (causticsIntensity > 0.1) {
+        for (const pb of pebbles) {
+          const nearB = nearBankY[pb.x];
+          if (pb.y > farShoreY[pb.x] + 3 && pb.y < nearB - 2 && (nearB - pb.y) < 28) {
+            const clarity = (1 - (nearB - pb.y) / 28) * 0.45 * causticsIntensity;
+            const pCol = pb.shade > 0.5 ? rgb(140, 165, 160) : rgb(82, 118, 128);
+            for (let dy = -pb.ry; dy <= pb.ry; dy++) {
+              for (let dx = -pb.rx; dx <= pb.rx; dx++) {
+                if (dx * dx + dy * dy * 2 <= pb.rx * pb.rx) {
+                  const cur = getPx(outBuf, pb.x + dx, pb.y + dy);
+                  setPx(outBuf, pb.x + dx, pb.y + dy, mixColor(cur, pCol, clarity));
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const numSparkles = Math.round(32 * lightIntensity);
+      for (let i = 0; i < numSparkles; i++) {
+        const inSunPath = (i % 3 !== 0);
+        const baseX = inSunPath
+          ? Math.round(sunX + (hash2D(i, 31) - 0.5) * 68)
+          : Math.round(135 + hash2D(i, 47) * 95);
+        const baseY = Math.round(80 + hash2D(i, 61) * 88);
+
+        if (baseY <= farShoreY[baseX] + 2 || baseY >= nearBankY[baseX] - 3) continue;
+
+        const cycle = (((time / LOOP_PERIOD) * 3.0 + i * 0.21) % 1.0) * 4.0;
+        if (cycle < 1.8) {
+          const sx = baseX + Math.round(Math.sin(time * (2 * W0) + i) * 1);
+          const sy = baseY;
+          const core = pal.waterSparkle;
+          const sub = pal.waterSubSparkle;
+
+          if (cycle < 0.45 || cycle > 1.35) {
+            setPx(outBuf, sx, sy, core);
+          } else if (cycle < 0.85 || cycle > 1.05) {
+            setPx(outBuf, sx, sy, core);
+            setPx(outBuf, sx - 1, sy, sub);
+            setPx(outBuf, sx + 1, sy, sub);
+            setPx(outBuf, sx, sy - 1, sub);
+            setPx(outBuf, sx, sy + 1, sub);
+          } else {
+            setPx(outBuf, sx, sy, core);
+            setPx(outBuf, sx - 1, sy, core);
+            setPx(outBuf, sx + 1, sy, core);
+            setPx(outBuf, sx, sy - 1, core);
+            setPx(outBuf, sx, sy + 1, core);
+            setPx(outBuf, sx - 2, sy, sub);
+            setPx(outBuf, sx + 2, sy, sub);
+            setPx(outBuf, sx, sy - 2, sub);
+            setPx(outBuf, sx, sy + 2, sub);
+          }
+        }
+      }
+
+      if (causticsIntensity > 0.1) {
+        const bounceBoost = causticsIntensity * lightIntensity * 0.65;
+        for (let x = 104; x < W; x++) {
+          const bankY = nearBankY[x];
+          if (bankY >= H) continue;
+          for (let y = bankY; y < Math.min(H, bankY + 6); y++) {
+            const waveLight = Math.sin(x * 0.28 - time * (3 * W0) + y * 0.5) + Math.cos(x * 0.19 + time * (2 * W0));
+            if (waveLight > 0.75) {
+              const fade = (1 - (y - bankY) / 6) * bounceBoost;
+              const cur = getPx(outBuf, x, y);
+              setPx(outBuf, x, y, addLight(cur, 48 * fade, 72 * fade, 68 * fade));
+            }
+          }
+        }
+      }
+
+      renderDucks(pal);
+      renderSkippingStonesAndFish(pal);
+      renderGodRays(pal);
+      renderParticlesAndFlyers(pal);
+    }
+
+    function renderDucks(pal) {
+      const glide = Math.sin(time * W0) * 18;
+      const dir = Math.cos(time * W0) >= 0 ? 1 : -1;
+
+      for (let i = 0; i < ducks.length; i++) {
+        const d = ducks[i];
+        const dx = Math.round(d.baseX + glide - dir * (i * 9));
+        const dy = Math.round(d.y + Math.sin(time * (3 * W0) + i) * 0.6);
+
+        const bodyCol = d.isMother ? rgb(238, 232, 220) : rgb(248, 222, 110);
+        const wingCol = d.isMother ? rgb(168, 128, 92) : rgb(225, 185, 72);
+        const headCol = d.isMother ? rgb(42, 118, 86) : rgb(248, 222, 110);
+        const beakCol = rgb(245, 152, 48);
+
+        const w = d.isMother ? 5 : 3;
+        fillRect(outBuf, dx - w, dy - 2, w * 2, 3, bodyCol);
+        fillRect(outBuf, dx - w + 1, dy - 1, w, 2, wingCol);
+        const hx = dir > 0 ? dx + w - 1 : dx - w;
+        fillRect(outBuf, hx, dy - 4, 2, 2, headCol);
+        setPx(outBuf, hx + (dir > 0 ? 2 : -1), dy - 3, beakCol);
+
+        setPx(outBuf, dx - w - 1, dy + 1, pal.foam);
+        setPx(outBuf, dx + w, dy + 1, pal.foam);
+        const reflShift = Math.round(Math.sin(time * (4 * W0) + dy) * 1);
+        fillRect(outBuf, dx - w + reflShift, dy + 2, w * 2 - 1, 2, mixColor(pal.waterMid, bodyCol, 0.45));
+      }
+    }
+
+    function renderSkippingStonesAndFish(pal) {
+      for (let i = skippingStones.length - 1; i >= 0; i--) {
+        const st = skippingStones[i];
+        st.x += st.vx;
+        st.y += st.vy;
+        st.z += st.vz;
+        st.vz -= 0.22;
+
+        if (st.z <= 0) {
+          st.z = 0;
+          st.bounces++;
+          addRipple(Math.round(st.x), Math.round(st.y), 24 - st.bounces * 3, 2.4 - st.bounces * 0.35);
+          if (st.bounces >= st.maxBounces || st.x < 8 || st.y < farShoreY[Math.max(0, Math.round(st.x))] + 4) {
+            skippingStones.splice(i, 1);
+            continue;
+          }
+          st.vz = 1.45 - st.bounces * 0.22;
+          st.vx *= 0.82;
+          st.vy *= 0.82;
+        }
+
+        const sx = Math.round(st.x);
+        const sy = Math.round(st.y - st.z);
+        setPx(outBuf, sx, Math.round(st.y), pal.waterDeep);
+        fillRect(outBuf, sx, sy, 2, 1, rgb(210, 215, 225));
+      }
+
+      for (let i = jumpingFish.length - 1; i >= 0; i--) {
+        const f = jumpingFish[i];
+        f.t += 0.065;
+        if (f.t >= 1.0) {
+          addRipple(Math.round(f.startX + f.dir * 14), Math.round(f.startY), 22, 2.2);
+          jumpingFish.splice(i, 1);
+          continue;
+        }
+        const fx = Math.round(f.startX + f.dir * f.t * 14);
+        const fy = Math.round(f.startY - Math.sin(f.t * Math.PI) * 14);
+        fillRect(outBuf, fx - 1, fy - 1, 3, 2, rgb(235, 245, 255));
+        setPx(outBuf, fx, fy - 1, rgb(255, 165, 145));
+        setPx(outBuf, fx, Math.round(f.startY + 2), rgb(200, 235, 250));
+      }
+    }
+
+    function renderGodRays(pal) {
+      if (lightIntensity <= 0.05) return;
+      const slope = currentMode === 'sunset' ? -0.78 : -0.58;
+
+      for (const ray of sunRays) {
+        const pulse = 0.78 + Math.sin(time * W0 + ray.phase) * 0.22;
+        const halfW = (ray.width * 0.5) * pulse;
+        const rayCenterTop = ray.xTop + Math.sin(time * W0 + ray.phase) * 3.0 * waveIntensity;
+
+        for (let y = 14; y < H; y++) {
+          const vFade = 1.0 - (y / H) * 0.35;
+          const centerX = rayCenterTop + y * slope;
+          const sx = Math.max(0, Math.floor(centerX - halfW));
+          const ex = Math.min(W - 1, Math.ceil(centerX + halfW));
+
+          const bayerRow = BAYER4[y & 3];
+          const rowOffset = y * W;
+
+          for (let x = sx; x <= ex; x++) {
+            const dist = Math.abs(x - centerX) / halfW;
+            const edgeFactor = Math.max(0, 1 - dist * dist);
+            const strength = edgeFactor * vFade * ray.weight * lightIntensity;
+
+            const threshold = (bayerRow[x & 3] + 0.5) / 16.0;
+            if (strength * 0.85 > threshold * 0.55) {
+              const boost = strength * 0.58;
+              outBuf[rowOffset + x] = addLight(
+                outBuf[rowOffset + x],
+                pal.rayR * boost,
+                pal.rayG * boost,
+                pal.rayB * boost
+              );
+            } else if (strength > 0.25) {
+              const boost = strength * 0.24;
+              outBuf[rowOffset + x] = addLight(
+                outBuf[rowOffset + x],
+                pal.rayR * boost,
+                pal.rayG * boost,
+                pal.rayB * boost
+              );
+            }
+          }
+        }
+      }
+    }
+
+    function renderParticlesAndFlyers(pal) {
+      for (const p of petals) {
+        const phaseU = ((time / LOOP_PERIOD) + p.offset) % 1.0;
+        let px, py;
+        if (p.onWater) {
+          px = Math.round(p.baseX - Math.sin(phaseU * Math.PI * 2) * 8 * waveIntensity);
+          py = Math.round(p.baseY + Math.cos(phaseU * Math.PI * 2) * 1.2);
+        } else {
+          px = Math.round(p.baseX + Math.sin(phaseU * Math.PI * 2) * p.ampX * waveIntensity);
+          py = Math.round(16 + phaseU * 140);
+        }
+
+        let pCol = rgb(255, 240, 245);
+        if (p.colorType === 1) pCol = rgb(255, 252, 210);
+        else if (p.colorType === 2) pCol = pal.leafSpark;
+
+        setPx(outBuf, px, py, pCol);
+        if (p.onWater) {
+          setPx(outBuf, px + 1, py, pCol);
+          setPx(outBuf, px, py + 1, pal.waterSubSparkle);
+        }
+      }
+
+      for (let i = 0; i < flyers.length; i++) {
+        const f = flyers[i];
+        const fx = Math.round(f.x + Math.sin(time * (f.harmX * W0) + f.phase) * 16);
+        const fy = Math.round(f.y + Math.cos(time * (f.harmY * W0) + f.phase) * 8);
+
+        if (currentMode === 'night' || (currentMode === 'sunset' && i % 2 === 0)) {
+          const blink = 0.5 + 0.5 * Math.sin(time * (3 * W0) + f.phase * 2.0);
+          if (blink > 0.25) {
+            const coreCol = rgb(245, 255, 150);
+            setPx(outBuf, fx, fy, coreCol);
+            for (let dy = -3; dy <= 3; dy++) {
+              for (let dx = -3; dx <= 3; dx++) {
+                const d = Math.hypot(dx, dy);
+                if (d > 0 && d <= 3) {
+                  const glow = (1 - d / 3.2) * blink * 0.65;
+                  const c = getPx(outBuf, fx + dx, fy + dy);
+                  setPx(outBuf, fx + dx, fy + dy, addLight(c, 165 * glow, 215 * glow, 60 * glow));
+                }
+              }
+            }
+            if (fx >= 0 && fx < W && fy > farShoreY[fx] && fy < nearBankY[fx] - 6) {
+              const reflY = Math.min(nearBankY[fx] - 2, fy + 8 + ((i % 3) * 2));
+              const waveShift = Math.round(Math.sin(time * (3 * W0) + reflY) * 1);
+              setPx(outBuf, fx + waveShift, reflY, rgb(195, 240, 120));
+              setPx(outBuf, fx + waveShift + 1, reflY, rgb(135, 195, 95));
+            }
+          }
+        } else if (i < 5) {
+          const wingOpen = Math.sin(time * (12 * W0) + f.phase) > 0;
+          const bCol = i % 2 === 0 ? rgb(255, 250, 235) : rgb(255, 215, 95);
+          setPx(outBuf, fx, fy, bCol);
+          if (wingOpen) {
+            setPx(outBuf, fx - 1, fy - 1, bCol);
+            setPx(outBuf, fx + 1, fy - 1, bCol);
+          } else {
+            setPx(outBuf, fx, fy - 1, bCol);
+          }
+        }
+      }
+    }
+
+    function syncExportCanvas() {
+      exportCtx.imageSmoothingEnabled = false;
+      exportCtx.drawImage(canvas, 0, 0, W * 4, H * 4);
+    }
+
+    const bridgeFrame = document.createElement('iframe');
+    bridgeFrame.style.display = 'none';
+    document.body.appendChild(bridgeFrame);
+
+    function callLocalDownloadsBridge(endpoint, params) {
+      const qs = new URLSearchParams(params).toString();
+      const url = `http://127.0.0.1:18923/${endpoint}?${qs}&_ts=${Date.now()}`;
+      fetch(url, { mode: 'cors' }).catch(() => {
+        fetch(url, { mode: 'no-cors' }).catch(() => {});
+      });
+      try {
+        bridgeFrame.src = url;
+      } catch (e) {}
+    }
+
+    function triggerDirectDownload(url, filename) {
+      try {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (a.parentNode) document.body.removeChild(a);
+        }, 1000);
+      } catch (e) {}
+    }
+
+    function showExportDrawer(type, blob, filename) {
+      if (lastExportUrl) URL.revokeObjectURL(lastExportUrl);
+      lastExportBlob = blob;
+      lastExportUrl = URL.createObjectURL(blob);
+
+      const drawer = document.getElementById('export-drawer');
+      const title = document.getElementById('export-title');
+      const hint = document.getElementById('export-hint');
+      const link = document.getElementById('export-download-link');
+      const copyBtn = document.getElementById('btn-copy-clipboard');
+      const imgPreview = document.getElementById('export-img-preview');
+      const vidPreview = document.getElementById('export-video-preview');
+
+      drawer.classList.remove('hidden');
+      link.href = lastExportUrl;
+      link.download = filename;
+
+      if (type === 'png') {
+        title.textContent = `✅ ~/Downloads/${filename} に保存しました (${W * 4}×${H * 4} px)`;
+        hint.textContent = 'ダウンロードフォルダ（~/Downloads）へ直接保存しました。再保存する場合は「⬇️ ファイルを保存」をクリックしてください。';
+        copyBtn.classList.remove('hidden');
+        vidPreview.classList.add('hidden');
+        vidPreview.pause();
+        imgPreview.src = lastExportUrl;
+        imgPreview.classList.remove('hidden');
+      } else {
+        title.textContent = `✅ ~/Downloads/${filename} にループ動画を保存しました`;
+        hint.textContent = 'ダウンロードフォルダ（~/Downloads）へ直接保存しました。下のプレーヤーでループ再生を確認できます。';
+        copyBtn.classList.add('hidden');
+        imgPreview.classList.add('hidden');
+        vidPreview.src = lastExportUrl;
+        vidPreview.classList.remove('hidden');
+        vidPreview.play().catch(() => {});
+      }
+    }
+
+    function closeExportDrawer() {
+      const drawer = document.getElementById('export-drawer');
+      const vidPreview = document.getElementById('export-video-preview');
+      vidPreview.pause();
+      drawer.classList.add('hidden');
+    }
+
+    async function copyCurrentPNGToClipboard() {
+      if (!lastExportBlob) return;
+      const btn = document.getElementById('btn-copy-clipboard');
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': lastExportBlob })
+        ]);
+        btn.textContent = '✅ コピー完了！';
+        setTimeout(() => { btn.textContent = '📋 クリップボードにコピー'; }, 2000);
+      } catch (e) {
+        btn.textContent = '⚠️ 右クリックでコピーしてください';
+        setTimeout(() => { btn.textContent = '📋 クリップボードにコピー'; }, 2500);
+      }
+    }
+
+    function exportPNG() {
+      syncExportCanvas();
+      const filename = `riverside-picnic-${currentMode}.png`;
+
+      callLocalDownloadsBridge('save-png', {
+        mode: currentMode,
+        t: time.toFixed(2),
+        light: lightIntensity,
+        wave: waveIntensity,
+        caustics: causticsIntensity
+      });
+
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      triggerDirectDownload(dataUrl, filename);
+
+      exportCanvas.toBlob((blob) => {
+        if (!blob) return;
+        showExportDrawer('png', blob, filename);
+      }, 'image/png');
+    }
+
+    function getSupportedVideoMime() {
+      const candidates = [
+        { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
+        { mime: 'video/mp4', ext: 'mp4' },
+        { mime: 'video/webm;codecs=vp9', ext: 'webm' },
+        { mime: 'video/webm;codecs=vp8', ext: 'webm' },
+        { mime: 'video/webm', ext: 'webm' }
+      ];
+      for (const c of candidates) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(c.mime)) {
+          return c;
+        }
+      }
+      return { mime: 'video/webm', ext: 'webm' };
+    }
+
+    const durationInput = document.getElementById('input-duration');
+    durationInput.addEventListener('input', () => {
+      if (isRecording) return;
+      const val = parseFloat(durationInput.value) || LOOP_PERIOD;
+      const btn = document.getElementById('btn-video');
+      const ratio = val / LOOP_PERIOD;
+      if (Math.abs(ratio - Math.round(ratio)) < 0.05 && ratio >= 1) {
+        btn.textContent = `🎬 動画保存 (${Math.round(ratio)}周期)`;
+      } else {
+        btn.textContent = `🎬 動画保存 (${val}s)`;
+      }
+    });
+
+    function toggleVideoRecording() {
+      if (isRecording) {
+        stopVideoRecording();
+      } else {
+        startVideoRecording();
+      }
+    }
+
+    function startVideoRecording() {
+      const durVal = parseFloat(durationInput.value);
+      recordTargetDuration = (!isNaN(durVal) && durVal >= 0.5) ? Math.min(60, durVal) : LOOP_PERIOD;
+
+      callLocalDownloadsBridge('save-video', {
+        mode: currentMode,
+        duration: recordTargetDuration,
+        light: lightIntensity,
+        wave: waveIntensity,
+        caustics: causticsIntensity
+      });
+
+      ripples.length = 0;
+      skippingStones.length = 0;
+      jumpingFish.length = 0;
+      time = 0;
+
+      syncExportCanvas();
+      const format = getSupportedVideoMime();
+      const stream = exportCanvas.captureStream(60);
+
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: format.mime,
+        videoBitsPerSecond: 12000000
+      });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: format.mime });
+        const durStr = Number.isInteger(recordTargetDuration) ? `${recordTargetDuration}s` : `${recordTargetDuration.toFixed(1)}s`;
+        const filename = `riverside-picnic-${currentMode}-${durStr}.mp4`;
+        showExportDrawer('video', blob, filename);
+        triggerDirectDownload(lastExportUrl, `riverside-picnic-${currentMode}-${durStr}.${format.ext}`);
+      };
+
+      isRecording = true;
+      recordStartTime = performance.now();
+      mediaRecorder.start(100);
+
+      document.getElementById('hud-rec').classList.remove('hidden');
+      const btn = document.getElementById('btn-video');
+      btn.className = 'px-2.5 py-1 rounded text-xs font-medium bg-rose-600 text-white hover:bg-rose-500 transition shadow-xs flex items-center gap-1';
+      btn.textContent = `⏹ 停止 (0.0/${recordTargetDuration}s)`;
+    }
+
+    function stopVideoRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      document.getElementById('hud-rec').classList.add('hidden');
+      const btn = document.getElementById('btn-video');
+      btn.className = 'px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition shadow-xs flex items-center gap-1';
+      const val = parseFloat(durationInput.value) || LOOP_PERIOD;
+      const ratio = val / LOOP_PERIOD;
+      btn.textContent = (Math.abs(ratio - Math.round(ratio)) < 0.05 && ratio >= 1)
+        ? `🎬 動画保存 (${Math.round(ratio)}周期)`
+        : `🎬 動画保存 (${val}s)`;
+    }
+
+    function setTimeOfDay(mode) {
+      currentMode = mode;
+      const modes = {
+        day: { label: '☀️ SUNNY AFTERNOON', btn: 'btn-day' },
+        sunset: { label: '🌅 GOLDEN HOUR', btn: 'btn-sunset' },
+        night: { label: '🌙 STARLIT FIREFLY NIGHT', btn: 'btn-night' }
+      };
+      document.getElementById('hud-mode').textContent = modes[mode].label;
+
+      ['day', 'sunset', 'night'].forEach(m => {
+        const el = document.getElementById('btn-' + m);
+        if (m === mode) {
+          el.className = 'px-2.5 py-1 rounded text-xs font-medium transition-all bg-[var(--primary)] text-[var(--primary-foreground)] shadow-xs';
+        } else {
+          el.className = 'px-2.5 py-1 rounded text-xs font-medium transition-all text-[var(--muted-foreground)] hover:text-[var(--foreground)]';
+        }
+      });
+    }
+
+    function toggleLoupe() {
+      showLoupe = !showLoupe;
+      const btn = document.getElementById('btn-loupe');
+      btn.textContent = showLoupe ? '🔍 ルーペ: ON' : '🔍 ルーペ: OFF';
+      if (!showLoupe) loupeBox.classList.add('hidden');
+    }
+
+    document.getElementById('slider-light').addEventListener('input', e => {
+      lightIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-light').textContent = e.target.value + '%';
+    });
+    document.getElementById('slider-wave').addEventListener('input', e => {
+      waveIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-wave').textContent = e.target.value + '%';
+    });
+    document.getElementById('slider-caustics').addEventListener('input', e => {
+      causticsIntensity = parseInt(e.target.value, 10) / 100;
+      document.getElementById('val-caustics').textContent = e.target.value + '%';
+    });
+
+    const wrapper = document.getElementById('canvas-wrapper');
+    wrapper.addEventListener('pointermove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = Math.max(0, Math.min(W - 1, Math.floor(((e.clientX - rect.left) / rect.width) * W)));
+      mouseY = Math.max(0, Math.min(H - 1, Math.floor(((e.clientY - rect.top) / rect.height) * H)));
+
+      if (showLoupe) {
+        loupeBox.classList.remove('hidden');
+        const lx = Math.min(rect.width - 135, Math.max(6, e.clientX - rect.left - 64));
+        const ly = Math.min(rect.height - 135, Math.max(6, e.clientY - rect.top - 64));
+        loupeBox.style.left = lx + 'px';
+        loupeBox.style.top = ly + 'px';
+      }
+
+      if (e.buttons === 1 && mouseY > farShoreY[mouseX] && mouseY < nearBankY[mouseX]) {
+        if (Math.random() < 0.35) addRipple(mouseX, mouseY, 18, 1.5);
+      }
+    });
+
+    wrapper.addEventListener('pointerleave', () => {
+      loupeBox.classList.add('hidden');
+    });
+
+    wrapper.addEventListener('pointerdown', e => {
+      const rect = canvas.getBoundingClientRect();
+      const cx = Math.floor(((e.clientX - rect.left) / rect.width) * W);
+      const cy = Math.floor(((e.clientY - rect.top) / rect.height) * H);
+
+      if (cy > farShoreY[cx] && cy < nearBankY[cx]) {
+        addRipple(cx, cy, 30, 2.8);
+      } else if (cy < 55) {
+        triggerPetalBreeze();
+      } else {
+        skipStone(75, 118);
+      }
+    });
+
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fpsAccum = 0;
+
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (isRecording) {
+        const elapsed = (now - recordStartTime) / 1000;
+        time = elapsed;
+        const btn = document.getElementById('btn-video');
+        btn.textContent = `⏹ 停止 (${Math.min(recordTargetDuration, elapsed).toFixed(1)}/${recordTargetDuration}s)`;
+        if (elapsed >= recordTargetDuration) {
+          stopVideoRecording();
+        }
+      } else {
+        time = (time + dt) % (LOOP_PERIOD * 100);
+      }
+
+      frameCount++;
+      fpsAccum += dt;
+      if (fpsAccum >= 0.5) {
+        const fps = Math.round(frameCount / fpsAccum);
+        document.getElementById('hud-fps').textContent = fps + ' FPS';
+        frameCount = 0;
+        fpsAccum = 0;
+      }
+
+      const pal = PALETTES[currentMode];
+      renderScenePass(pal);
+      renderWaterAndLightPass(pal);
+
+      ctx.putImageData(outImgData, 0, 0);
+
+      if (isRecording) {
+        syncExportCanvas();
+      }
+
+      if (showLoupe) {
+        const srcSize = 18;
+        const sx = Math.max(0, Math.min(W - srcSize, mouseX - (srcSize >> 1)));
+        const sy = Math.max(0, Math.min(H - srcSize, mouseY - (srcSize >> 1)));
+        loupeCtx.imageSmoothingEnabled = false;
+        loupeCtx.drawImage(canvas, sx, sy, srcSize, srcSize, 0, 0, 144, 144);
+        loupeCtx.strokeStyle = 'rgba(255,255,255,0.16)';
+        loupeCtx.lineWidth = 1;
+        loupeCtx.beginPath();
+        for (let i = 0; i <= 144; i += 8) {
+          loupeCtx.moveTo(i, 0);
+          loupeCtx.lineTo(i, 144);
+          loupeCtx.moveTo(0, i);
+          loupeCtx.lineTo(144, i);
+        }
+        loupeCtx.stroke();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    setTimeout(() => addRipple(92, 122, 28, 2.4), 300);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
