@@ -21,6 +21,7 @@
 | `README.md` | 概要と起動方法 |
 | `edogawa.html` | 江戸川のピクニック |
 | `nagisa.html` | なぎさ公園のピクニック |
+| `myoden.html` | 妙典の岸のピクニック（江戸川の逆側。記録は [MYODEN_DESIGN.md](MYODEN_DESIGN.md)） |
 | `realsite/` | 実在の場所の場面（江戸川・なぎさ公園）で共有するもの（持ち物と湯気・生き物と交通・10 月の色） |
 | `scenes/nagisa/` | なぎさ公園の場面データと出典 |
 | `scenes/edogawa/` | 江戸川の場面データ（高さ・地面の種類・ランドマーク・視点）と出典 |

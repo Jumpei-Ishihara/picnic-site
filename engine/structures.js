@@ -331,7 +331,10 @@ function gableGeometry() {
  * @param {number} [o.clearance]   周り（4 方向）がこの距離まで町のときだけ置く（堤防のきわを空ける）
  * @param {number} [o.thinFrom]    この距離より遠くは間引く（遠くの家は数ドットなので、数を減らして軽くする）。既定は間引かない
  */
-export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, thinFrom = Infinity, wallColors, roofColors }) {
+// shape：建物の大きさの幅（m）。既定は家。倉庫・工場は { w: [25, 60], d: [20, 45], h: [8, 14], tall: 0, flat: true } のように
+export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, thinFrom = Infinity, wallColors, roofColors, shape = null }) {
+  const SH = { w: [7, 12], d: [8, 14], h: [5.5, 7.5], tallH: [9, 18], tall: 0.12, flat: false, ...shape };
+  const pickR = ([a, b]) => a + rnd() * (b - a);
   const spots = [];
   for (let z = bounds.z0; z < bounds.z1; z += cell) {
     for (let x = bounds.x0; x < bounds.x1; x += cell) {
@@ -351,14 +354,15 @@ export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMater
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
   const up = new THREE.Vector3(0, 1, 0);
   spots.forEach(([x, z], i) => {
-    const tall = rnd() < 0.12;
-    const w = 7 + rnd() * 5, d = 8 + rnd() * 6, h = tall ? 9 + rnd() * 9 : 5.5 + rnd() * 2;
+    const tall = rnd() < SH.tall;
+    const w = pickR(SH.w), d = pickR(SH.d), h = tall ? pickR(SH.tallH) : pickR(SH.h);
+    const flat = tall || SH.flat;
     q.setFromAxisAngle(up, rnd() * Math.PI);
     const y = heightAt(x, z);
     walls.setMatrixAt(i, m.compose(p.set(x, y, z), q, s.set(w, h, d)));
     walls.setColorAt(i, c.set(wallColors[(rnd() * wallColors.length) | 0]));
     // 屋根：低い家は切妻、高い建物は平らな屋根（小さく沈めて見せない）
-    roofs.setMatrixAt(i, m.compose(p.set(x, y + h - (tall ? 0.5 : 0), z), q, s.set(w * 1.06, tall ? 0.01 : 2.4, d * 1.06)));
+    roofs.setMatrixAt(i, m.compose(p.set(x, y + h - (flat ? 0.5 : 0), z), q, s.set(w * 1.06, flat ? 0.01 : 2.4, d * 1.06)));
     roofs.setColorAt(i, c.set(roofColors[(rnd() * roofColors.length) | 0]));
   });
   for (const im of [walls, roofs]) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; im.castShadow = false; im.receiveShadow = true; }

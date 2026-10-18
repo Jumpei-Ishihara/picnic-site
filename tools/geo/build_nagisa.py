@@ -22,7 +22,6 @@ from PIL import Image
 import build_scene as B
 from geo_common import (CACHE, OUT, SITE, SITE_NAME, bearing_dist, ll2local, load_json, save_json, tp2y)
 
-assert SITE_NAME == 'nagisa', 'run with --site nagisa (or GEO_SITE=nagisa)'
 
 NEAR = {'x0': -220, 'z0': -190, 'step': 1, 'w': 361, 'h': 371}     # x -220..140, z -190..180
 MID = {'x0': -2700, 'z0': -2500, 'step': 8, 'w': 676, 'h': 632}    # 5.4 × 5.05 km（南は舞浜のディズニーリゾートまで）
@@ -434,6 +433,7 @@ def pick_sheet(near, cls, trees):
 
 
 def main():
+    assert SITE_NAME == 'nagisa', 'run with --site nagisa (or GEO_SITE=nagisa)'
     os.makedirs(OUT, exist_ok=True)
     osm = load_json(os.path.join(CACHE, 'osm.json'))['elements']
     log('loading dem ...')

@@ -12,6 +12,9 @@ python3 tools/geo/check_scene.py     # 写真・標高と比べて確かめる�
 
 python3 tools/geo/fetch_data.py --site nagisa   # なぎさ公園
 python3 tools/geo/build_nagisa.py               # scenes/nagisa/ を作る（15 秒ほど）
+
+python3 tools/geo/fetch_data.py --site myoden   # 江戸川 妙典の岸
+python3 tools/geo/build_myoden.py               # scenes/myoden/ を作る（15 秒ほど）
 ```
 
 `ground.png` を手で直したあとは、上書きしないように `build_scene.py --keep-ground` で作り直します。
@@ -26,6 +29,7 @@ python3 tools/geo/build_nagisa.py               # scenes/nagisa/ を作る（15 
 | `fetch_data.py` | 標高タイル DEM5A（z15）、OSM（Overpass）、シームレス空中写真（z17）を取得 |
 | `build_scene.py` | 断面の読み取り、近景・中景の高さ、地面の種類、ランドマーク、視点を作って書き出す |
 | `build_nagisa.py` | なぎさ公園用：標高そのままの近景、明るさのばらつきで木を拾う、建物、見通しを計算して視点を決める |
+| `build_myoden.py` | 妙典の岸用：なぎさ公園の部品を使い、橋・水管橋・送電線・煙突・工場地区・視点を作る |
 | `check_scene.py` | 水際のずれ、断面の差を数字で出し、確認用の図を作る |
 | `cache/<場所>/` | 取得した元データと確認用の図（配布しない。消しても作り直せる） |
 
