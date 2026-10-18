@@ -364,3 +364,99 @@ export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMater
   group.add(walls, roofs);
   return { group, count: n };
 }
+
+// ---------------------------------------------------------------------------
+// 大観覧車：車輪・スポーク・脚・ゴンドラ。ループ周期でちょうどゴンドラ 2 つ分まわるので、ループ動画でもつながる
+// ---------------------------------------------------------------------------
+/**
+ * @param {object} o
+ * @param {{x:number, z:number, y:number}} o.at        足元の位置
+ * @param {{x:number, z:number}} o.face                車輪の面を向ける先（見る人の位置）
+ * @param {number} [o.height]   てっぺんの高さ（m）
+ * @param {number} [o.diameter]
+ * @param {number} [o.gondolas]
+ * @param {{ frame: THREE.Material, gondola: THREE.Material, rim: THREE.Material }} o.materials  rim は夜に光らせる（emissive）
+ */
+export function createFerrisWheel({ at, face, height = 117, diameter = 111, gondolas = 68, materials, loop = 6 }) {
+  const R = diameter / 2, hubY = height - R;
+  const group = new THREE.Group();
+  group.position.set(at.x, at.y, at.z);
+  group.rotation.y = Math.atan2(face.x - at.x, face.z - at.z); // 組の +z（車輪の軸）を見る人に向ける
+  // 脚：車輪の前後に A 字の脚
+  const legs = new GeoBuilder();
+  for (const zz of [-5, 5]) {
+    for (const sx of [-1, 1]) legs.beam(V(sx * R * 0.42, 0, zz * 1.6), V(0, hubY, zz * 0.5), 1.6, 1.6);
+    legs.beam(V(-R * 0.3, hubY * 0.28, zz * 1.4), V(R * 0.3, hubY * 0.28, zz * 1.4), 0.8, 0.8);
+  }
+  legs.box(V(0, hubY, 0), 4, 4, 12);
+  const legMesh = new THREE.Mesh(legs.build(), materials.frame);
+  legMesh.castShadow = true;
+  group.add(legMesh);
+  // 回る部分：前後 2 本の輪、スポーク
+  const wheel = new THREE.Group();
+  wheel.position.y = hubY;
+  const frame = new GeoBuilder(), rim = new GeoBuilder();
+  const n = gondolas;
+  const P = (a, r, z) => V(Math.cos(a) * r, Math.sin(a) * r, z);
+  for (let i = 0; i < n; i++) {
+    const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2;
+    for (const z of [-2.2, 2.2]) {
+      rim.beam(P(a0, R, z), P(a1, R, z), 1.0, 1.0);
+      frame.beam(P(a0, R * 0.93, z), P(a1, R * 0.93, z), 0.6, 0.6);
+    }
+    frame.beam(P(a0, R, -2.2), P(a0, R, 2.2), 0.5, 0.5);
+    if (i % 2 === 0) for (const z of [-2.2, 2.2]) frame.beam(V(0, 0, z * 2.4), P(a0, R * 0.93, z), 0.35, 0.35);
+  }
+  const frameMesh = new THREE.Mesh(frame.build(), materials.frame);
+  const rimMesh = new THREE.Mesh(rim.build(), materials.rim);
+  wheel.add(frameMesh, rimMesh);
+  group.add(wheel);
+  // ゴンドラ：輪の外側に吊るす。向きはいつも上下そのまま
+  const gGeo = new THREE.BoxGeometry(2.6, 2.6, 2.6).translate(0, -1.6, 0);
+  const gond = new THREE.InstancedMesh(gGeo, materials.gondola, n);
+  group.add(gond);
+  // 遠くから見る大きな構造物は、部材が 1 ドットより細くなって消える（2 km 先では 1 ドット 約 15 m）。
+  // そこで輪・スポーク・脚を 1 ドットの線、ゴンドラを点でも描く（どの距離でも 1 ドットは残る）
+  const lineMaterial = new THREE.LineBasicMaterial({ color: 0xe8e8e4 });
+  const ring = [], legsL = [];
+  for (let i = 0; i < n; i++) {
+    const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2;
+    ring.push(Math.cos(a0) * R, Math.sin(a0) * R, 0, Math.cos(a1) * R, Math.sin(a1) * R, 0);
+  }
+  for (let i = 0; i < n; i += 2) { const a = i / n * Math.PI * 2; ring.push(0, 0, 0, Math.cos(a) * R, Math.sin(a) * R, 0); }
+  const ringGeo = new THREE.BufferGeometry();
+  ringGeo.setAttribute('position', new THREE.Float32BufferAttribute(ring, 3));
+  const ringLines = new THREE.LineSegments(ringGeo, lineMaterial);
+  wheel.add(ringLines);
+  for (const sx of [-1, 1]) legsL.push(sx * R * 0.42, 0, 0, 0, hubY, 0);
+  const legGeo = new THREE.BufferGeometry();
+  legGeo.setAttribute('position', new THREE.Float32BufferAttribute(legsL, 3));
+  const legLines = new THREE.LineSegments(legGeo, lineMaterial);
+  group.add(legLines);
+  const gpGeo = new THREE.BufferGeometry();
+  gpGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const pointMaterial = new THREE.PointsMaterial({ color: 0x9cc4e4, size: 1.5, sizeAttenuation: false });
+  const gondPoints = new THREE.Points(gpGeo, pointMaterial);
+  gondPoints.frustumCulled = false;
+  group.add(gondPoints);
+
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
+  // ループ周期でゴンドラ 2 つ分まわる：スポークは 2 つおきなので、6 秒後に輪・スポーク・ゴンドラがぴったり重なる（約 3.4 分で 1 周）
+  const W = 2 * Math.PI * 2 / n / loop;
+  const gp = gpGeo.attributes.position;
+  function update(t) {
+    const a = t * W;
+    wheel.rotation.z = a;
+    for (let i = 0; i < n; i++) {
+      const ang = i / n * Math.PI * 2 + a;
+      p.set(Math.cos(ang) * (R + 0.6), hubY + Math.sin(ang) * (R + 0.6), 0);
+      gond.setMatrixAt(i, m.compose(p, q, s));
+      gp.setXYZ(i, p.x, p.y - 1.6, p.z);
+    }
+    gond.instanceMatrix.needsUpdate = true;
+    gp.needsUpdate = true;
+  }
+  update(0);
+  // 法線パスで描かないもの（線・点に輪郭線が付かないように）
+  return { group, update, wheel, lineMaterial, pointMaterial, thin: [ringLines, legLines, gondPoints] };
+}

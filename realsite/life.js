@@ -1,4 +1,4 @@
-// 江戸川の河川敷の生き物と動き（10 月中旬）
+// 実在の場所の場面（江戸川・なぎさ公園）の生き物と動き（10 月中旬）
 //   ループ周期（6 秒）で繰り返すもの：赤とんぼ、トビ、芝の揺れ、水際のススキ・オギの揺れ
 //   繰り返さないもの（交通）：鉄橋を渡る電車、市川橋の車、川を行く小さな船。traffic.enabled で止められる（ループ動画の書き出し用）
 import * as THREE from 'three';
@@ -53,8 +53,13 @@ function track(path, ext = 0) {
  * @param {{ hideInNormalPass: Set<THREE.Object3D> }} o.pixel
  * @param {() => number} o.rnd
  * @param {boolean} [o.light]  スマホ向けに数を減らす
+ * @param {string[]} [o.carBridges]  車を走らせる橋の id
+ * @param {number[][]} [o.boatPath]   船の通り道（[x, z] の並び）。省くと両岸の水際の真ん中
+ * @param {{x:number, z:number, r:number}} [o.gulls]  カモメ（ユリカモメ）を飛ばす水の上の範囲
+ * @param {boolean} [o.reeds]    水際のススキ・オギ（江戸川の断面データがあるとき）
  */
-export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, light = false, ext = 500 }) {
+export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, light = false, ext = 500,
+  carBridges = ['ichikawa-bridge'], boatPath = null, gulls = null, reeds: withReeds = !!data.section, trainExtra = 200 }) {
   const W0 = Math.PI * 2 / loop;
   const NB = terrain.bounds.near;
   const S = data.sheet;
@@ -93,7 +98,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
     return a.bankTop + (b.bankTop - a.bankTop) * Math.min(1, Math.max(0, t));
   };
   const reedSpots = [];
-  for (let z = NB.z0 + 2; z < NB.z1 - 2; z += 0.6) {
+  for (let z = NB.z0 + 2; withReeds && z < NB.z1 - 2; z += 0.6) {
     if (z > S.z - 30 && z < S.z + 10) continue; // シートから見て正面〜左手（上流側）の水際は空ける
     if (noise(z * 0.08, 3.1) < 0.42) continue;
     const x = bank(z) + (rnd() - 0.4) * 1.6;
@@ -103,13 +108,13 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   }
   const reedColors = ['#7a8a4a', '#8f9a52', '#a39a5a', '#6f8044'];
   let ri = 0;
-  const reeds = createSwayingGrass({
+  const reeds = reedSpots.length && createSwayingGrass({
     scene, material: toon, kind: 'reed', count: reedSpots.length, time: grassTime, loop, rnd, amp: 0.12,
     place() { const p = reedSpots[ri++]; return p && { x: p.x, y: p.y - 0.05, z: p.z, scale: p.s, color: pick(reedColors) }; }
   });
   let pi = 0;
   const plumeSpots = reedSpots.flatMap(p => [0, 1, 2].map(k => ({ ...p, k })));
-  const plumes = createSwayingGrass({
+  const plumes = plumeSpots.length && createSwayingGrass({
     scene, material: toon, kind: 'plume', count: plumeSpots.length, time: grassTime, loop, rnd, amp: 0.12,
     blade: { length: 0.34, width: 0.07 },
     place() {
@@ -120,9 +125,9 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
       return { x: p.x + Math.cos(a) * 0.12 * p.s, y: p.y + 1.25 * p.s, z: p.z + Math.sin(a) * 0.12 * p.s, scale: p.s, color: pick(['#d8c79a', '#c9b88a', '#e2d6b0']) };
     }
   });
-  for (const m of [reeds, plumes]) pixel.hideInNormalPass.add(m);
-  counts.reeds = reeds.count;
-  counts.plumes = plumes.count;
+  for (const m of [reeds, plumes]) if (m) pixel.hideInNormalPass.add(m);
+  counts.reeds = reeds ? reeds.count : 0;
+  counts.plumes = plumes ? plumes.count : 0;
 
   // ==========================================================================
   // 赤とんぼ：シートの周りを低く飛ぶ（6 秒で元の位置に戻る 8 の字）
@@ -181,6 +186,21 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   const kites = kiteSeeds.map(() => { const g = makeKite(); g.scale.setScalar(1.4); return g; });
   counts.kites = kites.length;
 
+  // カモメ（ユリカモメ）：水の上を低く輪を描いて飛ぶ。白い体に灰色の翼（形はトビと同じ作りを小さく）
+  const gullSeeds = [], gullBirds = [];
+  if (gulls) {
+    const white = toon({ color: '#f2f2ee' }), grey = toon({ color: '#b9bec6', side: THREE.DoubleSide });
+    for (let i = 0; i < (light ? 5 : 8); i++) {
+      const g = makeKite();
+      g.children[0].material = white; g.children[2].material = white; g.children[1].material = grey;
+      g.scale.setScalar(0.7);
+      gullBirds.push(g);
+      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * gulls.r;
+      gullSeeds.push({ c: { x: gulls.x + Math.cos(a) * d, z: gulls.z + Math.sin(a) * d }, h: 5 + rnd() * 14, r: 6 + rnd() * 8, ph: rnd() * 6.28, dir: rnd() < 0.5 ? 1 : -1, water: true });
+    }
+  }
+  counts.gulls = gullBirds.length;
+
   // ==========================================================================
   // 電車（JR 総武線の各駅停車・快速、京成線）と市川橋の車、川の小さな船
   // ==========================================================================
@@ -189,7 +209,9 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   const TRAIN_LOOKS = {
     'jr-sobu-local': { band: '#f2c200', cars: 10, len: 20, v: 22, every: 150 },  // 黄色の帯
     'jr-sobu-rapid': { band: '#2a4d9a', cars: 11, len: 20, v: 25, every: 180, top: '#e8e2d0' }, // 紺とクリーム
-    'keisei': { band: '#c8323a', cars: 8, len: 18, v: 20, every: 200, band2: '#2a4d9a' }  // 赤と青の帯
+    'keisei': { band: '#c8323a', cars: 8, len: 18, v: 20, every: 200, band2: '#2a4d9a' },  // 赤と青の帯
+    'jr-keiyo': { band: '#9a1f3a', cars: 10, len: 20, v: 24, every: 170 },                // 京葉線：ワインレッドの帯
+    'tozai-line': { band: '#2a9ad6', cars: 10, len: 20, v: 22, every: 160 }               // 東西線：水色の帯
   };
   const bodyMat = toon({ color: '#c9ccd1' }), winMat = toon({ color: '#2a2f3a', emissive: 0xfff0c8, emissiveIntensity: 0 });
   winMat.userData.lampMax = 1.4;
@@ -220,12 +242,13 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   counts.trains = traffic.trains.length;
   nightLights.push(winMat);
 
-  // 市川橋の車：4 車線、まとめ描き
-  {
-    const b = data.landmarks.bridges.find(x => x.id === 'ichikawa-bridge');
+  // 橋の車：4 車線、まとめ描き（carBridges の橋ごと）
+  traffic.carSets = [];
+  for (const id of carBridges) {
+    const b = data.landmarks.bridges.find(x => x.id === id);
     if (b) {
       const tr = track(b.path, 120);
-      const n = light ? 16 : 28;
+      const n = Math.round((light ? 16 : 28) * Math.min(2, Math.max(0.6, tr.L / 400)));
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(4.4, 1.5, 1.8).translate(0, 0.75, 0), toon({ color: '#ffffff' }), n);
       const colors = ['#f4f4f2', '#c3c4c8', '#2b2b30', '#9497a0', '#8c2f39', '#2c4a7a', '#f4f4f2'];
       const c = new THREE.Color();
@@ -237,15 +260,15 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
       im.instanceColor.needsUpdate = true;
       im.castShadow = true;
       scene.add(im);
-      traffic.cars = { im, tr, seeds, deckY: b.deckY };
-      counts.cars = n;
+      traffic.carSets.push({ im, tr, seeds, deckY: b.deckY });
+      counts.cars = (counts.cars ?? 0) + n;
     }
   }
 
   // 小さな船：川の真ん中を下る（まれに）
-  {
+  if (boatPath || data.water.westShore) {
     const west = data.water.westShore, east = data.water.eastShore;
-    const center = west.filter(([, z]) => z > -1000 && z < 500).map(([x, z]) => {
+    const center = boatPath ?? west.filter(([, z]) => z > -1000 && z < 500).map(([x, z]) => {
       const e = east.reduce((a, q) => Math.abs(q[1] - z) < Math.abs(a[1] - z) ? q : a);
       return [(x + e[0]) / 2 + 12, z]; // 真ん中より少し東寄り（下りの船）
     }).sort((a, b) => a[1] - b[1]);
@@ -272,7 +295,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
     obj.rotation.y = Math.atan2(-tmp.dz, tmp.dx);
   }
   return {
-    counts, traffic, kites, dragonflies, tufts, reeds, plumes, grassTime, nightLights,
+    counts, traffic, kites, gulls: gullBirds, dragonflies, tufts, reeds, plumes, grassTime, nightLights,
     /**
      * @param {number} t        ループに使う経過時間（秒）
      * @param {number} clock    交通に使う時計（秒）。ループ動画の間は止めてよい
@@ -292,10 +315,11 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
       });
       dfPos.needsUpdate = true;
       // トビ：6 秒で 1 周、旋回の内側へ傾ける
-      kiteSeeds.forEach((k, i) => {
+      const birds = [...kiteSeeds.map((k, i) => [k, kites[i]]), ...gullSeeds.map((k, i) => [k, gullBirds[i]])];
+      birds.forEach(([k, g], i) => {
         const th = a * k.dir + k.ph;
-        const g = kites[i];
-        g.position.set(k.c.x + Math.cos(th) * k.r, terrain.heightAt(k.c.x, k.c.z) + k.h + Math.sin(a * 2 + i) * 0.6, k.c.z + Math.sin(th) * k.r);
+        const base = k.water ? level : terrain.heightAt(k.c.x, k.c.z);
+        g.position.set(k.c.x + Math.cos(th) * k.r, base + k.h + Math.sin(a * 2 + i) * 0.6, k.c.z + Math.sin(th) * k.r);
         // 進む向き（接線）。組の +z が後ろ（尾）なので、-z を進む向きに合わせる
         const vx = -Math.sin(th) * k.dir, vz = Math.cos(th) * k.dir;
         g.rotation.set(0, Math.atan2(-vx, -vz), 0);
@@ -314,12 +338,12 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
           const sAlong = head - k * T.look.len - T.look.len / 2;
           const s = T.dir > 0 ? sAlong : T.tr.L - sAlong;
           // 延ばした線路（高架や築堤は作っていない）の遠くでは見せない：橋の両端から 200 m まで
-          g.visible = run && sAlong > ext - 200 && sAlong < T.tr.L - ext + 200;
+          g.visible = run && sAlong > ext - trainExtra && sAlong < T.tr.L - ext + trainExtra;
           if (g.visible) placeOnTrack(g, T.tr, s, T.deckY + 0.4, T.side);
         });
       }
-      if (traffic.cars) {
-        const C = traffic.cars, m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+      for (const C of traffic.carSets) {
+        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
         C.im.visible = on;
         C.seeds.forEach((c, i) => {
           const s0 = ((c.s0 + c.v * clock) % C.tr.L + C.tr.L) % C.tr.L;

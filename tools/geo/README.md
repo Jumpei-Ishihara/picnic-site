@@ -1,6 +1,6 @@
-# tools/geo — 江戸川（市川）場面の地理データ
+# tools/geo — 実在の場所の場面（江戸川・なぎさ公園）の地理データ
 
-国土地理院の標高・空中写真と OpenStreetMap から、`scenes/edogawa/` の場面データを作ります。設計は [docs/EDOGAWA_DESIGN.md](../../docs/EDOGAWA_DESIGN.md) を見てください。
+国土地理院の標高・空中写真と OpenStreetMap から、`scenes/<場所>/` の場面データを作ります。場所は 江戸川（`edogawa`、既定）と なぎさ公園（`nagisa`）。設計は [docs/EDOGAWA_DESIGN.md](../../docs/EDOGAWA_DESIGN.md)・[docs/NAGISA_DESIGN.md](../../docs/NAGISA_DESIGN.md) を見てください。
 
 ## 使い方
 
@@ -8,7 +8,10 @@
 cd ~/picnic-site
 python3 tools/geo/fetch_data.py      # 元データを cache/ に取得（あれば使い回す。取り直すときは --refresh）
 python3 tools/geo/build_scene.py     # scenes/edogawa/ を作る（2 秒ほど）
-python3 tools/geo/check_scene.py     # 写真・標高と比べて確かめる。図は cache/check/
+python3 tools/geo/check_scene.py     # 写真・標高と比べて確かめる。図は cache/edogawa/check/
+
+python3 tools/geo/fetch_data.py --site nagisa   # なぎさ公園
+python3 tools/geo/build_nagisa.py               # scenes/nagisa/ を作る（15 秒ほど）
 ```
 
 `ground.png` を手で直したあとは、上書きしないように `build_scene.py --keep-ground` で作り直します。
@@ -19,11 +22,12 @@ python3 tools/geo/check_scene.py     # 写真・標高と比べて確かめる�
 
 | ファイル | 内容 |
 |---|---|
-| `geo_common.py` | 場所の設定（原点・範囲・水面の高さ）、タイル座標、場面の座標との変換、キャッシュ付きダウンロード |
+| `geo_common.py` | 場所の設定（`SITES`：原点・範囲・水面の高さ。`--site` か `GEO_SITE` で選ぶ）、タイル座標、場面の座標との変換、キャッシュ付きダウンロード |
 | `fetch_data.py` | 標高タイル DEM5A（z15）、OSM（Overpass）、シームレス空中写真（z17）を取得 |
 | `build_scene.py` | 断面の読み取り、近景・中景の高さ、地面の種類、ランドマーク、視点を作って書き出す |
+| `build_nagisa.py` | なぎさ公園用：標高そのままの近景、明るさのばらつきで木を拾う、建物、見通しを計算して視点を決める |
 | `check_scene.py` | 水際のずれ、断面の差を数字で出し、確認用の図を作る |
-| `cache/` | 取得した元データと確認用の図（配布しない。消しても作り直せる） |
+| `cache/<場所>/` | 取得した元データと確認用の図（配布しない。消しても作り直せる） |
 
 ## 作り方の要点
 

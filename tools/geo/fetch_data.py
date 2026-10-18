@@ -1,6 +1,7 @@
-"""江戸川（市川）場面の元データを取得して tools/geo/cache/ に保存する。
+"""場面の元データを取得して tools/geo/cache/<場所>/ に保存する。
 
-  python3 tools/geo/fetch_data.py            # 標高・OSM・空中写真をすべて（キャッシュがあれば使い回す）
+  python3 tools/geo/fetch_data.py                 # 江戸川：標高・OSM・空中写真をすべて（キャッシュがあれば使い回す）
+  python3 tools/geo/fetch_data.py --site nagisa   # なぎさ公園
   python3 tools/geo/fetch_data.py osm --refresh   # OSM だけ取り直す
 
 取得するもの
@@ -46,7 +47,18 @@ def overpass_query():
         f'way{bb}["man_made"~"dyke|pier|embankment"];',
         f'way{bb}["embankment"="yes"];',
         f'way{bb}["building"]["building:levels"~"^([1-9][0-9]|[8-9])$"];',
+        f'way{bb}["building"]["height"];',
+        f'nwr{bb}["natural"~"coastline|water|beach|sand|bare_rock"];',
+        f'nwr{bb}["water"];',
+        f'nwr{bb}["attraction"];',
+        f'nwr{bb}["tourism"~"viewpoint|attraction|theme_park|hotel"];',
+        f'nwr{bb}["man_made"~"tower|windmill|breakwater|groyne|pier|lighthouse"];',
+        f'way{bb}["highway"~"steps|pedestrian"];',
+        f'way{bb}["bridge"]["highway"~"motorway|motorway_link|trunk_link"];',
     ]
+    # 空中写真の範囲（近景のまわり）は、高さのない建物もすべて（近景に建物を立てるため）
+    pb = SITE['photoBbox']
+    parts.append(f'way({pb["s"]},{pb["w"]},{pb["n"]},{pb["e"]})["building"];')
     return '[out:json][timeout:120];(' + ''.join(parts) + ');out tags geom;'
 
 
@@ -59,6 +71,9 @@ def fetch_osm(refresh):
 
 def main(argv):
     refresh = '--refresh' in argv
+    if '--site' in argv:  # --site 名前 は geo_common が読む
+        i = argv.index('--site')
+        argv = argv[:i] + argv[i + 2:]
     what = [a for a in argv if not a.startswith('-')] or ['dem', 'osm', 'photo']
     if 'dem' in what:
         fetch_tiles('dem5a_png', DEM_Z, SITE['bbox'], 'png', refresh)

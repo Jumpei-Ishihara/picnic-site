@@ -25,7 +25,7 @@
 
 | 中身 | 扱い |
 |---|---|
-| 自分で書いたコード（HTML・`engine/`・`edogawa/`・`tools/`） | 好きなライセンスを付けられる。決める必要あり（4 章） |
+| 自分で書いたコード（HTML・`engine/`・`realsite/`・`tools/`） | 好きなライセンスを付けられる。決める必要あり（4 章） |
 | three.js | CDN から読むだけ（MIT）。同梱しないので追加の対応は不要 |
 | `scenes/edogawa/` の高さ・地面の種類 | 国土地理院のコンテンツ利用規約で、出典を書けば加工・公開してよい。`scenes/edogawa/ATTRIBUTION.md` に記載済み |
 | `scenes/edogawa/scene.json`（ランドマーク・野球場・送電線など） | OpenStreetMap から作った派生データベース。**ODbL**：出典「© OpenStreetMap contributors」を書き、このデータは ODbL で提供すると明記する必要がある（ATTRIBUTION.md に記載済み。README にも書く） |

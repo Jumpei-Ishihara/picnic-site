@@ -78,9 +78,9 @@
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, windowTextures } from './engine/structures.js';
-    import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './edogawa/look.js';
-    import { createPicnicSet } from './edogawa/picnic-set.js';
-    import { createLife } from './edogawa/life.js';
+    import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
+    import { createPicnicSet } from './realsite/picnic-set.js';
+    import { createLife } from './realsite/life.js';
     import { createAudio } from './engine/audio.js';
     import { createCapture } from './engine/capture.js';
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide, fmtTime } from './engine/ui.js';
@@ -457,6 +457,7 @@
     // 時間を進めずに 1 フレーム描く（PNG 用。解像度を変えた直後に使う）
     function renderOnly() {
       look.update();
+      pixel.prepareShadows();
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
     }
@@ -527,21 +528,27 @@
       if (capture.recording) elapsed = capture.elapsed();
       else { elapsed += dt; trafficClock += dt; }
       if (!started) player.yaw += dt * 0.03;
-      tod.update(dt);
       timeUI.update();
       toast.update(dt);
       controls.update(dt);
       // 歩き出したら立ち上がる
       if (controls.walking && controls.eye < 1.5) controls.setEye(1.55);
+      // カメラの行列をすぐ更新する（太陽の光の筋の画面上の位置を、このコマのカメラで計算するため）
+      camera.updateMatrixWorld();
+      // 影の中心をカメラに合わせてから光を置く（逆だと、視点を移した直後の 1 コマだけ影がずれる）
       tod.setShadowCenter(camera.position);
+      tod.update(dt);
       sky.update(capture.recording ? 0 : dt, elapsed, camera.position); // 録画中は雲を止める
       backdrop.update({ horizon: sky.uniforms.uHor.value, top: sky.uniforms.uTop.value, sunDir: tod.state.sunDir, night: tod.night }, camera.position);
       const L = look.update();
       updateSound(dt, L);
       water.update(dt, elapsed % LOOP, { sun, night: tod.night, warm: L.warm, fog: scene.fog });
-      picnicSet.update(elapsed);
-      life.update(elapsed, trafficClock, { sunElevation: sunPath.sunAt(tod.hour).elevation, night: tod.night, level });
+      // 周期で繰り返すものには、周期で折り返した時刻を渡す（シェーダーの小数の誤差で、6 秒後にわずかにずれないように）
+      const loopT = elapsed % LOOP;
+      picnicSet.update(loopT);
+      life.update(loopT, trafficClock, { sunElevation: sunPath.sunAt(tod.hour).elevation, night: tod.night, level });
       document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
+      pixel.prepareShadows(); // 反射・屈折にもこのコマの影を使う
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
       capture.frame();

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>なぎさ公園のピクニック</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    .rec-hide { display: none !important; } /* 録画中は操作UIを隠す */
+    #start small a { color: var(--accent); }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font-size: 14px; background: #1b1a33; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="loading">なぎさ公園を読み込み中…</div>
+
+  <div id="hud-tl" class="box chip fade"><div id="loc">📍 なぎさ公園</div></div>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ 1〜4: 視点 ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
+  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box dock fade">
+    <button id="v-lunch" title="ランチ：展望の丘のシートに座って、旧江戸川と舞浜を眺める（1）" aria-label="ランチ">🍲</button>
+    <button id="v-nap" title="昼寝：木陰に寝ころんで、葉のすき間の空を見上げる（2）" aria-label="昼寝">😴</button>
+    <button id="v-sunset" title="夕日：展望の丘から、大観覧車と富士山のあいだに沈む夕日を見る（3）" aria-label="夕日">🌇</button>
+    <button id="v-river" title="川辺：旧江戸川沿いの遊歩道から、河口の橋と舞浜を見る（4）" aria-label="川辺">🌊</button>
+    <button id="a-export" title="書き出し：PNG・ループ動画（P / R）" aria-label="書き出し">📷</button>
+    <button id="o-more" title="時刻・表示の設定" aria-label="設定">⚙️</button>
+  </div>
+
+  <div id="menu" class="box hidden">
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
+    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
+    <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
+  </div>
+
+  <div id="export" class="box hidden">
+    <div class="ex-head"><strong>📷 書き出し</strong><span id="x-bridge"></span><button id="x-close" aria-label="閉じる">✕</button></div>
+    <div class="ex-row">
+      <button id="x-png">🖼️ PNG</button>
+      <button id="x-v1">🎬 6秒ループ</button>
+      <button id="x-v2">🎬 12秒（2周）</button>
+    </div>
+    <div id="x-note" class="ex-note">いまの視点と時刻のまま、1280×720 で書き出します。動画は最後と最初がつながるループです（電車・車・船は写りません）。公開するときは、⚙️ の下の出典を添えてください。</div>
+  </div>
+  <div id="rec" class="box hidden"><span class="rec-dot"></span>REC <span id="rec-time">0.0 / 6.0 秒</span><button id="rec-stop">■ 停止</button></div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🌊 なぎさ公園のピクニック</h1>
+      <p>江戸川区 南葛西の なぎさ公園。旧江戸川の河口に面した、木の多い公園です。展望の丘の芝生でスープを飲んで、木陰で昼寝をして、夕方は葛西臨海公園の大観覧車と富士山のあいだに沈む夕日を眺めます。</p>
+      <p>地形・川・橋・建物・観覧車は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽と月は 2026年10月18日の位置です。</p>
+      <div class="btns">
+        <button id="s-lunch">🍲 シートに座る</button>
+        <button id="s-sunset" class="sub">🌇 夕日を見る</button>
+        <button id="s-walk" class="sub">🚶 自由に歩く</button>
+      </div>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、1〜4 で視点 ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く（水面なら波紋） ／ 📷 で PNG・ループ動画に書き出せます</small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { mulberry32, createToon, RAMP, rampify } from './engine/pixel-kit.js';
+    import { createPixelRenderer } from './engine/pixel-renderer.js';
+    import { createSky } from './engine/sky.js';
+    import { createLights, createTimeOfDay } from './engine/time-of-day.js';
+    import { createCollider } from './engine/collision.js';
+    import { createPlayerController } from './engine/player.js';
+    import { createPixelWater } from './engine/water.js';
+    import { createSunPath } from './engine/sun.js';
+    import { createHeightTerrain } from './engine/terrain.js';
+    import { createBackdrop } from './engine/backdrop.js';
+    import { createBridge, createPowerLines, createHouses, windowTextures, createFerrisWheel } from './engine/structures.js';
+    import { createLeafKit, createForest } from './engine/trees.js';
+    import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
+    import { createPicnicSet } from './realsite/picnic-set.js';
+    import { createLife } from './realsite/life.js';
+    import { createAudio } from './engine/audio.js';
+    import { createCapture } from './engine/capture.js';
+    import { bindButton as btn, createToast, bindTimeControls, createAutoHide, fmtTime } from './engine/ui.js';
+
+    const BASE = 'scenes/nagisa/';
+    const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    const LOOP = 6;
+    const rnd = mulberry32(11);
+    const toon = createToon();
+    const UB = data.frame.upstreamBearing;
+
+    // ============================================================================
+    // 描画・空・光
+    // ============================================================================
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xb6dcf6, 400, 5000);
+    const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.15, 4200);
+    camera.rotation.order = 'YXZ';
+    const canvas = document.getElementById('view');
+    const pixel = createPixelRenderer({ canvas, scene, camera });
+    pixel.setPaletteOn(false);
+    pixel.setQuantize(32, 0.032);
+    pixel.setBloom(0.9); // 夕日・夜の窓明かりのにじみ
+
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
+    const sky = createSky(scene, { rnd, mountains: 0, clouds: 5, radius: 3900, cloudScale: 14, cirrus: 0.8 }); // 秋晴れ：高い空にうろこ雲
+    pixel.hideInNormalPass.add(sky.mesh);
+    const sunPath = createSunPath({ ...data.sun, upstreamBearing: UB });
+    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, keys: EDO_TOD_KEYS, keyClock: 'real', hour: 12, fogFar: 5000, fogNightShrink: 2500, fogSkyMix: 0.3, lightDistance: 150 });
+
+    // ============================================================================
+    // 地形と水面
+    // ============================================================================
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: EDO_GROUND_LOOKS, midLooks: EDO_MID_LOOKS });
+    const NB = terrain.bounds.near, MB = terrain.bounds.mid;
+    const level = data.water.levelY;
+    const isWater = (x, z) => terrain.heightAt(x, z) < level - 0.05;
+
+    // 旧江戸川と東京湾：中景の範囲いっぱいに水面を張り、陸は地形が覆う
+    const water = createPixelWater({
+      renderer: pixel.renderer, scene, camera, level, loop: LOOP,
+      bounds: MB, depthBounds: NB,
+      groundHeight: terrain.heightAt, maxDepth: 3, clarity: 0.4, caustic: 0.2, wave: 0.85, waveFade: [4, 20],
+      tints: {
+        day:   ['#6f9a92', '#2f5670', '#e6efe8', '#8ab0a0'],
+        dusk:  ['#b8806b', '#46345a', '#ffdbb8', '#d98c40'],
+        night: ['#1f4a5a', '#0d1f33', '#7f99bf', '#3c6a8a']
+      }
+    });
+
+    // ============================================================================
+    // 橋（旧江戸川の河口の湾岸道路・首都高・京葉線、北の葛西橋通り・東西線）
+    // ============================================================================
+    const BRIDGE_LOOKS = {
+      'route-357': '#a9a9a2', 'wangan-expressway': '#9aa4ae', 'jr-keiyo': '#b8b4a8',
+      'tozai-line': '#a0a8b0', 'kasaibashi-dori': '#a9a9a2'
+    };
+    const concreteMat = toon({ color: '#b9b4a8' }), deckMat = toon({ color: '#8b8a86' });
+    const bridges = data.landmarks.bridges.map(b => {
+      const g = createBridge({
+        path: b.path, kind: b.kind, deckY: b.deckY, width: b.width,
+        heightAt: terrain.heightAt, isWater: (x, z) => terrain.midClassAt(x, z) === 'water',
+        materials: { steel: toon({ color: BRIDGE_LOOKS[b.id] ?? '#9a9a9a' }), concrete: concreteMat, deck: deckMat }
+      });
+      g.name = 'bridge-' + b.id;
+      scene.add(g);
+      return g;
+    });
+    const power = createPowerLines({
+      lines: data.landmarks.powerLines, towers: data.landmarks.towers, heightAt: terrain.heightAt,
+      material: toon({ color: '#8d9196' }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x6a6e78 })
+    });
+    scene.add(power.group);
+    pixel.hideInNormalPass.add(power.wires);
+
+    // ============================================================================
+    // 町（堤防の外の家並み・高い建物）と対岸の野球場
+    // ============================================================================
+    // 窓（2×2 枚）と夜の窓明かり
+    const houseWin = windowTextures({ cols: 2, rows: 2, lit: 0.55, rnd });
+    const houseWall = toon({ color: '#ffffff', map: houseWin.map, emissive: 0xffd890, emissiveMap: houseWin.emissiveMap, emissiveIntensity: 0 });
+    const NIGHT_LIGHTS = [houseWall];
+    const houses = createHouses({
+      // 歩ける近景の範囲には置かない
+      isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
+      heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
+      wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 90, maxDist: 1450,
+      wallColors: ['#d8d2c4', '#c9c2b2', '#e4e0d6', '#b8b2a8', '#cfc6b0', '#a9a49c'],
+      roofColors: ['#5a5f6a', '#6d4a3e', '#4a5a6a', '#7a7a7a', '#8a5a4a']
+    });
+    scene.add(houses.group);
+    {
+      // 8 階以上の建物（OSM の形を押し出す）
+      // 壁は 1 枚の模様で 2 階分×2 窓（7 m × 6.2 m）
+      const win = windowTextures({ cols: 2, rows: 2, lit: 0.5, rnd, glass: '#4f6074' });
+      win.map.repeat.set(1 / 7, 1 / 6.2); win.emissiveMap.repeat.set(1 / 7, 1 / 6.2);
+      const wall = toon({ color: '#d6d2c8', map: win.map, emissive: 0xffe0a8, emissiveMap: win.emissiveMap, emissiveIntensity: 0 });
+      const roof = toon({ color: '#9a978f' });
+      NIGHT_LIGHTS.push(wall);
+      for (const b of data.landmarks.buildings) {
+        const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
+        const m = new THREE.Mesh(geo, [roof, wall]);
+        m.position.y = terrain.heightAt(b.x, b.z) - 0.5;
+        m.receiveShadow = true;
+        scene.add(m);
+      }
+    }
+    {
+      // 近景のまわりの建物（倉庫・家・公園の管理棟など。高さ 25 m 未満）
+      for (const b of data.landmarks.nearBuildings ?? []) {
+        const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
+        geo.computeBoundingBox();
+        const m = new THREE.Mesh(geo, [toon({ color: b.kind === 'warehouse' || b.kind === 'industrial' ? '#8fa6a8' : '#8a8076' }), houseWall]);
+        m.position.y = Math.min(...b.footprint.map(([x, z]) => terrain.heightAt(x, z))) - 0.3;
+        m.castShadow = m.receiveShadow = true;
+        scene.add(m);
+      }
+    }
+    {
+      // 野球場の土の内野（円盤）。広い範囲は内野を何面か並べる
+      const dirt = toon({ color: '#c8aa7c', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      for (const p of data.landmarks.pitches ?? []) {
+        if (p.sport && p.sport !== 'baseball') continue;
+        const n = Math.max(1, Math.round(p.area / 9000));
+        const r = Math.min(22, 0.3 * Math.sqrt(p.area / n));
+        // 範囲の長い向きに並べる
+        const xs = p.polygon.map(q => q[0]), zs = p.polygon.map(q => q[1]);
+        const alongX = Math.max(...xs) - Math.min(...xs) > Math.max(...zs) - Math.min(...zs);
+        for (let k = 0; k < n; k++) {
+          const t = n === 1 ? 0.5 : (k + 0.5) / n;
+          const x = alongX ? Math.min(...xs) + (Math.max(...xs) - Math.min(...xs)) * t : p.x;
+          const z = alongX ? p.z : Math.min(...zs) + (Math.max(...zs) - Math.min(...zs)) * t;
+          const m = new THREE.Mesh(new THREE.CircleGeometry(r, 10).rotateX(-Math.PI / 2), dirt);
+          m.position.set(x, terrain.heightAt(x, z) + 0.15, z);
+          m.receiveShadow = true;
+          scene.add(m);
+        }
+      }
+    }
+
+    // ============================================================================
+    // 木と木漏れ日（空中写真から拾った 600 本あまり）。シートのまわり 45 m は 1 本ずつ作って揺らす
+    // ============================================================================
+    const S = data.sheet;
+    const leafKit = createLeafKit({ loop: LOOP });
+    const forest = createForest({ scene, toon, trees: data.trees, heightAt: terrain.heightAt, detail: { x: S.x, z: S.z, radius: 45 }, kit: leafKit, loop: LOOP });
+    const treeColliders = forest.colliders;
+
+    // ============================================================================
+    // 葛西臨海公園の大観覧車（高さ 117 m・直径 111 m・ゴンドラ 68 台）。夜は輪が色を変えて光る
+    // ============================================================================
+    const FW = data.landmarks.ferrisWheel;
+    const wheelRim = toon({ color: '#e8e8e4', emissive: 0xffffff, emissiveIntensity: 0 });
+    wheelRim.userData.lampMax = 1.6;
+    const wheel = FW && createFerrisWheel({
+      at: { x: FW.x, y: FW.groundY, z: FW.z }, face: { x: 0, z: 0 }, height: FW.height, diameter: FW.diameter, gondolas: FW.gondolas, loop: LOOP,
+      materials: { frame: toon({ color: '#e8e8e4' }), gondola: toon({ color: '#9cc4e4' }), rim: wheelRim }
+    });
+    if (wheel) { scene.add(wheel.group); for (const o of wheel.thin) pixel.hideInNormalPass.add(o); }
+    // 観覧車の線の色：昼は白く霞み、太陽が後ろにあると影絵に、夜は輪と同じ色で光る
+    const wheelDir = FW ? new THREE.Vector3(FW.x, 0, FW.z).normalize() : null;
+    const cWheelDay = new THREE.Color(0xeeeeea), cWheelDark = new THREE.Color(0x1a1420), cTmp = new THREE.Color();
+    function updateWheelColors(night) {
+      if (!wheel) return;
+      const sd = tod.state.sunDir;
+      const back = Math.max(0, wheelDir.dot(new THREE.Vector3(sd.x, 0, sd.z).normalize())) * Math.max(0, 1 - Math.max(0, sd.y) * 2.5);
+      cTmp.copy(cWheelDay).lerp(sky.uniforms.uHor.value, 0.3).lerp(cWheelDark, back);
+      if (night > 0.2) cTmp.lerp(wheelRim.emissive, Math.min(1, (night - 0.2) * 2));
+      wheel.lineMaterial.color.copy(cTmp);
+      wheel.pointMaterial.color.copy(cTmp).lerp(new THREE.Color(0x9cc4e4), 0.4 * (1 - back));
+    }
+    NIGHT_LIGHTS.push(wheelRim);
+
+    // ============================================================================
+    // 遠景の影絵
+    // ============================================================================
+    const backdrop = createBackdrop({ scene, items: data.landmarks.backdrop, upstreamBearing: UB, radius: 3000 });
+
+    // ============================================================================
+    // ピクニックの持ち物（企画提案書の身軽ピクニック）と、生き物・交通
+    // ============================================================================
+    const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP });
+    pixel.hideInNormalPass.add(picnicSet.steam.points);
+    const riverNear = data.water.river.reduce((a, b) => Math.abs(b[1] - S.z) < Math.abs(a[1] - S.z) ? b : a);
+    const life = createLife({
+      scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false, trainExtra: 400,
+      carBridges: ['wangan-expressway', 'route-357', 'kasaibashi-dori'], boatPath: data.water.river,
+      gulls: { x: riverNear[0], z: riverNear[1], r: 140 }
+    });
+    const look = createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights] });
+
+    // ============================================================================
+    // 歩く
+    // ============================================================================
+    const collider = createCollider({ cell: 2 });
+    collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
+    for (const [x, z, r] of treeColliders) if (x > NB.x0 && x < NB.x1 && z > NB.z0 && z < NB.z1) collider.addCircle(x, z, r, 'tree');
+    collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
+    for (const b of data.landmarks.nearBuildings ?? []) {
+      const xs = b.footprint.map(p => p[0]), zs = b.footprint.map(p => p[1]);
+      collider.addRect(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), 'building');
+    }
+    const toast = createToast(document.getElementById('toast'));
+    const audio = createAudio();
+    const FOOT = { paved: 'stone', road: 'stone', revetment: 'stone', dirt: 'grass' };
+    const plip = () => { audio.tone('sine', 900, 1500, 0.08, 0.06); audio.tone('sine', 700, 1100, 0.06, 0.03, 0.09); };
+    const controls = createPlayerController({
+      canvas, camera, scene, collider,
+      start: { x: S.x, z: S.z, yaw: sunPath.yawOfBearing(S.bearing), pitch: 0 },
+      eye: 1.55, isTouch: IS_TOUCH, heightAt: terrain.heightAt, walkSpeed: 3.2, runSpeed: 7, maxTapDistance: 140,
+      joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
+      tapTargets: [terrain.near, water.mesh],
+      // 水面をタップ：歩かずに、その場所から波紋が広がる
+      resolveTap(hit) {
+        if (hit.object === water.mesh) {
+          // 遠くの水面ほど波紋を大きく：画面での見え方を、ピクニックの場面（数 m 先の小川）と同じくらいに
+          const d = camera.position.distanceTo(hit.point);
+          water.addRipple(hit.point.x, hit.point.z, 1.2, Math.min(12, Math.max(1, d / 6)));
+          plip();
+          return null;
+        }
+        return { x: hit.point.x, z: hit.point.z };
+      },
+      isInputEnabled: () => started && !capture.recording,
+      isFrozen: () => capture.recording,
+      onStuck: () => toast.show('ここから先へは進めないみたい'),
+      onPointerDown: () => audio.init(),
+      onStep: (x, z) => audio.footstep(FOOT[terrain.groundAt(x, z)] ?? 'grass')
+    });
+    const player = controls.player;
+    let started = false;
+
+    // 水までの距離（8 方向に 2 m おきに調べる。60 m まで）。同じ場所（0.5 m 以内）なら前の答えを使う
+    let dwCache = { x: 1e9, z: 1e9, d: 999 };
+    function distToWater(x, z) {
+      if (Math.hypot(x - dwCache.x, z - dwCache.z) < 0.5) return dwCache.d;
+      dwCache = { x, z, d: distToWaterRaw(x, z) };
+      return dwCache.d;
+    }
+    function distToWaterRaw(x, z) {
+      for (let d = 2; d <= 60; d += 2) {
+        for (let k = 0; k < 8; k++) {
+          const a = k * Math.PI / 4;
+          if (terrain.groundAt(x + Math.cos(a) * d, z + Math.sin(a) * d) === 'water') return d;
+        }
+      }
+      return 999;
+    }
+    // 場所の名前
+    function zoneName(x, z) {
+      const tp = terrain.heightAt(x, z) + data.frame.origin.tp;
+      if (Math.hypot(x - S.x, z - S.z) < 4) return 'シートのそば';
+      if (tp > data.hill.tp - 3) return '展望の丘';
+      if (distToWater(x, z) < 12) return '旧江戸川沿いの遊歩道';
+      if (treeColliders.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 3.5)) return '木立の中';
+      const g = terrain.groundAt(x, z);
+      if (g === 'dirt') return 'グラウンド';
+      if (g === 'paved' || g === 'road') return '園路';
+      return tp > 6 ? '丘の斜面' : 'なぎさ公園の芝生';
+    }
+
+    // ============================================================================
+    // 3色塗り
+    // ============================================================================
+    {
+      tod.apply(12);
+      const e = new THREE.Color().copy(sun.color).multiplyScalar(sun.intensity).add(new THREE.Color().copy(hemi.color).multiplyScalar(hemi.intensity));
+      RAMP.dayRef.value = (0.299 * e.r + 0.587 * e.g + 0.114 * e.b) / Math.PI;
+      scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) rampify(m); });
+    }
+
+    // ============================================================================
+    // 視点・UI
+    // ============================================================================
+    const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
+    function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
+    function setView(name) {
+      const v = data.viewpoints[name];
+      setHour(v.hour);
+      controls.cancelWalk();
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      player.x = v.x; player.z = v.z;
+      player.yaw = sunPath.yawOfBearing(v.bearing);
+      player.pitch = v.pitch * Math.PI / 180;
+      controls.setEye(v.eye, true);
+      controls.settle();
+      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
+    }
+    for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
+    addEventListener('keydown', e => {
+      const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'river' }[e.code];
+      if (!started || capture.recording) return;
+      if (v) setView(v);
+      if (e.code === 'Escape') closePanels();
+      if (e.code === 'KeyP') exportPNG();
+      if (e.code === 'KeyR') recordLoop(1);
+      if (/^(Key[WASD]|Arrow)/.test(e.code) && controls.eye < 1.5) controls.setEye(1.55);
+    });
+
+    const menuEl = document.getElementById('menu');
+    const exportEl = document.getElementById('export');
+    const autoHide = createAutoHide({ isPinned: () => !started || !menuEl.classList.contains('hidden') || !exportEl.classList.contains('hidden') });
+    const placeAboveDock = el => { el.style.bottom = `${innerHeight - document.getElementById('bar').getBoundingClientRect().top + 8}px`; };
+    function closePanels() {
+      for (const el of [menuEl, exportEl]) el.classList.add('hidden');
+      for (const id of ['o-more', 'a-export']) document.getElementById(id).classList.remove('on');
+    }
+    // パネルを開く（ほかのパネルは閉じる）。開いたら true
+    function togglePanel(el, buttonId) {
+      const open = el.classList.contains('hidden');
+      closePanels();
+      if (open) { el.classList.remove('hidden'); placeAboveDock(el); document.getElementById(buttonId).classList.add('on'); autoHide.show(); }
+      return open;
+    }
+    btn('o-more', () => togglePanel(menuEl, 'o-more'));
+    addEventListener('resize', () => { for (const el of [menuEl, exportEl]) if (!el.classList.contains('hidden')) placeAboveDock(el); });
+    btn('o-line', el => { pixel.setOutline(!pixel.outline); el.classList.toggle('on', pixel.outline); });
+    btn('o-px', el => { const s = pixel.pixelScale === 3 ? 4 : pixel.pixelScale === 4 ? 2 : 3; pixel.setPixelScale(s); el.textContent = `🔍 ×${s}`; });
+    btn('o-help', () => document.getElementById('help').classList.toggle('hidden'));
+    btn('o-snd', el => { audio.init(); audio.setEnabled(!audio.enabled); el.classList.toggle('on', audio.enabled); el.textContent = audio.enabled ? '🔊 音' : '🔇 音'; });
+    addEventListener('keydown', () => audio.init());
+
+    // ---- 音：川の水音、川風（堤防の上で強く）、遠くの電車の響き、トビ、秋の虫
+    let kiteTimer = 4, bugTimer = 1;
+    const tmpV = new THREE.Vector3();
+    function updateSound(dt, L) {
+      const toWater = distToWater(player.x, player.z);
+      audio.setWater(0.16 * Math.max(0, 1 - toWater / 20), dt);
+      const onLevee = Math.min(1, Math.max(0, terrain.heightAt(player.x, player.z) / 8)); // 丘の上ほど風が強い
+      audio.setBed('wind', 0.05 + 0.07 * onLevee + 0.02 * Math.sin(elapsed * 2 * Math.PI / LOOP), dt);
+      let rumble = 0;
+      for (const T of life.traffic.trains) for (const c of T.cars) if (c.visible) rumble += 6 / Math.max(80, c.position.distanceTo(tmpV.copy(camera.position)));
+      audio.setBed('rumble', Math.min(0.25, rumble * 0.12), dt);
+      kiteTimer -= dt;
+      if (kiteTimer < 0) { kiteTimer = 9 + Math.random() * 14; if (L.sunEl > 3) audio.kite(); }
+      bugTimer -= dt;
+      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (L.night > 0.15 || L.sunEl < 4) audio.cricket(0.95 + Math.random() * 0.1); }
+    }
+
+    // ---- スタート画面
+    function begin(view) {
+      started = true;
+      document.getElementById('start').remove();
+      audio.init();
+      if (view) setView(view);
+      else { setView('lunch'); controls.setEye(1.55); }
+      controls.setMode('walk'); // スマホのスティックの表示を更新
+      if (!IS_TOUCH) document.getElementById('help').classList.remove('hidden');
+      autoHide.show();
+    }
+    btn('s-lunch', () => begin('lunch'));
+    btn('s-sunset', () => begin('sunset'));
+    btn('s-walk', () => begin(null));
+
+    // ============================================================================
+    // 書き出し（PNG・ループ動画）
+    // ============================================================================
+    // 時間を進めずに 1 フレーム描く（PNG 用。解像度を変えた直後に使う）
+    function renderOnly() {
+      look.update();
+      pixel.prepareShadows();
+      water.renderReflection(pixel.size.width, pixel.size.height);
+      pixel.render();
+    }
+    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly });
+    const xNote = document.getElementById('x-note'), xBridge = document.getElementById('x-bridge');
+    const recEl = document.getElementById('rec'), recTime = document.getElementById('rec-time');
+    const pad = n => String(n).padStart(2, '0');
+    function fileBase() {
+      const d = new Date();
+      const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      return `nagisa-park_${fmtTime(tod.hour).replace(':', '')}_${stamp}`;
+    }
+    function showResult(res) {
+      const where = res.where === 'downloads' ? '~/Downloads に保存しました' : 'ブラウザのダウンロードに保存しました';
+      toast.show(`✅ ${where}`, 3);
+      xNote.textContent = `✅ ${res.filename} — ${where} `;
+      const a = document.createElement('a');
+      a.href = res.url; a.download = res.filename; a.textContent = 'もう一度保存';
+      xNote.append(a);
+    }
+    async function refreshBridge() {
+      const dir = await capture.bridgeAvailable();
+      xBridge.textContent = dir ? '🟢 ~/Downloads に直接保存' : '⚪ ブラウザのダウンロードに保存';
+      xBridge.title = dir ? dir : 'ターミナルで node tools/export_server.js --bridge-only を起動すると ~/Downloads に直接保存します';
+    }
+    async function exportPNG() {
+      if (capture.recording) return;
+      controls.marker.visible = false;
+      showResult(await capture.png(fileBase()));
+    }
+    // ループ動画：時間の自動進行・歩き・交通（電車・車・船は 6 秒で繰り返さない）を止めて、録画開始からの時間で描く
+    async function recordLoop(cycles) {
+      if (capture.recording) { capture.stopVideo(); return; }
+      if (tod.auto) document.getElementById('t-auto').click();
+      controls.cancelWalk();
+      controls.settle();
+      water.clearRipples(); // 波紋は 6 秒で繰り返さないので消してから録る
+      life.traffic.enabled = false;
+      const duration = LOOP * cycles;
+      exportEl.classList.add('hidden');
+      recEl.classList.remove('hidden');
+      const hideIds = ['bar', 'help', 'hud-tl', 'menu', 'toast'];
+      for (const id of hideIds) document.getElementById(id).classList.add('rec-hide');
+      const res = await capture.startVideo({
+        duration, filename: `${fileBase()}_${duration}s`,
+        onProgress: (t, d) => { recTime.textContent = `${t.toFixed(1)} / ${d.toFixed(1)} 秒`; }
+      });
+      life.traffic.enabled = true;
+      recEl.classList.add('hidden');
+      for (const id of hideIds) document.getElementById(id).classList.remove('rec-hide');
+      exportEl.classList.remove('hidden');
+      placeAboveDock(exportEl);
+      showResult(res);
+    }
+    btn('a-export', () => { if (togglePanel(exportEl, 'a-export')) refreshBridge(); });
+    btn('x-close', closePanels);
+    btn('x-png', exportPNG);
+    btn('x-v1', () => recordLoop(1));
+    btn('x-v2', () => recordLoop(2));
+    btn('rec-stop', () => capture.stopVideo());
+
+    // ============================================================================
+    // 毎フレーム
+    // ============================================================================
+    let elapsed = 0, trafficClock = 0, last = performance.now(), zoneAt = { x: 1e9, z: 1e9 };
+    function step(dt) {
+      // 録画中は録画開始からの経過時間を時計にする（0 秒から始まり、周期の倍数で終わる）
+      if (capture.recording) elapsed = capture.elapsed();
+      else { elapsed += dt; trafficClock += dt; }
+      if (!started) player.yaw += dt * 0.03;
+      timeUI.update();
+      toast.update(dt);
+      controls.update(dt);
+      // 歩き出したら立ち上がる
+      if (controls.walking && controls.eye < 1.5) controls.setEye(1.55);
+      // カメラの行列をすぐ更新する（太陽の光の筋の画面上の位置を、このコマのカメラで計算するため）
+      camera.updateMatrixWorld();
+      // 影の中心をカメラに合わせてから光を置く（逆だと、視点を移した直後の 1 コマだけ影がずれる）
+      tod.setShadowCenter(camera.position);
+      tod.update(dt);
+      sky.update(capture.recording ? 0 : dt, elapsed, camera.position); // 録画中は雲を止める
+      backdrop.update({ horizon: sky.uniforms.uHor.value, top: sky.uniforms.uTop.value, sunDir: tod.state.sunDir, night: tod.night }, camera.position);
+      const L = look.update();
+      updateSound(dt, L);
+      water.update(dt, elapsed % LOOP, { sun, night: tod.night, warm: L.warm, fog: scene.fog });
+      // 周期で繰り返すものには、周期で折り返した時刻を渡す（シェーダーの小数の誤差で、6 秒後にわずかにずれないように）
+      const loopT = elapsed % LOOP;
+      picnicSet.update(loopT);
+      leafKit.update(loopT, sun);
+      forest.update(loopT);
+      if (wheel) {
+        wheel.update(loopT);
+        wheelRim.emissive.setHSL((elapsed % LOOP) / LOOP, 0.7, 0.6); // 夜の輪の光：6 秒で色が一巡
+        updateWheelColors(tod.night);
+      }
+      life.update(loopT, trafficClock, { sunElevation: sunPath.sunAt(tod.hour).elevation, night: tod.night, level });
+      // 場所の名前は 0.5 m 動いたときだけ調べ直す
+      if (Math.hypot(player.x - zoneAt.x, player.z - zoneAt.z) > 0.5) {
+        zoneAt = { x: player.x, z: player.z };
+        document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
+      }
+      pixel.prepareShadows(); // 反射・屈折にもこのコマの影を使う
+      water.renderReflection(pixel.size.width, pixel.size.height);
+      pixel.render();
+      capture.frame();
+    }
+    setView('lunch');
+    controls.setEye(1.55, true);
+    document.getElementById('loading').remove();
+    requestAnimationFrame(function frame(now) {
+      step(Math.min(0.05, (now - last) / 1000));
+      last = now;
+      requestAnimationFrame(frame);
+    });
+
+    // 動作確認用（URL末尾に #debug を付けたときだけ）
+    if (location.hash === '#debug') {
+      window.__nagisa = { THREE, data, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+    }
+  </script>
+</body>
+</html>

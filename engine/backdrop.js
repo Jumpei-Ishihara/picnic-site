@@ -1,5 +1,7 @@
 // 遠景の影絵：方位・距離・高さから、見かけの大きさが正しくなるように遠くの板（輪）に立てる
 //   tower   … 塔（スカイツリーのような細い塔。展望台 2 つとアンテナ）
+//   lattice … 鉄骨の塔（東京タワーのような裾の広い塔）
+//   mountain… 山（富士山。visibleHeight＝地球の丸みで隠れる分を引いた高さ、baseWidth＝裾の幅）
 //   hill    … 木の多い台地の稜線（span の方位の範囲）
 //   skyline … 家並み・ビルの並び（span の方位の範囲）
 // 色は時間帯で変える：遠いものほど空（地平線）の色に近く、太陽の側にあるものは逆光で暗い影絵に。
@@ -34,6 +36,8 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
     const mat = new THREE.MeshBasicMaterial({ color: 0x888888, fog: false });
     let mesh;
     if (it.kind === 'tower') mesh = towerMesh(it, mat);
+    else if (it.kind === 'lattice') mesh = latticeMesh(it, mat);
+    else if (it.kind === 'mountain') mesh = mountainMesh(it, mat);
     else if (it.kind === 'hill') mesh = ridgeMesh(it, mat, 'hill');
     else mesh = ridgeMesh(it, mat, 'skyline');
     mesh.name = 'backdrop-' + it.id;
@@ -62,6 +66,59 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
     const m = new THREE.Mesh(geo, mat);
     at(it.bearing, R, m.position);
     m.position.y = baseY;
+    return m;
+  }
+
+  // 鉄骨の塔（東京タワーのような、裾の広い四角すい。途中に展望台）
+  function latticeMesh(it, mat) {
+    const R = radiusOf(it.dist);
+    const H = scaleH(it.height, it.dist, R) - baseY;
+    const k = R / it.dist;
+    const parts = [];
+    const add = (geo, y) => { geo.translate(0, y, 0); parts.push(geo); };
+    add(new THREE.CylinderGeometry(6 * k, 48 * k, H * 0.45, 4, 1, true), H * 0.225);
+    add(new THREE.CylinderGeometry(2.5 * k, 6 * k, H * 0.4, 4, 1, true), H * 0.45 + H * 0.2);
+    add(new THREE.CylinderGeometry(15 * k, 15 * k, 10 * k, 8), H * 0.45);  // 大展望台
+    add(new THREE.CylinderGeometry(1 * k, 2.5 * k, H * 0.15, 4, 1, true), H * 0.85 + H * 0.075);
+    const m = new THREE.Mesh(mergeGeos(parts), mat);
+    at(it.bearing, R, m.position);
+    m.position.y = baseY;
+    return m;
+  }
+
+  // 山（富士山）：裾の広がりと見える高さから、凹んだ斜面と平らな山頂の輪郭。山頂には薄く雪
+  function mountainMesh(it, mat) {
+    const R = radiusOf(it.dist);
+    const Htop = scaleH(it.visibleHeight ?? it.height, it.dist, R) - baseY;
+    const half = Math.atan2(it.baseWidth / 2, it.dist) * 180 / Math.PI;
+    const N = 48, pos = [], cap = [];
+    const prof = f => Htop * Math.pow(Math.max(0, 1 - Math.max(0, Math.abs(f) - 0.035) / 0.965), 1.9);
+    for (let i = 0; i <= N; i++) {
+      const f = i / N * 2 - 1;
+      const p = at(it.bearing + f * half, R, tmp);
+      pos.push(p.x, baseY, p.z, p.x, baseY + prof(f), p.z);
+    }
+    const idx = [];
+    for (let i = 0; i < N; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    const m = new THREE.Mesh(geo, mat);
+    mat.side = THREE.DoubleSide;
+    // 雪：山頂から 12% の高さまで
+    const capMat = new THREE.MeshBasicMaterial({ color: 0xf4f4f2, fog: false, side: THREE.DoubleSide });
+    for (let i = 0; i <= N; i++) {
+      const f = i / N * 2 - 1, h = prof(f), lo = Math.max(h - Htop * 0.12, Htop * 0.88 - 0.001);
+      const p = at(it.bearing + f * half, R * 0.999, tmp);
+      cap.push(p.x, baseY + Math.min(h, lo), p.z, p.x, baseY + h, p.z);
+    }
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cap, 3));
+    cg.setIndex(idx);
+    const capMesh = new THREE.Mesh(cg, capMat);
+    capMesh.name = 'snow';
+    m.add(capMesh);
+    m.userData.cap = capMat;
     return m;
   }
 
@@ -104,7 +161,7 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
     return m;
   }
 
-  const cHor = new THREE.Color(), cDark = new THREE.Color(), cLand = new THREE.Color();
+  const cHor = new THREE.Color(), cDark = new THREE.Color(), cLand = new THREE.Color(), cWhite = new THREE.Color(1, 1, 1);
   return {
     group,
     /**
@@ -113,15 +170,19 @@ export function createBackdrop({ scene, items, upstreamBearing = 0, radius = 180
      * @param {THREE.Vector3} [cameraPos]  影絵の輪をカメラについて動かす（広い場面で歩いても遠景がずれない）
      */
     update({ horizon, top, sunDir, night }, cameraPos) {
-      if (cameraPos) group.position.set(cameraPos.x, 0, cameraPos.z);
+      // 輪をカメラについて動かす。高さも目の高さに合わせる（縮めて近くに立てた影絵は、目の高さが変わると実際より大きくずれるため）
+      if (cameraPos) group.position.set(cameraPos.x, cameraPos.y - eyeY, cameraPos.z);
       for (const l of layers) {
         // 太陽の側（逆光）ほど暗く、空の色とのコントラストが強い
         const back = Math.max(0, l.dir.dot(tmp.set(sunDir.x, 0, sunDir.z).normalize())) * Math.max(0, 1 - sunDir.y * 2.5);
         cHor.copy(horizon).lerp(top, 0.25);
-        cLand.set(l.it.kind === 'hill' ? 0x3c5a3a : 0x6a6e7c).multiplyScalar(1 - night * 0.75);
+        cLand.set(l.it.kind === 'hill' ? 0x3c5a3a : l.it.kind === 'mountain' ? 0x5a6a86 : l.it.kind === 'lattice' ? 0xc8643c : 0x6a6e7c).multiplyScalar(1 - night * 0.75);
         cDark.copy(cHor).multiplyScalar(0.35 + 0.15 * (1 - night));
         const base = cLand.lerp(cDark, back * 0.8);
-        l.mat.color.copy(base).lerp(cHor, l.haze * (1 - back * 0.5));
+        l.mat.color.copy(base).lerp(cHor, l.haze * (1 - back * 0.8));
+        // 山頂の雪：山の色より明るく（逆光では暗く沈む）
+        const capMat = group.children.find(m => m.material === l.mat)?.userData.cap;
+        if (capMat) capMat.color.copy(l.mat.color).lerp(cWhite, 0.45 * (1 - back) * (1 - night));
       }
     }
   };

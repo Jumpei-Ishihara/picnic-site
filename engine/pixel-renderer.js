@@ -180,8 +180,14 @@ export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PA
   window.addEventListener('resize', resize);
   resize();
 
+  // 水面の反射・屈折など、本描画の前に別の描画をするときは先に呼ぶ（その描画でも、このコマの影を使うように）
+  let shadowsPrepared = false;
+  function prepareShadows() { renderer.shadowMap.needsUpdate = true; shadowsPrepared = true; }
+
   function render() {
-    renderer.shadowMap.needsUpdate = true;
+    // 影は 1 コマに 1 回。prepareShadows() を呼んでいれば、そのとき（最初の描画）に計算済み
+    if (!shadowsPrepared) renderer.shadowMap.needsUpdate = true;
+    shadowsPrepared = false;
     renderer.setRenderTarget(colorRT);
     renderer.render(scene, camera);
 
@@ -198,7 +204,7 @@ export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PA
   }
 
   return {
-    renderer, render, resize, hideInNormalPass,
+    renderer, render, prepareShadows, resize, hideInNormalPass,
     get size() { return { width: lowW, height: lowH }; },
     get pixelScale() { return pixelScale; },
     setPixelScale(s) { pixelScale = s; resize(); },

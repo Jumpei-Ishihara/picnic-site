@@ -21,9 +21,10 @@ cd ~/picnic-site && python3 -m http.server 8790
 | `time-of-day.js` | 太陽と環境光、時刻キーフレームの連続補間。`sunPath` を渡すと実際の太陽・月を使い、`setShadowCenter` で影の範囲をカメラに追従させる | `createLights` `createTimeOfDay` `DEFAULT_TOD_KEYS` |
 | `sun.js` | 実際の太陽・月の位置（日付・緯度経度・時刻から）、方位と場面の向きの変換 | `createSunPath` `solarPosition` `lunarPosition` `bearingToDir` |
 | `terrain.js` | 高さの画像から作る地形（近景 1 m＋中景 4 m）。地面の種類からドット絵のテクスチャを焼く | `createHeightTerrain` `loadHeightField` `GROUND_LOOKS` |
+| `trees.js` | 木と木漏れ日（影に葉のすき間）。近くの木は 1 本ずつ揺らし、遠くの木はまとめて描く | `createLeafKit` `createForest` |
 | `grass.js` | 風で揺れる草のまとめ描き（芝の房・ススキやオギの株・穂）。ループ周期で揺れる | `createSwayingGrass` |
-| `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き）、窓の模様と夜の窓明かり | `createBridge` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `GeoBuilder` |
-| `backdrop.js` | 遠景の影絵（塔・台地・家並み）を方位と見かけの大きさを合わせて立てる。時間帯と逆光で色を変える | `createBackdrop` |
+| `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き）、窓の模様と夜の窓明かり、大観覧車（遠くでも消えないよう 1 ドットの線と点でも描く） | `createBridge` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `createFerrisWheel` `GeoBuilder` |
+| `backdrop.js` | 遠景の影絵（塔・鉄骨の塔・山・台地・家並み）を方位と見かけの大きさを合わせて立てる。時間帯と逆光で色を変える | `createBackdrop` |
 | `collision.js` | 円（プレイヤー）と四角・円の当たり判定、障害物を避ける経路探索（A*） | `createCollider` `circleRect` `findPath` |
 | `water.js` | ドット絵の水面（旧版の作り方：細かく強い波、波で歪む反射、屈折で見せる川底、深さで変わる水の色、川底の光、岸の泡、きらめきの筋、波紋）。広い川向けに `shape`（水際の形）・`depthBounds`・`clarity`（濁り）・`waveFade`（遠くの波で反射を乱さない） | `createPixelWater` |
 | `player.js` | 歩行操作（キーボード、ドラッグ見回し、スマホのスティック、タップした場所へ経路を探して歩く、おまかせ散策、歩行の揺れ、起伏・座る目線） | `createPlayerController` |
@@ -110,7 +111,7 @@ requestAnimationFrame(function frame(now) {
 
 ## 実在の場所を描く広い場面（江戸川）
 
-`tools/geo/build_scene.py` が作る `scenes/edogawa/` を読みます。組み立ての例は `edogawa.html`（場面）と `dev/edogawa_p1.html`（P1 の確認用ページ）。
+`tools/geo/build_scene.py` が作る `scenes/edogawa/` を読みます。組み立ての例は `edogawa.html`・`nagisa.html`（場面）と `dev/edogawa_p1.html`（P1 の確認用ページ）。
 
 ```js
 const data = await (await fetch('scenes/edogawa/scene.json')).json();
@@ -125,7 +126,8 @@ backdrop.update({ horizon: sky.uniforms.uHor.value, top: sky.uniforms.uTop.value
 
 - カメラは `near 0.15`・`far 2600`、空は `radius 2400`、遠景は半径 約 1800 m の輪に立つ。中景の地形は原点から最大 約 1.5 km。
 - 方位 b を向くカメラの yaw は `sunPath.yawOfBearing(b)`。
-- 時間帯の色の表（`DEFAULT_TOD_KEYS`）は、`sunPath` があると日の出・南中・日の入りに合わせて読み替える（`sunPath.keyHour(h)`）。その日の実際の時刻で書いた表を使うときは `keyClock: 'real'`（江戸川は `edogawa/look.js` の `EDO_TOD_KEYS`）。
+- 毎フレームの順番：`controls.update` → `camera.updateMatrixWorld()` → `tod.setShadowCenter` → `tod.update` → …（周期で繰り返すものには `elapsed % LOOP` を渡す）→ `pixel.prepareShadows()` → `water.renderReflection` → `pixel.render()`。この順でないと、視点を移した直後の 1 コマや、ループの継ぎ目で影・光の筋がわずかにずれる。
+- 時間帯の色の表（`DEFAULT_TOD_KEYS`）は、`sunPath` があると日の出・南中・日の入りに合わせて読み替える（`sunPath.keyHour(h)`）。その日の実際の時刻で書いた表を使うときは `keyClock: 'real'`（江戸川・なぎさ公園は `realsite/look.js` の `EDO_TOD_KEYS`）。
 
 ## 書き出し（PNG・ループ動画）
 

@@ -1,4 +1,4 @@
-"""江戸川（市川）場面の地理データ共通処理：場所の設定、タイル座標、場面の座標、キャッシュ付きダウンロード。
+"""地理データの共通処理：場所の設定（江戸川・なぎさ公園）、タイル座標、場面の座標、キャッシュ付きダウンロード。
 
 場面の座標（docs/EDOGAWA_DESIGN.md 4.1）
   原点 = シートの位置、y = 0 が TP 2.5 m、1 単位 = 1 m
@@ -12,20 +12,42 @@ import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CACHE = os.path.join(HERE, 'cache')
 ROOT = os.path.dirname(os.path.dirname(HERE))
-OUT = os.path.join(ROOT, 'scenes', 'edogawa')
 
-SITE = {
-    'name': '江戸川河川敷緑地（市川）',
-    'origin': {'lat': 35.72707, 'lon': 139.89870, 'tp': 2.5},
-    'upstreamBearing': 338.0,
-    # 標高・OSM を取る範囲（緯度経度）
-    'bbox': {'s': 35.712, 'w': 139.880, 'n': 35.740, 'e': 139.912},
-    # 空中写真を取る範囲（近景の下絵用）
-    'photoBbox': {'s': 35.7218, 'w': 139.8935, 'n': 35.7292, 'e': 139.9045},
-    'waterTP': 1.0,  # 水面の高さ（仮定、設計書 7 章）
+# 場所の設定。GEO_SITE 環境変数か、コマンドの --site 名前 で選ぶ（既定は edogawa）
+SITES = {
+    'edogawa': {
+        'name': '江戸川河川敷緑地（市川）',
+        'origin': {'lat': 35.72707, 'lon': 139.89870, 'tp': 2.5},
+        'upstreamBearing': 338.0,
+        # 標高・OSM を取る範囲（緯度経度）
+        'bbox': {'s': 35.712, 'w': 139.880, 'n': 35.740, 'e': 139.912},
+        # 空中写真を取る範囲（近景の下絵用）
+        'photoBbox': {'s': 35.7218, 'w': 139.8935, 'n': 35.7292, 'e': 139.9045},
+        'waterTP': 1.0,  # 水面の高さ（仮定、設計書 7 章）
+    },
+    'nagisa': {
+        'name': 'なぎさ公園（江戸川区 南葛西）',
+        'origin': {'lat': 35.64922, 'lon': 139.88316, 'tp': 3.0},
+        'upstreamBearing': 0.0,  # -z = 北
+        'bbox': {'s': 35.626, 'w': 139.845, 'n': 35.672, 'e': 139.915},
+        'photoBbox': {'s': 35.6440, 'w': 139.8770, 'n': 35.6545, 'e': 139.8900},
+        'waterTP': 0.0,  # 東京湾・旧江戸川の河口：平均海面（干満は ±1 m）
+    },
 }
+
+
+def _site_name():
+    import sys
+    if '--site' in sys.argv:
+        return sys.argv[sys.argv.index('--site') + 1]
+    return os.environ.get('GEO_SITE', 'edogawa')
+
+
+SITE_NAME = _site_name()
+SITE = SITES[SITE_NAME]
+CACHE = os.path.join(HERE, 'cache', SITE_NAME)
+OUT = os.path.join(ROOT, 'scenes', SITE_NAME)
 
 USER_AGENT = 'picnic-site-edogawa/1.0 (personal pixel-art project)'
 R_EARTH = 6371008.8
