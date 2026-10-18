@@ -24,6 +24,7 @@ cd ~/picnic-site && python3 -m http.server 8790
 | `trees.js` | 木と木漏れ日（影に葉のすき間）。近くの木は 1 本ずつ揺らし、遠くの木はまとめて描く | `createLeafKit` `createForest` |
 | `grass.js` | 風で揺れる草のまとめ描き（芝の房・ススキやオギの株・穂）。ループ周期で揺れる | `createSwayingGrass` |
 | `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き。`thinFrom` より先は遠いほど間引く）、窓の模様と夜の窓明かり、大観覧車（遠くでも消えないよう 1 ドットの線と点でも描く） | `createBridge` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `createFerrisWheel` `GeoBuilder` |
+| `basecamp.js` | 拠点（レジャーシートと持ち物の組）を好きな場所へ移す。地面の傾きに合わせて傾け、水の上・急な坂（1:5 より急）・当たり判定のある所には敷かない。場所は場面ごとに localStorage に覚える。シートを基準にした視点は `fromHome` で読み替える。シートの下の草を隠す `instanceHider`、ボタンと B キーの `bindBaseCampUI` | `createBaseCamp` `instanceHider` `bindBaseCampUI` |
 | `backdrop.js` | 遠景の影絵（塔・鉄骨の塔・山・台地・家並み・点ごとに方位と高さを持つ輪郭 `profile`（長い橋））を方位と見かけの大きさを合わせて立てる。時間帯と逆光で色を変える | `createBackdrop` |
 | `collision.js` | 円（プレイヤー）と四角・円の当たり判定、障害物を避ける経路探索（A*） | `createCollider` `circleRect` `findPath` |
 | `water.js` | ドット絵の水面（旧版の作り方：細かく強い波、波で歪む反射、屈折で見せる川底、深さで変わる水の色、川底の光、岸の泡、きらめきの筋、波紋）。広い川向けに `shape`（水際の形）・`depthBounds`・`clarity`（濁り）・`waveFade`（遠くの波で反射を乱さない） | `createPixelWater` |

@@ -18,7 +18,7 @@
 
   <div id="hud-tl" class="box chip fade"><div id="loc">📍 江戸川河川敷緑地</div></div>
   <div id="toast" class="box hidden"></div>
-  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ 1〜4: 視点 ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ 1〜4: 視点 ・ B: シートをここに敷く ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
   <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
 
   <div id="bar" class="box dock fade">
@@ -32,6 +32,7 @@
 
   <div id="menu" class="box hidden">
     <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
     <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
     <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・水際の植え込み：国土地理院 シームレス空中写真をもとに作成（地面の色は加工して作成） ／ 地図データ：© OpenStreetMap contributors</div>
@@ -58,7 +59,7 @@
         <button id="s-sunset" class="sub">🌇 夕日を見る</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
       </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、1〜4 で視点 ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く（水面なら波紋） ／ 📷 で PNG・ループ動画に書き出せます</small>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、1〜4 で視点 ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く（水面なら波紋） ／ 📷 で PNG・ループ動画に書き出せます ／ ⚙️ の「拠点」（B キー）で、シートを好きな場所へ移せます</small>
     </div>
   </div>
 
@@ -83,6 +84,7 @@
     import { createLife } from './realsite/life.js';
     import { createBanks } from './realsite/edogawa-banks.js';
     import { createAudio } from './engine/audio.js';
+    import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { createCapture } from './engine/capture.js';
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide, fmtTime } from './engine/ui.js';
 
@@ -313,6 +315,16 @@
     const player = controls.player;
     let started = false;
 
+    // 拠点：シートと持ち物を好きな場所へ移せる（🍲・😴 の視点もシートについていく）
+    const tuftHider = life.tufts ? instanceHider(life.tufts) : null;
+    const base = createBaseCamp({
+      root: picnicSet.group, home: { x: S.x, z: S.z, yaw: sunPath.yawOfBearing(S.bearing) }, size: { w: 2.0, d: 1.4 },
+      heightAt: terrain.heightAt, isWater: (x, z) => terrain.heightAt(x, z) < level + 0.15, isBlocked: (x, z) => collider.solidAt(x, z, 0.05), storageKey: 'picnic-site:base:edogawa',
+      onMove() { picnicSet.relocate(); tuftHider?.update((x, z) => base.covers(x, z, 0.15)); }
+    });
+    base.restore();
+    const SHEET_VIEWS = ['lunch', 'nap'];
+
     // 土の所の形：つながった塊ごとに、細長ければ道（砂利道）、まとまっていれば野球の内野
     const dirtKind = (() => {
       const w = NB.x1 - NB.x0 + 1, h = NB.z1 - NB.z0 + 1;
@@ -360,7 +372,7 @@
       if (x > r.crestEnd) return '堤防の町側';
       if (x >= r.toe) return '堤防の斜面';
       if (x < r.bankTop + 2) return '水際';
-      if (Math.hypot(x - S.x, z - S.z) < 4) return 'シートのそば';
+      if (Math.hypot(x - base.pose.x, z - base.pose.z) < 4) return 'シートのそば';
       const g = terrain.groundAt(x, z);
       if (g === 'dirt') {
         return dirtKind(x, z) === 'path' ? '河川敷の砂利道' : '野球の内野';
@@ -388,14 +400,17 @@
       setHour(v.hour);
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
-      player.x = v.x; player.z = v.z;
-      player.yaw = sunPath.yawOfBearing(v.bearing);
+      // シートの視点は、シートを移した場所に読み替える
+      const p = SHEET_VIEWS.includes(name) ? base.fromHome(v.x, v.z, sunPath.yawOfBearing(v.bearing)) : { x: v.x, z: v.z, yaw: sunPath.yawOfBearing(v.bearing) };
+      player.x = p.x; player.z = p.z;
+      player.yaw = p.yaw;
       player.pitch = v.pitch * Math.PI / 180;
       controls.setEye(v.eye, true);
       controls.settle();
       for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
     }
     for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
+    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording });
     addEventListener('keydown', e => {
       const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'bridge' }[e.code];
       if (!started || capture.recording) return;
@@ -575,7 +590,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__edo = { THREE, data, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, banks, step, setView, setHour, zoneName };
+      window.__edo = { THREE, data, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, banks, step, setView, setHour, zoneName };
     }
   </script>
 </body>

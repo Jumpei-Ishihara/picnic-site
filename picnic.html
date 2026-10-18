@@ -19,7 +19,7 @@
 
   <button id="prompt" class="small fade hidden"></button>
   <div id="toast" class="box hidden"></div>
-  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ C: 座る・立つ ・ F: 水切り ・ E: 座る ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ C: 座る・立つ ・ F: 水切り ・ E: 座る ・ B: シートをここに敷く ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
   <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
 
   <div id="bar" class="box dock fade">
@@ -37,6 +37,7 @@
     <div class="row"><span></span><button id="t-day">☀️ 昼下がり</button><button id="t-dusk">🌅 夕暮れ</button><button id="t-night">🌙 星と蛍</button></div>
     <div class="row"><span>歩き方</span><button id="m-walk" class="on">🚶 自由歩行</button><button id="m-stroll">👣 おまかせ散策</button></div>
     <div class="row"><span>寄り道</span><button id="a-bridge">🌉 太鼓橋へ</button><button id="a-stone">🪨 水切り（F）</button></div>
+    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
     <div class="row"><span>表示</span><button id="o-pal" title="43色の固定パレットで減色（オフで各色32段階）">🎨 43色パレット</button><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button><button id="o-help">❔ 操作説明</button></div>
   </div>
@@ -61,7 +62,7 @@
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
         <button id="s-stroll" class="sub">👣 おまかせ散策</button>
       </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、C で座る・立つ、F で水切り ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ 📷 でいまの景色を PNG・ループ動画に書き出せます</small>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、C で座る・立つ、F で水切り ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ 📷 でいまの景色を PNG・ループ動画に書き出せます ／ ⚙️ の「拠点」（B キー）で、シートを好きな場所へ移せます</small>
     </div>
   </div>
 
@@ -80,6 +81,7 @@
     import { createPixelWater } from './engine/water.js';
     import { bindButton as btn, createToast, bindTimeControls, fmtTime, createAutoHide } from './engine/ui.js';
     import { createCapture } from './engine/capture.js';
+    import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
 
     // すべての動き（波・アヒル・木や草の揺れ）はこの周期でループする。動画書き出しで継ぎ目が出ないように。
     const LOOP = 6;
@@ -500,7 +502,19 @@
       PROPS.lantern = { mat: glow, light: lanLight };
       PROP_COLLIDERS.push([lanX, lanZ, 0.25]);
     }
-    buildPicnic();
+    // 持ち物をシートの中心の組にまとめる（拠点を移すときは組ごと動かす）。向きは座ったときの正面（🧺 の視点の向き）
+    const SIT_POSE = { x: 4.75, z: 2.05, yaw: 0.75 };
+    const picnicRoot = new THREE.Group();
+    picnicRoot.name = 'picnic';
+    {
+      const before = new Set(scene.children);
+      buildPicnic();
+      picnicRoot.position.set(BLANKET.x, RIGHT_BANK, BLANKET.z);
+      picnicRoot.rotation.y = SIT_POSE.yaw;
+      scene.add(picnicRoot);
+      picnicRoot.updateMatrixWorld(true);
+      for (const o of scene.children.slice()) if (!before.has(o) && o !== picnicRoot) picnicRoot.attach(o);
+    }
 
     // ============================================================================
     // 草の房と野の花：インスタンス描画。頂点シェーダーで風に揺らす（6秒ループ）
@@ -557,8 +571,9 @@
       mesh.receiveShadow = true;
       scene.add(mesh);
       pixel.hideInNormalPass.add(mesh); // 揺れが法線パスとずれて輪郭が乱れないように
+      return mesh;
     }
-    buildGrass();
+    const grassHider = instanceHider(buildGrass());
 
     // ============================================================================
     // アヒルの親子（川を楕円にぐるりと泳ぐ）
@@ -629,7 +644,17 @@
     const collider = createCollider({ cell: 2 });
     collider.setBounds(-14, -16, 14, 14);
     for (const [x, z, r] of TREE_COLLIDERS) collider.addCircle(x, z, r, 'tree');
-    for (const [x, z, r] of PROP_COLLIDERS) collider.addCircle(x, z, r, 'prop');
+    // 持ち物：シートの組の中の位置で調べる（拠点を移すとついていく）。シートを敷く場所を調べるときは除く
+    const PROP_LOCAL = PROP_COLLIDERS.map(([x, z, r]) => {
+      const dx = x - BLANKET.x, dz = z - BLANKET.z, c = Math.cos(SIT_POSE.yaw), sn = Math.sin(SIT_POSE.yaw);
+      return [dx * c - dz * sn, dx * sn + dz * c, r];
+    });
+    let ignoreProps = false, baseReady = false;
+    collider.addDynamic((x, z, r) => {
+      if (ignoreProps || !baseReady) return false;
+      const [lx, lz] = base.toLocal(x, z);
+      return PROP_LOCAL.some(([cx, cz, cr]) => Math.hypot(lx - cx, lz - cz) < r + cr);
+    });
     // 川：橋の上以外は入れない。橋の上では欄干の外に出られない
     collider.addDynamic((x, z, r) => {
       if (onBridge(x, z)) {
@@ -676,6 +701,17 @@
     });
     const player = controls.player;
 
+    // 拠点：シートと持ち物を好きな場所へ移せる（🧺 で座る位置もシートについていく）
+    const base = createBaseCamp({
+      root: picnicRoot, home: { x: BLANKET.x, z: BLANKET.z, yaw: SIT_POSE.yaw }, size: { w: BLANKET.half * 2, d: BLANKET.half * 2 },
+      heightAt: terrainHeight, isWater,
+      isBlocked: (x, z) => { ignoreProps = true; const b = collider.solidAt(x, z, 0.05) || onBridge(x, z); ignoreProps = false; return b; },
+      storageKey: 'picnic-site:base:picnic',
+      onMove() { grassHider.update((x, z) => base.covers(x, z, 0.15)); }
+    });
+    base.restore();
+    baseReady = true;
+
     function setSitting(on) {
       sitting = on;
       controls.setEye(on ? EYE_SIT : EYE_STAND);
@@ -688,7 +724,8 @@
     // 構図を決めた視点：シートの手前から川と太鼓橋を眺める
     function sitOnBlanket() {
       if (controls.mode !== 'walk') controls.setMode('walk');
-      teleport(4.75, 2.05, 0.75, -0.16);
+      const p = base.fromHome(SIT_POSE.x, SIT_POSE.z, SIT_POSE.yaw);
+      teleport(p.x, p.z, p.yaw, -0.16);
       setSitting(true);
       sitPos = { x: player.x, z: player.z };
     }
@@ -741,7 +778,7 @@
     function updatePrompt() {
       let t = null;
       if (controls.mode === 'walk' && started && exportEl.classList.contains('hidden') && !capture.recording) {
-        if (!sitting && Math.abs(player.x - BLANKET.x) < BLANKET.half + 0.8 && Math.abs(player.z - BLANKET.z) < BLANKET.half + 0.8) t = 'sit';
+        if (!sitting && base.covers(player.x, player.z, 0.8)) t = 'sit';
       }
       if (t === near) return;
       near = t;
@@ -811,6 +848,7 @@
     btn('a-bridge', goBridge);
     btn('a-sunset', sunsetView);
     btn('a-stone', skipStone);
+    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording, onPlaced: () => setSitting(false) });
     btn('t-day', () => setHour(15.5));
     btn('t-dusk', () => setHour(18.3));
     btn('t-night', () => setHour(21.5));
@@ -834,7 +872,7 @@
 
     function zoneName(x, z) {
       if (onBridge(x, z)) return '🌉 太鼓橋';
-      if (Math.abs(x - BLANKET.x) < BLANKET.half + 0.3 && Math.abs(z - BLANKET.z) < BLANKET.half + 0.3) return sitting ? '🧺 シートでひと休み' : '🧺 ピクニックシート';
+      if (base.covers(x, z, 0.3)) return sitting ? '🧺 シートでひと休み' : '🧺 ピクニックシート';
       if (x < riverCenter(z)) return '🌿 対岸の木立';
       if (Math.abs(x - pathX(z)) < 0.7) return '🪨 川辺の石畳';
       return '🌼 木陰の草原';
@@ -1018,7 +1056,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__picnic = { player, controls, camera, PROPS, sunsetView, pixel, tod, LEAF, RAMP, capture, exportPNG, recordLoop, step, sitOnBlanket, goBridge, skipStone, water, setHour, collider, groundAt, isWater, BRIDGE, get sitting() { return sitting; }, get near() { return near; } };
+      window.__picnic = { base, player, controls, camera, PROPS, sunsetView, pixel, tod, LEAF, RAMP, capture, exportPNG, recordLoop, step, sitOnBlanket, goBridge, skipStone, water, setHour, collider, groundAt, isWater, BRIDGE, get sitting() { return sitting; }, get near() { return near; } };
     }
   </script>
 </body>

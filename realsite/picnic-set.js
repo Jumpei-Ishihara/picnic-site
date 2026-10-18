@@ -101,13 +101,18 @@ export function createPicnicSet({ scene, toon, at, yaw, heightAt, loop = 6 }) {
   const sources = [
     { p: new THREE.Vector3(jarX, 0.18, jarZ), n: 26, rise: 0.38, spread: 0.035 },
     ...cups.map(([x, z]) => ({ p: new THREE.Vector3(x, 0.12, z), n: 14, rise: 0.26, spread: 0.03 }))
-  ].map(s => ({ ...s, p: s.p.applyMatrix4(group.matrixWorld) }));
+  ].map(s => ({ ...s, local: s.p.clone(), p: s.p.applyMatrix4(group.matrixWorld) }));
   const steam = createSteam({ scene, sources, loop });
+  // 組を動かしたあと：湯気の出どころを合わせる
+  function relocate() {
+    group.updateMatrixWorld(true);
+    for (const s of sources) s.p.copy(s.local).applyMatrix4(group.matrixWorld);
+  }
 
   const items = {
     sheet: { w: W, d: D }, soupJar: '400 ml', cups: cups.length, tote: 'jute', cushion: 'air', pillow: true, lunchBag: true, bread: 2
   };
-  return { group, steam, items, update: steam.update };
+  return { group, steam, items, relocate, update: steam.update };
 }
 
 // ---------------------------------------------------------------------------
