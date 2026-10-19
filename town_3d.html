@@ -48,6 +48,7 @@
       <button id="o-px" title="ドットの大きさ">🔍 ×3</button>
       <button id="o-snd" class="on" title="足音・環境音">🔊</button>
     </div>
+    <div class="group opts" id="season-row"></div>
   </div>
 
   <div id="panel" class="hidden">
@@ -84,6 +85,7 @@
     import { createPlayerController } from './engine/player.js';
     import { createAudio } from './engine/audio.js';
     import { bindButton as btn, createToast, bindTimeControls } from './engine/ui.js';
+    import { getSeason, dayArc, SKY, bindSeasonUI } from './engine/season.js';
 
     // ============================================================================
     // 街のタイルマップ（1文字 = 2m × 2m）。ここを書き換えると街の形が変わる。
@@ -165,6 +167,18 @@
     // レンダラー・シーン・空
     // ---------------------------------------------------------------------------
     const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    // 季節（⚙️ の中の 🌸🌻🍁❄️）：既定は春（さくら坂の桜が満開）。芝・木の葉・桜・花・日の長さが変わる
+    const SEASON = getSeason('spring');
+    const SK = SEASON.key;
+    const GMAP = {
+      summer: { '#5fa04a': '#4a8a3c', '#3f7d3c': '#2e6a30', '#8ac35b': '#6aa648', '#4f9042': '#3c7a36' },
+      autumn: { '#5fa04a': '#8a9a48', '#3f7d3c': '#66763a', '#8ac35b': '#b0a858', '#4f9042': '#7a8a40' },
+      winter: { '#5fa04a': '#a2966a', '#3f7d3c': '#857a52', '#8ac35b': '#b8ac80', '#4f9042': '#958a5e' }
+    }[SK];
+    const SC = h => GMAP?.[h] ?? h;
+    const TREE_LEAF = { spring: null, summer: ['#2e6a30', '#3f7d3c', '#285a2a'], autumn: ['#b8782e', '#d0a040', '#a0602a'], winter: null }[SK];
+    const SAKURA_COLOR = { spring: '#ffc4d0', summer: '#3f7d3c', autumn: '#c87a3a', winter: null }[SK]; // 桜：春は花、夏は緑の葉、秋は紅葉、冬は枝だけ
+    const BED_FLOWERS = SK === 'winter' ? ['#857a52'] : SK === 'autumn' ? ['#e8a0b8', '#f4f4f2', '#e8c060'] : ['#e88a8e', '#f6c95b', '#f4f4f2', '#b35a7a', '#8ac35b', '#e06a4f'];
     const canvas = document.getElementById('view');
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xb6dcf6, 22, 72);
@@ -191,9 +205,9 @@
           const b = baseOf(ch);
           const x0 = c * TP, y0 = r * TP;
           if (b === '.') {
-            g.fillStyle = '#5fa04a'; g.fillRect(x0, y0, TP, TP);
-            sprinkle(x0, y0, 70, ['#3f7d3c', '#8ac35b', '#4f9042']);
-            if (rnd() < 0.35) sprinkle(x0, y0, 2, ['#ffe79a', '#e88a8e', '#f4f4f2']);
+            g.fillStyle = SC('#5fa04a'); g.fillRect(x0, y0, TP, TP);
+            sprinkle(x0, y0, 70, ['#3f7d3c', '#8ac35b', '#4f9042'].map(SC));
+            if (rnd() < 0.35 && SK !== 'winter') sprinkle(x0, y0, 2, ['#ffe79a', '#e88a8e', '#f4f4f2']);
           } else if (b === '#') {
             g.fillStyle = '#4a4a55'; g.fillRect(x0, y0, TP, TP);
             sprinkle(x0, y0, 40, ['#3f3f4a', '#55555f']);
@@ -528,8 +542,8 @@
     function buildProps() {
       const trunkGeo = new THREE.CylinderGeometry(0.14, 0.2, 1.8, 6);
       const trunkMat = toon({ color: '#5b3d2b' });
-      const leafMats = ['#3f7d3c', '#5fa04a', '#2e5a3a'].map(c => toon({ color: c, flatShading: true }));
-      const sakuraMat = toon({ color: '#ffc4d0', flatShading: true });
+      const leafMats = (TREE_LEAF ?? ['#3f7d3c', '#5fa04a', '#2e5a3a']).map(c => toon({ color: c, flatShading: true }));
+      const sakuraMat = SAKURA_COLOR && toon({ color: SAKURA_COLOR, flatShading: true });
       const leafGeo1 = new THREE.IcosahedronGeometry(1.15, 0);
       const leafGeo2 = new THREE.IcosahedronGeometry(0.8, 0);
       const postMat = toon({ color: '#26304f' });
@@ -537,8 +551,8 @@
       const woodMat = toon({ color: '#7f5639' });
       const flowerTex = (() => {
         const [cv, g] = makeCanvas(14, 14);
-        g.fillStyle = '#3f7d3c'; g.fillRect(0, 0, 14, 14);
-        for (let i = 0; i < 40; i++) { g.fillStyle = pick(['#e88a8e', '#f6c95b', '#f4f4f2', '#b35a7a', '#8ac35b', '#e06a4f']); g.fillRect((rnd() * 14) | 0, (rnd() * 14) | 0, 1, 1); }
+        g.fillStyle = SC('#3f7d3c'); g.fillRect(0, 0, 14, 14);
+        for (let i = 0; i < 40; i++) { g.fillStyle = pick(BED_FLOWERS); g.fillRect((rnd() * 14) | 0, (rnd() * 14) | 0, 1, 1); }
         return pixelTex(cv);
       })();
 
@@ -550,11 +564,14 @@
           const trunk = new THREE.Mesh(trunkGeo, trunkMat);
           trunk.position.y = 0.9;
           const isSakura = (c >= 8 && c <= 15 && rnd() < 0.7) || rnd() < 0.12;
-          const lm = isSakura ? sakuraMat : pick(leafMats);
-          const l1 = new THREE.Mesh(leafGeo1, lm);
+          // 冬：落葉樹（桜と街路樹）は葉を落として枝だけ（街路樹の半分は常緑樹として残す）
+          const lm = isSakura ? (sakuraMat ?? pick(leafMats)) : pick(leafMats);
+          const bare = SK === 'winter' && (isSakura || rnd() < 0.5);
+          const l1 = new THREE.Mesh(leafGeo1, bare ? trunkMat : lm);
           l1.position.y = 2.3; l1.scale.set(1, 0.85, 1); l1.rotation.set(rnd(), rnd() * 3, rnd());
-          const l2 = new THREE.Mesh(leafGeo2, lm);
+          const l2 = new THREE.Mesh(leafGeo2, bare ? trunkMat : lm);
           l2.position.set((rnd() - 0.5) * 0.5, 3.05, (rnd() - 0.5) * 0.5); l2.rotation.set(rnd(), rnd() * 3, rnd());
+          if (bare) { l1.scale.set(0.12, 1.1, 0.12); l2.scale.set(0.1, 1.0, 0.1); l2.rotation.z = 0.6; } // 枝（細い幹の先）
           for (const m of [trunk, l1, l2]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
           const s = 0.85 + rnd() * 0.35;
           g.scale.set(s, s, s);
@@ -712,7 +729,7 @@
     // 時間帯：窓・街灯・時計塔など街固有のものをここで更新
     // ---------------------------------------------------------------------------
     const tod = createTimeOfDay({
-      scene, sky, sun, hemi, hour: 14,
+      scene, sky, sun, hemi, hour: 14, dayArc: dayArc(SEASON, 'spring'), tint: SK === 'spring' ? null : SKY[SK],
       onApply({ hour, night }) {
         for (const m of nightMats) m.emissiveIntensity = night * 1.4;
         for (const m of lampHeads) m.emissiveIntensity = 0.3 + night * 2.5;
@@ -856,7 +873,7 @@
     mm.width = COLS * MMS; mm.height = ROWS * MMS;
     const mmCtx = mm.getContext('2d');
     const [mmBase, mmBaseCtx] = makeCanvas(COLS * MMS, ROWS * MMS);
-    const MM_COL = { '.': '#5fa04a', '#': '#4a4a55', '-': '#c3c4c8', p: '#e8c99a', '~': '#2f8a8f', '=': '#a8774c', t: '#2e5a3a', f: '#e88a8e', o: '#5cc0b5' };
+    const MM_COL = { '.': SC('#5fa04a'), '#': '#4a4a55', '-': '#c3c4c8', p: '#e8c99a', '~': '#2f8a8f', '=': '#a8774c', t: '#2e5a3a', f: '#e88a8e', o: '#5cc0b5' };
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const ch = MAP[r][c];
       mmBaseCtx.fillStyle = isBuilding(ch) ? BUILDINGS[ch].roofColor : (MM_COL[ch] || MM_COL[baseOf(ch)] || '#5fa04a');
@@ -906,6 +923,7 @@
     btn('m-stroll', () => setMode('stroll'));
     btn('s-pause', () => controls.togglePause());
     btn('o-more', () => document.getElementById('bar').classList.toggle('open'));
+    bindSeasonUI(document.getElementById('season-row'), SEASON);
     btn('o-pal', el => { pixel.setPaletteOn(!pixel.paletteOn); el.classList.toggle('on', pixel.paletteOn); });
     btn('o-line', el => { pixel.setOutline(!pixel.outline); el.classList.toggle('on', pixel.outline); });
     btn('o-px', el => { const s = [2, 3, 4, 5]; pixel.setPixelScale(s[(s.indexOf(pixel.pixelScale) + 1) % s.length]); el.textContent = `🔍 ×${pixel.pixelScale}`; });

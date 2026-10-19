@@ -31,8 +31,9 @@
   </div>
 
   <div id="menu" class="box hidden">
-    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
     <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
     <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
     <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・水際の植え込み：国土地理院 シームレス空中写真をもとに作成（地面の色は加工して作成） ／ 地図データ：© OpenStreetMap contributors</div>
@@ -75,7 +76,7 @@
     import { createCollider } from './engine/collision.js';
     import { createPlayerController } from './engine/player.js';
     import { createPixelWater } from './engine/water.js';
-    import { createSunPath } from './engine/sun.js';
+    import { getSeason, seasonalSunPath, SKY, seasonGroundLooks, seasonMidLooks, treeKind, treeHash, foliageColors, lifeSeason, bindSeasonUI, dateText, FAUNA } from './engine/season.js';
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, windowTextures } from './engine/structures.js';
@@ -95,6 +96,7 @@
     const rnd = mulberry32(11);
     const toon = createToon();
     const UB = data.frame.upstreamBearing;
+    const SEASON = getSeason('autumn'); // 季節（⚙️ の「季節」。既定は 10 月中旬）
 
     // ============================================================================
     // 描画・空・光
@@ -112,13 +114,13 @@
     const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
     const sky = createSky(scene, { rnd, mountains: 0, clouds: 5, radius: 2400, cloudScale: 10, cirrus: 0.8 }); // 秋晴れ：高い空にうろこ雲
     pixel.hideInNormalPass.add(sky.mesh);
-    const sunPath = createSunPath({ ...data.sun, upstreamBearing: UB });
-    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, keys: EDO_TOD_KEYS, keyClock: 'real', hour: 12, fogFar: 1500, fogNightShrink: 600, fogSkyMix: 0.3, lightDistance: 150 });
+    const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON); // その季節の日付の太陽。色の表は日の出・南中・日の入りで読み替え
+    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, keys: EDO_TOD_KEYS, keyClock: 'sun', tint: SKY[SEASON.key], hour: 12, fogFar: 1500, fogNightShrink: 600, fogSkyMix: 0.3, lightDistance: 150 });
 
     // ============================================================================
     // 地形と水面
     // ============================================================================
-    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: EDO_GROUND_LOOKS, midLooks: EDO_MID_LOOKS });
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: seasonGroundLooks(EDO_GROUND_LOOKS, SEASON), midLooks: seasonMidLooks(EDO_MID_LOOKS, SEASON) });
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     const isWater = (x, z) => terrain.heightAt(x, z) < level - 0.05;
@@ -225,19 +227,35 @@
     // ============================================================================
     const trunkMat = toon({ color: '#5b4632' });
     const leafMats = ['#4f7a34', '#5d8a3c', '#6f8f3a', '#7f9440'].map(c => toon({ color: c })); // 10 月：少し黄ばんだ緑
-    function makeTree(x, z, r) {
+    // 季節の葉の色（桜・落葉樹・常緑樹。冬の桜・落葉樹は枝だけ）
+    const seasonMats = new Map();
+    const seasonMat = c => { if (!seasonMats.has(c)) seasonMats.set(c, toon({ color: c })); return seasonMats.get(c); };
+    function makeTree(x, z, r, kind = treeKind(x, z, { cherry: 0.2, evergreen: 0.3 })) {
       const g = new THREE.Group();
       const h = 3 + r * 1.1;
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18 + r * 0.04, 0.26 + r * 0.05, h, 6), trunkMat);
       trunk.position.y = h / 2;
       g.add(trunk);
-      const mat = leafMats[(rnd() * leafMats.length) | 0];
+      let mat = leafMats[(rnd() * leafMats.length) | 0];
+      const fc = foliageColors(SEASON, kind, (treeHash(z, x) * 2) | 0);
+      if (fc) mat = seasonMat(treeHash(x * 3, z) < 0.5 ? fc[0] : fc[1]);
       const blobs = 4 + (rnd() * 3 | 0);
       for (let i = 0; i < blobs; i++) {
         const a = i / blobs * Math.PI * 2 + rnd(), d = i === 0 ? 0 : r * 0.45;
         const s = r * (i === 0 ? 0.75 : 0.5 + rnd() * 0.15);
+        const py = h + (i === 0 ? r * 0.25 : rnd() * r * 0.4);
+        if (fc === null) {
+          // 葉を落とした木：幹の先から塊の中心へ細い枝
+          if (i === 0) continue;
+          const to = new THREE.Vector3(Math.cos(a) * d, py, Math.sin(a) * d), from = new THREE.Vector3(0, h * 0.85, 0), dir = to.clone().sub(from);
+          const b = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.1, dir.length(), 4), trunkMat);
+          b.position.copy(from).addScaledVector(dir, 0.5);
+          b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+          g.add(b);
+          continue;
+        }
         const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), mat);
-        m.position.set(Math.cos(a) * d, h + (i === 0 ? r * 0.25 : rnd() * r * 0.4), Math.sin(a) * d);
+        m.position.set(Math.cos(a) * d, py, Math.sin(a) * d);
         m.scale.y = 0.8;
         g.add(m);
       }
@@ -255,7 +273,7 @@
         for (let s = 0; s < L; s += 9) {
           const x = x0 + (x1 - x0) * s / L, z = z0 + (z1 - z0) * s / L;
           if (z > MB.z1 || z < MB.z0) continue;
-          makeTree(x, z, 2.2 + rnd() * 0.6);
+          makeTree(x, z, 2.2 + rnd() * 0.6, 'cherry'); // 堤防の町側の並木は桜とした（樹種は確かめていない）
           treeColliders.push([x, z, 0.5]);
         }
       }
@@ -272,7 +290,7 @@
     const S = data.sheet;
     const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP });
     pixel.hideInNormalPass.add(picnicSet.steam.points);
-    const life = createLife({ scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH });
+    const life = createLife({ season: lifeSeason(SEASON), scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH });
     const look = createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights] });
 
     // ============================================================================
@@ -283,7 +301,7 @@
     for (const [x, z, r] of treeColliders) if (x > NB.x0 && x < NB.x1 && z > NB.z0 && z < NB.z1) collider.addCircle(x, z, r, 'tree');
     collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
     // 両岸の水際：対岸のヨシ・低木・柳の帯、市川側の護岸と船着場（手すりは当たり判定にも）
-    const banks = createBanks({ toon, data, terrain, level, collider });
+    const banks = createBanks({ toon, data, terrain, level, collider, season: SEASON });
     scene.add(banks.group);
     const toast = createToast(document.getElementById('toast'));
     const audio = createAudio();
@@ -396,7 +414,9 @@
     const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
     function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
     function setView(name) {
-      const v = data.viewpoints[name];
+      let v = data.viewpoints[name];
+      // 夕日の視点：季節ごとの日の入りの少し前に、日の沈む方位を向く（秋はもとの構図）
+      if (name === 'sunset' && SEASON.key !== 'autumn') { const hh = sunPath.sunset - 0.2; v = { ...v, hour: hh, bearing: sunPath.sunAt(hh).azimuth }; }
       setHour(v.hour);
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
@@ -410,6 +430,8 @@
       for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
     }
     for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
+    bindSeasonUI(document.getElementById('season-row'), SEASON);
+    for (const el of document.querySelectorAll('#start p, #credit')) el.innerHTML = el.innerHTML.replace('2026年10月18日', `${dateText(SEASON)}（${SEASON.label}）`);
     bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording });
     addEventListener('keydown', e => {
       const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'bridge' }[e.code];
@@ -459,7 +481,7 @@
       kiteTimer -= dt;
       if (kiteTimer < 0) { kiteTimer = 9 + Math.random() * 14; if (L.sunEl > 3) audio.kite(); }
       bugTimer -= dt;
-      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (L.night > 0.15 || L.sunEl < 4) audio.cricket(0.95 + Math.random() * 0.1); }
+      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (FAUNA[SEASON.key].crickets && (L.night > 0.15 || L.sunEl < 4)) audio.cricket(0.95 + Math.random() * 0.1); }
     }
 
     // ---- スタート画面

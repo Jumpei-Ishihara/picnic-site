@@ -47,7 +47,7 @@ function paint(geo, color, top = null, h = 1) {
  * @param {number} o.level     水面の高さ（場面の y）
  * @param {object} [o.collider]
  */
-export function createBanks({ toon, data, terrain, level, collider = null, seed = 23 }) {
+export function createBanks({ toon, data, terrain, level, collider = null, seed = 23, season = null }) {
   const B = data.banks;
   const group = new THREE.Group();
   group.name = 'banks';
@@ -64,9 +64,14 @@ export function createBanks({ toon, data, terrain, level, collider = null, seed 
     parts.push(geo.clone().applyMatrix4(m4));
   };
   // 部品（1 m の大きさで作って、置くときに伸ばす）
-  const REED = ['#76844a', '#7f8a4c', '#8a8f52', '#6f7e46'], REED_TOP = '#ada27a';      // 10 月のヨシ・オギ：黄ばみ始めた緑と、上に薄茶の穂
-  const SHRUB = ['#4f6a36', '#5a7440', '#61783e', '#4a6232'];
-  const WILLOW = ['#6c8a4a', '#7d9650', '#718c46'];
+  // 季節の色：春は新しい緑、夏は濃い緑、秋（もと）は黄ばみ始め、冬は枯れたヨシと葉を落とした柳
+  const SK = season?.key ?? 'autumn';
+  const REED = { spring: ['#6a8a44', '#76944a', '#5f7e3c', '#80a050'], summer: ['#4a7430', '#557e36', '#426a2c', '#5e8a3a'],
+    autumn: ['#76844a', '#7f8a4c', '#8a8f52', '#6f7e46'], winter: ['#a8986c', '#b2a276', '#9c8c62', '#bcac80'] }[SK];
+  const REED_TOP = { spring: '#8aa458', summer: '#6a9442', autumn: '#ada27a', winter: '#d0c4a2' }[SK];
+  const SHRUB = { spring: ['#5a8238', '#669044', '#6c9442', '#527a34'], summer: ['#3a6428', '#446e2e', '#4a722e', '#365e26'],
+    autumn: ['#4f6a36', '#5a7440', '#61783e', '#4a6232'], winter: ['#6a6a48', '#74704e', '#5e6244', '#7a7452'] }[SK];
+  const WILLOW = { spring: ['#8ab450', '#9ac25c', '#84ac4c'], summer: ['#4a7a34', '#56863a', '#4e7e36'], autumn: ['#6c8a4a', '#7d9650', '#718c46'], winter: null }[SK];
   // ヨシ原のかたまり：上が少しすぼまった筒（上の面が穂の色）
   const reedGeo = () => paint(new THREE.CylinderGeometry(0.36, 0.5, 1, 6, 2).translate(0, 0.5, 0), REED[(rnd() * REED.length) | 0], REED_TOP, 1.25);
   const shrubGeo = () => paint(new THREE.IcosahedronGeometry(0.5, 0).translate(0, 0.4, 0), SHRUB[(rnd() * SHRUB.length) | 0]);
@@ -109,8 +114,13 @@ export function createBanks({ toon, data, terrain, level, collider = null, seed 
         if (!inNear(px, pz)) {
           const h = 4.5 + rnd() * 4, cr = 2.2 + rnd() * 1.8, y0 = baseY(px, pz) - 0.1;
           place(trunkGeo, px, y0, pz, 1.4, h * 0.75, 1.4);
-          place(crownGeo(), px, y0 + h * 0.62, pz, cr * 2, cr * 1.5, cr * 2);
-          place(crownGeo(), px + (rnd() - 0.5) * cr, y0 + h * 0.5, pz + (rnd() - 0.5) * cr, cr * 1.4, cr * 1.1, cr * 1.4);
+          if (WILLOW) {
+            place(crownGeo(), px, y0 + h * 0.62, pz, cr * 2, cr * 1.5, cr * 2);
+            place(crownGeo(), px + (rnd() - 0.5) * cr, y0 + h * 0.5, pz + (rnd() - 0.5) * cr, cr * 1.4, cr * 1.1, cr * 1.4);
+          } else {
+            // 冬の柳：葉を落とした枝（幹の先から斜めに 3 本）
+            for (let k = 0; k < 3; k++) { const a = k * 2.1 + rnd(); place(trunkGeo, px + Math.cos(a) * cr * 0.4, y0 + h * 0.55, pz + Math.sin(a) * cr * 0.4, 0.8, h * 0.45, 0.8); }
+          }
           counts.tree++;
         }
       }

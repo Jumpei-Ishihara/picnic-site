@@ -46,7 +46,18 @@ export function createLights(scene, { shadowSize = 2048, extent = 42, far = 160 
  * @param {number} [o.lightDistance]  影を落とす光を置く距離（影の中心から）
  * @param {'sun'|'real'} [o.keyClock]  sunPath があるとき、色の表の時刻の読み方。'sun'：日の出・日の入りに合わせて読み替える、'real'：その日の実際の時刻で書いた表
  */
-export function createTimeOfDay({ scene, sky, sun, hemi, keys = DEFAULT_TOD_KEYS, hour = 14, fogFar = 72, fogNightShrink = 18, hoursPerSecond = 1 / 15, fogSkyMix = 0, sunZ = 0.45, moonDir: moonDirArr = [-0.5, 0.7, 0.35], sunPath = null, lightDistance = 70, keyClock = 'sun', onApply }) {
+export function createTimeOfDay({ scene, sky, sun, hemi, keys = DEFAULT_TOD_KEYS, hour = 14, fogFar = 72, fogNightShrink = 18, hoursPerSecond = 1 / 15, fogSkyMix = 0, sunZ = 0.45, moonDir: moonDirArr = [-0.5, 0.7, 0.35], sunPath = null, lightDistance = 70, keyClock = 'sun', onApply, dayArc = null, tint = null }) {
+  // dayArc（sunPath の無い場面）：日の出・南中・日の入り・高さを季節に合わせる。色の表は 5:30・12:15・19:00 の前提なので読み替える
+  // tint：季節の空（地平線の色を混ぜる、太陽と環境光の強さ、霧の遠さ）
+  if (tint?.fog) { fogFar *= tint.fog; fogNightShrink *= tint.fog; }
+  const tintHor = tint ? new THREE.Color(tint.hor) : null;
+  const arcKey = h => {
+    const { rise, noon, set } = dayArc;
+    if (h < rise) return 5.5 - (rise - h) * (5.5 / rise);
+    if (h < noon) return 5.5 + (h - rise) / (noon - rise) * (12.25 - 5.5);
+    if (h < set) return 12.25 + (h - noon) / (set - noon) * (19 - 12.25);
+    return 19 + (h - set) / (24 - set) * 5;
+  };
   const cA = new THREE.Color(), cB = new THREE.Color(), white = new THREE.Color(1, 1, 1);
   const lerpHex = (target, a, b, t) => target.copy(cA.set(a)).lerp(cB.set(b), t);
   const sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3().fromArray(moonDirArr).normalize();
@@ -69,7 +80,7 @@ export function createTimeOfDay({ scene, sky, sun, hemi, keys = DEFAULT_TOD_KEYS
 
   function apply(h = state.hour) {
     state.hour = h;
-    const kh = sunPath && keyClock === 'sun' ? sunPath.keyHour(h) : h;
+    const kh = sunPath && keyClock === 'sun' ? sunPath.keyHour(h) : dayArc ? arcKey(h) : h;
     let i = 0;
     while (i < keys.length - 2 && kh >= keys[i + 1].h) i++;
     const k0 = keys[i], k1 = keys[i + 1];
@@ -83,6 +94,11 @@ export function createTimeOfDay({ scene, sky, sun, hemi, keys = DEFAULT_TOD_KEYS
     sun.intensity = L(k0.si, k1.si);
     hemi.intensity = L(k0.hi, k1.hi);
     state.night = L(k0.night, k1.night);
+    if (tint) {
+      u.uHor.value.lerp(tintHor, tint.mix * (1 - state.night));
+      sun.intensity *= tint.sun;
+      hemi.intensity *= tint.hemi;
+    }
 
     if (sunPath) {
       // 実際の太陽と月。月が沈んでいる夜は、決めておいた向き（moonDir）から弱く照らす
@@ -91,8 +107,9 @@ export function createTimeOfDay({ scene, sky, sun, hemi, keys = DEFAULT_TOD_KEYS
       if (moonDir.y < 0.05) moonDir.fromArray(moonDirArr).normalize();
     } else {
       // 5:30 に東から昇り 19:00 に西へ沈む。沈んでいる間は月の方向から照らす。
-      const a = (h - 5.5) / 13.5 * Math.PI;
-      sunDir.set(Math.cos(a), Math.sin(a), sunZ).normalize();
+      const r0 = dayArc ? dayArc.rise : 5.5, r1 = dayArc ? dayArc.set : 19;
+      const a = (h - r0) / (r1 - r0) * Math.PI;
+      sunDir.set(Math.cos(a), Math.sin(a) * (dayArc ? dayArc.height : 1), sunZ).normalize();
     }
     u.uSunDir.value.copy(sunDir);
     u.uMoonDir.value.copy(moonDir);

@@ -31,9 +31,10 @@
   </div>
 
   <div id="menu" class="box hidden">
-    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
     <div class="row"><span>寄り道</span><button id="v-cafe" title="魔法の文学館 3 階のカフェ・キキのテラスから、旧江戸川を見渡す（5）">☕ カフェ・キキ</button><button id="v-pony" title="なぎさポニーランド：柵の中を周回するポニーを見る（6）">🐴 ポニーランド</button></div>
     <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
     <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
     <div id="credit">2026年10月18日の太陽と月の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
@@ -76,7 +77,7 @@
     import { createCollider } from './engine/collision.js';
     import { createPlayerController } from './engine/player.js';
     import { createPixelWater } from './engine/water.js';
-    import { createSunPath } from './engine/sun.js';
+    import { getSeason, seasonalSunPath, SKY, seasonGroundLooks, seasonMidLooks, treeKind, treeHash, foliageColors, lifeSeason, bindSeasonUI, dateText, FAUNA } from './engine/season.js';
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, windowTextures, createFerrisWheel } from './engine/structures.js';
@@ -98,6 +99,7 @@
     const rnd = mulberry32(11);
     const toon = createToon();
     const UB = data.frame.upstreamBearing;
+    const SEASON = getSeason('autumn'); // 季節（⚙️ の「季節」。既定は 10 月中旬）
 
     // ============================================================================
     // 描画・空・光
@@ -115,13 +117,13 @@
     const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
     const sky = createSky(scene, { rnd, mountains: 0, clouds: 5, radius: 3900, cloudScale: 14, cirrus: 0.8 }); // 秋晴れ：高い空にうろこ雲
     pixel.hideInNormalPass.add(sky.mesh);
-    const sunPath = createSunPath({ ...data.sun, upstreamBearing: UB });
-    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, keys: EDO_TOD_KEYS, keyClock: 'real', hour: 12, fogFar: 5000, fogNightShrink: 2500, fogSkyMix: 0.3, lightDistance: 150 });
+    const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON); // その季節の日付の太陽。色の表は日の出・南中・日の入りで読み替え
+    const tod = createTimeOfDay({ scene, sky, sun, hemi, sunPath, keys: EDO_TOD_KEYS, keyClock: 'sun', tint: SKY[SEASON.key], hour: 12, fogFar: 5000, fogNightShrink: 2500, fogSkyMix: 0.3, lightDistance: 150 });
 
     // ============================================================================
     // 地形と水面
     // ============================================================================
-    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: EDO_GROUND_LOOKS, midLooks: EDO_MID_LOOKS });
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: seasonGroundLooks(EDO_GROUND_LOOKS, SEASON), midLooks: seasonMidLooks(EDO_MID_LOOKS, SEASON) });
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     const isWater = (x, z) => terrain.heightAt(x, z) < level - 0.05;
@@ -236,7 +238,8 @@
     // ============================================================================
     const S = data.sheet;
     const leafKit = createLeafKit({ loop: LOOP });
-    const forest = createForest({ scene, toon, trees: data.trees, heightAt: terrain.heightAt, detail: { x: S.x, z: S.z, radius: 45 }, kit: leafKit, loop: LOOP });
+    const forest = createForest({ scene, toon, trees: data.trees, heightAt: terrain.heightAt, detail: { x: S.x, z: S.z, radius: 45 }, kit: leafKit, loop: LOOP,
+      foliage: t => foliageColors(SEASON, treeKind(t.x, t.z, { cherry: 0.3, evergreen: 0.35 }), (treeHash(t.z, t.x) * 2) | 0) });
     const treeColliders = forest.colliders;
 
     // ============================================================================
@@ -322,7 +325,7 @@
     const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP });
     pixel.hideInNormalPass.add(picnicSet.steam.points);
     const riverNear = data.water.river.reduce((a, b) => Math.abs(b[1] - S.z) < Math.abs(a[1] - S.z) ? b : a);
-    const life = createLife({
+    const life = createLife({ season: lifeSeason(SEASON),
       scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false, trainExtra: 400,
       carBridges: ['wangan-expressway', 'route-357', 'kasaibashi-dori'], boatPath: data.water.river,
       gulls: { x: riverNear[0], z: riverNear[1], r: 140 }
@@ -453,7 +456,9 @@
     const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
     function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
     function setView(name) {
-      const v = data.viewpoints[name];
+      let v = data.viewpoints[name];
+      // 夕日の視点：季節ごとの日の入りの少し前に、日の沈む方位を向く（秋はもとの構図）
+      if (name === 'sunset' && SEASON.key !== 'autumn') { const hh = sunPath.sunset - 0.2; v = { ...v, hour: hh, bearing: sunPath.sunAt(hh).azimuth }; }
       setHour(v.hour);
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
@@ -468,6 +473,8 @@
       for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
     }
     for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
+    bindSeasonUI(document.getElementById('season-row'), SEASON);
+    for (const el of document.querySelectorAll('#start p, #credit')) el.innerHTML = el.innerHTML.replace('2026年10月18日', `${dateText(SEASON)}（${SEASON.label}）`);
     bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording });
     addEventListener('keydown', e => {
       const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'river', Digit5: 'cafe', Digit6: 'pony' }[e.code];
@@ -516,7 +523,7 @@
       kiteTimer -= dt;
       if (kiteTimer < 0) { kiteTimer = 9 + Math.random() * 14; if (L.sunEl > 3) audio.kite(); }
       bugTimer -= dt;
-      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (L.night > 0.15 || L.sunEl < 4) audio.cricket(0.95 + Math.random() * 0.1); }
+      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (FAUNA[SEASON.key].crickets && (L.night > 0.15 || L.sunEl < 4)) audio.cricket(0.95 + Math.random() * 0.1); }
     }
 
     // ---- スタート画面

@@ -38,6 +38,7 @@
     <div class="row"><span>歩き方</span><button id="m-walk" class="on">🚶 自由歩行</button><button id="m-stroll">👣 おまかせ散策</button></div>
     <div class="row"><span>寄り道</span><button id="a-bridge">🌉 太鼓橋へ</button><button id="a-stone">🪨 水切り（F）</button></div>
     <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
     <div class="row"><span>表示</span><button id="o-pal" title="43色の固定パレットで減色（オフで各色32段階）">🎨 43色パレット</button><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button><button id="o-help">❔ 操作説明</button></div>
   </div>
@@ -82,6 +83,7 @@
     import { bindButton as btn, createToast, bindTimeControls, fmtTime, createAutoHide } from './engine/ui.js';
     import { createCapture } from './engine/capture.js';
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
+    import { getSeason, dayArc, SKY, bindSeasonUI, treeKind } from './engine/season.js';
 
     // すべての動き（波・アヒル・木や草の揺れ）はこの周期でループする。動画書き出しで継ぎ目が出ないように。
     const LOOP = 6;
@@ -91,6 +93,23 @@
     const pick = makePicker(rnd);
     const toon = createToon();
     const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    // 季節（⚙️ の「季節」）：既定は初夏（夏）。草・木の葉・花・花びらと蛍・日の長さが変わる
+    const SEASON = getSeason('summer');
+    const SK = SEASON.key;
+    // 地面の緑の置き換え（夏の色 → 季節の色）。春は明るい新緑、秋は黄ばんだ草、冬は枯れ草
+    const GROUND_MAP = {
+      spring: { '#2e5a3a': '#4a7a3a', '#3f7d3c': '#5a9446', '#4f9042': '#6aa64e', '#5fa04a': '#7ab456', '#8ac35b': '#a2d06a', '#1f3b2d': '#36583a' },
+      autumn: { '#2e5a3a': '#4a5a30', '#3f7d3c': '#66763a', '#4f9042': '#7a8a40', '#5fa04a': '#8a9a48', '#8ac35b': '#b0a858', '#1f3b2d': '#3a4a2e' },
+      winter: { '#2e5a3a': '#6a6446', '#3f7d3c': '#857a52', '#4f9042': '#958a5e', '#5fa04a': '#a2966a', '#8ac35b': '#b8ac80', '#1f3b2d': '#5a5440' }
+    }[SK];
+    const SC = h => GROUND_MAP?.[h] ?? h;
+    // 木の葉：春は新緑（桜は薄桃）、秋は黄・橙の紅葉、冬は葉を落とす
+    const LEAF_MAP = {
+      spring: GROUND_MAP && { '#2e5a3a': '#4e8a3a', '#3f7d3c': '#62a046', '#4f9042': '#74b050', '#5fa04a': '#86c05a', '#8ac35b': '#aad470', '#1f3b2d': '#3e6a34' },
+      autumn: { '#2e5a3a': '#6a5a28', '#3f7d3c': '#8a6a2a', '#4f9042': '#a07a30', '#5fa04a': '#b88a34', '#8ac35b': '#d0a040', '#1f3b2d': '#4a4a26' }
+    }[SK];
+    const LC = (h, x, z) => SK === 'spring' && treeKind(x, z, { cherry: 0.35, evergreen: 0 }) === 'cherry' ? (h === '#8ac35b' || h === '#5fa04a' ? '#f6d4dc' : '#e8b4c2') : (LEAF_MAP?.[h] ?? h);
+    const FLOWERS = { spring: ['#ffe79a', '#f6d4dc', '#f4f4f2', '#ffe060'], summer: ['#ffe79a', '#e88a8e', '#f4f4f2', '#b35a7a'], autumn: ['#f0a8c0', '#f4f4f2', '#e8c060'], winter: null }[SK];
 
     // ============================================================================
     // 地形：川・岸・丘の高さ（描画・水深・当たり判定・足元の高さすべての元データ）
@@ -227,10 +246,10 @@
         } else if (a < hw + 0.35) {                            // 岸：砂利
           c = r < 0.3 ? '#cf9f6b' : r < 0.5 ? '#a8774c' : r < 0.6 ? '#9497a0' : '#e8c99a';
         } else if (h > 1.4) {                                  // 丘：少し濃い草
-          c = r < 0.12 ? '#2e5a3a' : r < 0.25 ? '#4f9042' : '#3f7d3c';
+          c = SC(r < 0.12 ? '#2e5a3a' : r < 0.25 ? '#4f9042' : '#3f7d3c');
         } else {                                               // 草原：ノイズは控えめ、ときどき花
-          c = r < 0.08 ? '#4f9042' : r < 0.14 ? '#8ac35b' : '#5fa04a';
-          if (r > 0.986 && x > 1) c = pick(['#ffe79a', '#e88a8e', '#f4f4f2', '#b35a7a']);
+          c = SC(r < 0.08 ? '#4f9042' : r < 0.14 ? '#8ac35b' : '#5fa04a');
+          if (r > 0.986 && x > 1 && FLOWERS) c = pick(FLOWERS);
         }
         put(px, py, c);
       }
@@ -257,7 +276,7 @@
       TAP_TARGETS.push(ground);
 
       // 地形の外側の野原
-      const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600).rotateX(-Math.PI / 2), toon({ color: '#3f7d3c' }));
+      const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600).rotateX(-Math.PI / 2), toon({ color: SC('#3f7d3c') }));
       outer.position.y = -1.0; // 川底より下。地形の端の外だけに見える
       scene.add(outer);
     }
@@ -294,7 +313,7 @@
       g.position.set(x, terrainHeight(x, z) - 0.1, z);
       const top = new THREE.Vector3(lean[0], height, lean[1]);
       addBranch(g, new THREE.Vector3(0, 0, 0), top, trunk, trunkMat);
-      const leafMat = leafify(toon({ color: leaf, flatShading: true })), lightMat = leafify(toon({ color: light, flatShading: true }));
+      const leafMat = leafify(toon({ color: LC(leaf, x, z), flatShading: true })), lightMat = leafify(toon({ color: LC(light, x, z), flatShading: true }));
       const foliage = new THREE.Group();
       // 葉の塊の重心（大きい塊ほど重く）を幹の先端の真上に移して、幹が枝葉の中央に来るようにする
       let wsum = 0, mx = 0, mz = 0;
@@ -303,6 +322,7 @@
       clusters = clusters.map(([cx, cy, cz, r]) => [cx + shiftX, cy, cz + shiftZ, r]);
       for (const [cx, cy, cz, r] of clusters) {
         const c = new THREE.Vector3(cx, cy, cz);
+        if (SK === 'winter') { addBranch(g, top, c, trunk * 0.3, trunkMat); continue; } // 冬：葉を落として枝だけ
         if (c.distanceTo(top) > r * 0.8) addBranch(g, top, c.clone().lerp(top, 0.35), trunk * 0.45, trunkMat);
         const m = new THREE.Mesh(leafGeo, cy > height + 0.6 ? lightMat : leafMat);
         m.position.copy(c);
@@ -549,7 +569,7 @@
       const N = IS_TOUCH ? 1600 : 2600;
       const mesh = new THREE.InstancedMesh(geo, mat, N);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
-      const greens = ['#5fa04a', '#8ac35b', '#4f9042', '#5fa04a', '#3f7d3c'], flowers = ['#ffe79a', '#e88a8e', '#f4f4f2', '#b35a7a'];
+      const greens = ['#5fa04a', '#8ac35b', '#4f9042', '#5fa04a', '#3f7d3c'].map(SC), flowers = FLOWERS ?? greens;
       const nearAny = (list, x, z, pad) => list.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r + pad);
       let n = 0;
       for (let tries = 0; n < N && tries < N * 8; tries++) {
@@ -618,7 +638,8 @@
       pixel.hideInNormalPass.add(pts);
       return { pts, mat, seeds: Array.from({ length: n }, (_, i) => init(i)) };
     }
-    const petals = makeParticles(36, 0xf4b6c2, 2, () => ({ x: 2 + rnd() * 8, z: -5 + rnd() * 9, y: 1 + rnd() * 3.5, ph: rnd() }));
+    // 舞うもの：春と初夏は花びら、秋は色づいた落ち葉、冬は無い
+    const petals = makeParticles(SK === 'winter' ? 0 : SK === 'spring' ? 48 : 36, SK === 'autumn' ? 0xd8903a : 0xf4b6c2, 2, () => ({ x: 2 + rnd() * 8, z: -5 + rnd() * 9, y: 1 + rnd() * 3.5, ph: rnd() }));
     const fireflies = makeParticles(40, 0xf6ff9a, 2, () => ({ x: -6 + rnd() * 13, z: -7 + rnd() * 14, y: 0.4 + rnd() * 1.6, ph: rnd() }));
 
     // ============================================================================
@@ -631,6 +652,7 @@
       // 太陽は北側を通す：いつもの視点（北の太鼓橋を眺める）が逆光になり、水面のきらめき・木漏れ日の筋・葉の縁の光が見える
       sunZ: -0.45, moonDir: [-0.5, 0.7, -0.35],
       scene, sky, sun, hemi, hour: 15.5, fogFar: 60, fogNightShrink: 14, fogSkyMix: 0.35,
+      dayArc: dayArc(SEASON, 'summer'), tint: SK === 'summer' ? null : SKY[SK],
       onApply({ night, hour }) {
         const dusk = Math.max(0, 1 - Math.abs(hour - 18.6) / 1.2); // 夕暮れどき
         PROPS.lantern.mat.emissiveIntensity = 0.3 + night * 2.2 + dusk * 0.8;
@@ -848,6 +870,7 @@
     btn('a-bridge', goBridge);
     btn('a-sunset', sunsetView);
     btn('a-stone', skipStone);
+    bindSeasonUI(document.getElementById('season-row'), SEASON);
     bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording, onPlaced: () => setSitting(false) });
     btn('t-day', () => setHour(15.5));
     btn('t-dusk', () => setHour(18.3));
@@ -935,7 +958,7 @@
       pp.needsUpdate = true;
       // 蛍：夜だけ、ゆらゆら明滅
       const fp = fireflies.pts.geometry.attributes.position;
-      fireflies.mat.opacity = Math.min(1, Math.max(0, (tod.night - 0.35) * 2.5)) * (0.65 + 0.35 * Math.sin(t * 3));
+      fireflies.mat.opacity = SK === 'summer' ? Math.min(1, Math.max(0, (tod.night - 0.35) * 2.5)) * (0.65 + 0.35 * Math.sin(t * 3)) : 0; // 蛍は夏だけ
       fireflies.pts.visible = fireflies.mat.opacity > 0.02;
       fireflies.seeds.forEach((s, i) => {
         const a = t + s.ph * 6.28;

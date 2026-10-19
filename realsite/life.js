@@ -59,7 +59,9 @@ function track(path, ext = 0) {
  * @param {boolean} [o.reeds]    水際のススキ・オギ（江戸川の断面データがあるとき）
  */
 export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, light = false, ext = 500,
-  carBridges = ['ichikawa-bridge'], boatPath = null, gulls = null, reeds: withReeds = !!data.section, trainExtra = 200 }) {
+  carBridges = ['ichikawa-bridge'], boatPath = null, gulls = null, reeds: withReeds = !!data.section, trainExtra = 200, season = null }) {
+  // 季節（engine/season.js）：草の房・ヨシの色、穂（春・夏は無い）、赤とんぼ（秋だけ）、カモメの数（冬に多い）
+  const SZ = season ?? { colors: {}, fauna: { dragonflies: true, gulls: 1 } };
   const W0 = Math.PI * 2 / loop;
   const NB = terrain.bounds.near;
   const S = data.sheet;
@@ -71,7 +73,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   // 芝の房（シートの周り 20 m）。芝・すり減った芝・堤防の芝の所だけ
   // ==========================================================================
   const LAWN = new Set(['lawn', 'lawnWorn', 'leveeGrass']);
-  const lawnColors = ['#7aa24c', '#8fb25c', '#6f9645', '#a3ae62', '#86a650'];
+  const lawnColors = SZ.colors.tufts ?? ['#7aa24c', '#8fb25c', '#6f9645', '#a3ae62', '#86a650'];
   const tufts = createSwayingGrass({
     scene, material: toon, count: light ? 1400 : 2600, time: grassTime, loop, rnd,
     place() {
@@ -108,14 +110,15 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
     if (g === 'paved' || g === 'road') continue; // 水際の広場は空ける
     reedSpots.push({ x, z, s: 0.75 + rnd() * 0.45, y: terrain.heightAt(x, z) });
   }
-  const reedColors = ['#7a8a4a', '#8f9a52', '#a39a5a', '#6f8044'];
+  const reedColors = SZ.colors.reeds ?? ['#7a8a4a', '#8f9a52', '#a39a5a', '#6f8044'];
+  const plumeCols = SZ.colors.plumes === undefined ? ['#d8c79a', '#c9b88a', '#e2d6b0'] : SZ.colors.plumes;
   let ri = 0;
   const reeds = reedSpots.length && createSwayingGrass({
     scene, material: toon, kind: 'reed', count: reedSpots.length, time: grassTime, loop, rnd, amp: 0.12,
     place() { const p = reedSpots[ri++]; return p && { x: p.x, y: p.y - 0.05, z: p.z, scale: p.s, color: pick(reedColors) }; }
   });
   let pi = 0;
-  const plumeSpots = reedSpots.flatMap(p => [0, 1, 2].map(k => ({ ...p, k })));
+  const plumeSpots = plumeCols ? reedSpots.flatMap(p => [0, 1, 2].map(k => ({ ...p, k }))) : [];
   const plumes = plumeSpots.length && createSwayingGrass({
     scene, material: toon, kind: 'plume', count: plumeSpots.length, time: grassTime, loop, rnd, amp: 0.12,
     blade: { length: 0.34, width: 0.07 },
@@ -124,7 +127,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
       if (!p) return null;
       const a = p.k * 2.1 + p.x;
       // 穂は葉の先あたり（株の高さ 1.5 m × 大きさ）
-      return { x: p.x + Math.cos(a) * 0.12 * p.s, y: p.y + 1.25 * p.s, z: p.z + Math.sin(a) * 0.12 * p.s, scale: p.s, color: pick(['#d8c79a', '#c9b88a', '#e2d6b0']) };
+      return { x: p.x + Math.cos(a) * 0.12 * p.s, y: p.y + 1.25 * p.s, z: p.z + Math.sin(a) * 0.12 * p.s, scale: p.s, color: pick(plumeCols) };
     }
   });
   for (const m of [reeds, plumes]) if (m) pixel.hideInNormalPass.add(m);
@@ -192,7 +195,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   const gullSeeds = [], gullBirds = [];
   if (gulls) {
     const white = toon({ color: '#f2f2ee' }), grey = toon({ color: '#b9bec6', side: THREE.DoubleSide });
-    for (let i = 0; i < (light ? 5 : 8); i++) {
+    for (let i = 0; i < Math.round((light ? 5 : 8) * SZ.fauna.gulls); i++) {
       const g = makeKite();
       g.children[0].material = white; g.children[2].material = white; g.children[1].material = grey;
       g.scale.setScalar(0.7);
@@ -307,7 +310,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
       grassTime.value = t;
       const a = t * W0;
       // 赤とんぼ：昼間だけ（日が低くなると消える）
-      dfMat.opacity = Math.min(1, Math.max(0, (sunElevation - 2) / 6));
+      dfMat.opacity = SZ.fauna.dragonflies ? Math.min(1, Math.max(0, (sunElevation - 2) / 6)) : 0;
       dragonflies.visible = dfMat.opacity > 0.02;
       dfSeeds.forEach((d, i) => {
         const u = a * d.k + d.ph;

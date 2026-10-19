@@ -60,13 +60,21 @@ export function createLeafKit({ loop = 6 } = {}) {
  * @param {ReturnType<typeof createLeafKit>} o.kit
  * @param {string[][]} [o.palettes]   葉の色の組 [濃い, 明るい]
  */
-export function createForest({ scene, toon, trees, heightAt, detail, kit, seed = 5, palettes = [['#3f6a2e', '#5f8a3c'], ['#4a7232', '#6f9442'], ['#36602c', '#557f38'], ['#56743a', '#7f9a4a']], loop = 6 }) {
+// foliage(t)：季節の葉の色 [暗, 明]。undefined はもとの色（palettes）、null は葉を落とした木（枝だけ）
+export function createForest({ scene, toon, trees, heightAt, detail, kit, seed = 5, palettes = [['#3f6a2e', '#5f8a3c'], ['#4a7232', '#6f9442'], ['#36602c', '#557f38'], ['#56743a', '#7f9a4a']], loop = 6, foliage = null }) {
   const rnd = mulberry32(seed);
   const W0 = Math.PI * 2 / loop;
   const trunkMat = toon({ color: '#5b4632' });
   const leafGeo = new THREE.IcosahedronGeometry(1, 1);
   const farLeafGeo = new THREE.IcosahedronGeometry(1, 0); // 遠くは面を少なく
   const mats = palettes.map(([d, l]) => [kit.leafify(toon({ color: d, flatShading: true })), kit.leafify(toon({ color: l, flatShading: true }))]);
+  // 季節の色の材質（色の組ごとに 1 つ）
+  const matIndex = new Map();
+  const matFor = pair => {
+    const key = pair.join();
+    if (!matIndex.has(key)) { mats.push([kit.leafify(toon({ color: pair[0], flatShading: true })), kit.leafify(toon({ color: pair[1], flatShading: true }))]); matIndex.set(key, mats.length - 1); }
+    return matIndex.get(key);
+  };
   const sway = [], colliders = [];
   // 樹冠の半径 r から、葉の塊の配置（幹の先端の真上に重心）
   function clustersFor(r, h) {
@@ -93,8 +101,11 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
     const h = 1.6 + r * 0.9;              // 幹の高さ（樹冠の下まで）
     const trunkR = 0.12 + r * 0.05;
     const y0 = heightAt(t.x, t.z) - 0.1;
-    const pal = (rnd() * mats.length) | 0;
+    let pal = (rnd() * palettes.length) | 0;
     const cl = clustersFor(r, h);
+    const fc = foliage ? foliage(t) : undefined;
+    const bare = fc === null;
+    if (fc) pal = matFor(fc);
     const isNear = Math.hypot(t.x - detail.x, t.z - detail.z) < detail.radius;
     colliders.push([t.x, t.z, trunkR + 0.15]);
     if (isNear) {
@@ -106,6 +117,17 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
       g.add(trunk);
       const foliage = new THREE.Group();
       for (const [cx, cy, cz, cr] of cl) {
+        if (bare) {
+          // 葉を落とした木：塊の中心へ伸びる細い枝だけ
+          const from = new THREE.Vector3(0, h * 0.85, 0), to = new THREE.Vector3(cx, cy, cz);
+          const dir = to.clone().sub(from);
+          const b = new THREE.Mesh(new THREE.CylinderGeometry(trunkR * 0.18, trunkR * 0.4, dir.length(), 4), trunkMat);
+          b.position.copy(from).addScaledVector(dir, 0.5);
+          b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+          b.castShadow = true;
+          g.add(b);
+          continue;
+        }
         const m = new THREE.Mesh(leafGeo, cy > h + r * 0.4 ? mats[pal][1] : mats[pal][0]);
         m.position.set(cx, cy, cz);
         m.scale.set(cr, cr * 0.82, cr);
@@ -130,6 +152,15 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
     } else {
       // 遠くの木：まとめ描き用に、変換済みの形をためる
       for (const [cx, cy, cz, cr] of cl) {
+        if (bare) {
+          // 遠くの葉の無い木：幹の先から塊の中心へ細い枝
+          const dx = cx, dy = cy - h * 0.85, dz = cz, len = Math.hypot(dx, dy, dz);
+          const bg = new THREE.CylinderGeometry(trunkR * 0.2, trunkR * 0.45, len, 4);
+          m4.compose(p.set(t.x + dx / 2, y0 + h * 0.85 + dy / 2, t.z + dz / 2), q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize()), sc.set(1, 1, 1));
+          bg.applyMatrix4(m4);
+          bucket(trunkParts, tile(t.x, t.z)).push(bg);
+          continue;
+        }
         const geo = farLeafGeo.clone();
         m4.compose(p.set(t.x + cx, y0 + cy, t.z + cz), q.setFromEuler(e.set(rnd() * 3, rnd() * 3, rnd() * 3)), sc.set(cr, cr * 0.82, cr));
         geo.applyMatrix4(m4);
