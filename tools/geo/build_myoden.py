@@ -214,6 +214,72 @@ def raise_levee(near, wet, osm, half=3.5, slope=0.5):
     log(f'levee raised: {raised} cells to TP {LEVEE_TP}')
 
 
+def find_boats(dem, photo, bridges, box=(-450, 600, -700, 600)):
+    """空中写真の川の上の、まわりより明るい小さな白い塊を、つないである小舟とする（3〜45 画素、16 m 以内）。
+    橋（線から 12 m 以内）の上は除く。写真の時点の並びなので、今と同じとは限らない。"""
+    from collections import deque
+    X0, X1, Z0, Z1 = box
+    W, H = X1 - X0, Z1 - Z0
+    Lm = [[0.0] * W for _ in range(H)]
+    wet = [[False] * W for _ in range(H)]
+    for z in range(Z0, Z1):
+        for x in range(X0, X1):
+            u, v = photo.pix(x, z)
+            if 0 <= u < photo.im.width and 0 <= v < photo.im.height:
+                Lm[z - Z0][x - X0] = B._lum(photo.px[int(u), int(v)])
+            wet[z - Z0][x - X0] = dem.is_water(x, z)
+    def near_bridge(x, z):
+        for path in bridges:
+            for (ax_, az_), (bx_, bz_) in zip(path, path[1:]):
+                if _seg_proj(x, z, ax_, az_, bx_, bz_)[0] < 12:
+                    return True
+        return False
+    boats, seen = [], set()
+    for j in range(6, H - 6):
+        for i in range(6, W - 6):
+            if not wet[j][i] or (i, j) in seen or Lm[j][i] < 0.62:
+                continue
+            bg = sorted(Lm[j + dj][i + di] for dj in (-6, 0, 6) for di in (-6, 0, 6) if (dj, di) != (0, 0))[4]
+            if Lm[j][i] - bg < 0.22:
+                continue
+            q, comp = deque([(i, j)]), []
+            seen.add((i, j))
+            while q:
+                a, b = q.popleft()
+                comp.append((a, b))
+                for na, nb in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                    if (na, nb) not in seen and 0 <= na < W and 0 <= nb < H and wet[nb][na] and Lm[nb][na] - bg > 0.15:
+                        seen.add((na, nb))
+                        q.append((na, nb))
+            xs = [a for a, _ in comp]; zs = [b for _, b in comp]
+            if not (3 <= len(comp) <= 45) or max(xs) - min(xs) > 16 or max(zs) - min(zs) > 16:
+                continue
+            mx, mz = sum(xs) / len(xs), sum(zs) / len(zs)
+            sxx = sum((a - mx) ** 2 for a in xs); szz = sum((b - mz) ** 2 for b in zs); sxz = sum((a - mx) * (b - mz) for a, b in zip(xs, zs))
+            x, z = mx + X0, mz + Z0
+            if near_bridge(x, z):
+                continue
+            boats.append([round(x, 1), round(z, 1), round(0.5 * math.atan2(2 * sxz, sxx - szz), 2), round(min(11, max(5, 1.8 * math.sqrt(len(comp)))), 1)])
+    return boats
+
+
+def rail_yard(osm):
+    """東京メトロ東西線の妙典の車両基地（OSM：landuse=railway の範囲と、service=yard の線路）。"""
+    area, tracks = None, []
+    for e in osm:
+        t = e.get('tags', {})
+        g = e.get('geometry')
+        if not g:
+            continue
+        pts = [ll2local(p['lat'], p['lon']) for p in g]
+        if t.get('landuse') == 'railway' and min(math.hypot(*p) for p in pts) < 300:
+            area = [[round(x, 1), round(z, 1)] for x, z in pts]
+        elif t.get('railway') == 'subway' and t.get('service') in ('yard', 'siding') and not t.get('bridge') and min(math.hypot(*p) for p in pts) < 700:
+            tracks.append([[round(x, 1), round(z, 1)] for x, z in pts])
+    return {'area': area, 'tracks': tracks,
+            'note': '東京メトロ東西線の車両基地（妙典）。範囲と線路は OSM。360° 写真では堤防の町側の斜面の下に柵と線路・架線柱'}
+
+
 def main():
     assert SITE_NAME == 'myoden'
     os.makedirs(OUT, exist_ok=True)
@@ -266,6 +332,26 @@ def main():
                 cls[j * nw + i] = G['revetment']
     trees = N.split_trees(cls)
     lm['leveePaths'] = [[[round(x, 1), round(z, 1)] for x, z in pts] for pts in paths]
+    # 東西線の車両基地：範囲の中の近景の地面は「その他」（写真の色＝砂利と線路の灰色）
+    lm['railYard'] = rail_yard(osm)
+    if lm['railYard']['area']:
+        ya = lm['railYard']['area']
+        xs_ = [p[0] for p in ya]; zs_ = [p[1] for p in ya]
+        for z in range(max(NEAR['z0'], int(min(zs_))), min(NEAR['z0'] + nh, int(max(zs_)) + 1)):
+            for x in range(max(NEAR['x0'], int(min(xs_))), min(NEAR['x0'] + nw, int(max(xs_)) + 1)):
+                if B.point_in_poly(x + 0.5, z + 0.5, ya) and near[(z - NEAR['z0']) * nw + (x - NEAR['x0'])] < 5.0:
+                    cls[(z - NEAR['z0']) * nw + (x - NEAR['x0'])] = G['other']
+    # 川につないである小舟（空中写真の白い塊）
+    br_paths = [b['path'] for b in lm['bridges']] + ([lm['specials']['pipeBridge']['path']] if lm['specials'].get('pipeBridge') else [])
+    lm['boats'] = find_boats(dem, photo, br_paths)
+    # 貸しボート屋（遊船）：OSM の点。桟橋は、そこから川の中ほどの線へ向けて 30 m（空中写真の桟橋の長さ）
+    lm['boathouses'] = []
+    for e in osm:
+        t = e.get('tags', {})
+        if e['type'] == 'node' and t.get('amenity') == 'boat_rental':
+            x, z = ll2local(e['lat'], e['lon'])
+            if math.hypot(x, z) < 1500:
+                lm['boathouses'].append({'name': t.get('name'), 'x': round(x, 1), 'z': round(z, 1), 'groundY': round(tp2y(dem.height(x, z)), 2)})
     # 堤防の川側の斜面には木を植えない（河川の管理で堤防に木は置かない）。写真の暗いまだらを木と読んだものを除く
     UPB = math.radians(325.0 + 90)
     AXn, AZn = math.sin(UPB), -math.cos(UPB)

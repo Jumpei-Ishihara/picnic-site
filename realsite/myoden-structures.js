@@ -126,3 +126,127 @@ export function stripeMaterial(toon, { red = '#c8463c', white = '#eceae4', band 
   mat.customProgramCacheKey = () => `stripe-${band}-${from}`;
   return mat;
 }
+
+// 位置・法線だけの形をまとめる（1 つの材質で描く）
+function addMerged(group, list, mat, { shadow = true } = {}) {
+  if (!list.length) return null;
+  const m = new THREE.Mesh(mergeGeos(list), mat);
+  m.castShadow = shadow;
+  m.receiveShadow = true;
+  group.add(m);
+  return m;
+}
+// 2 点の間に置く箱（長さの向きを線に合わせる）
+function boxAlong(ax, ay, az, bx, by, bz, w, h) {
+  const len = Math.hypot(bx - ax, by - ay, bz - az);
+  const g = new THREE.BoxGeometry(len, h, w);
+  const yaw = Math.atan2(-(bz - az), bx - ax), pitch = Math.atan2(by - ay, Math.hypot(bx - ax, bz - az));
+  g.rotateZ(pitch).rotateY(yaw).translate((ax + bx) / 2, (ay + by) / 2 + h / 2, (az + bz) / 2);
+  return g;
+}
+
+/**
+ * 東京メトロ東西線の車両基地（妙典）：砂利の上の線路、架線柱、堤防側の柵、止めてある電車
+ * @param {{area:number[][], tracks:number[][][]}} o.yard
+ */
+export function createRailYard({ toon, yard, heightAt, rnd, near = null }) {
+  const group = new THREE.Group();
+  group.name = 'rail-yard';
+  if (!yard?.tracks?.length) return { group };
+  const inside = near ?? (() => true);
+  const ballast = [], rails = [], poles = [], fence = [], mesh = [], bodies = [], bands = [];
+  const H = (x, z) => heightAt(x, z);
+  yard.tracks.forEach((line, ti) => {
+    // 線を 4 m ごとに区切って、地面に沿わせる
+    const pts = [];
+    for (let k = 0; k < line.length - 1; k++) {
+      const [ax, az] = line[k], [bx, bz] = line[k + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 4));
+      for (let i = 0; i < n; i++) pts.push([ax + (bx - ax) * i / n, az + (bz - az) * i / n]);
+    }
+    pts.push(line[line.length - 1]);
+    let run = 0;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
+      if (!inside(ax, az)) continue;
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.1) continue;
+      const nx = -(bz - az) / len, nz = (bx - ax) / len;
+      const ya = H(ax, az), yb = H(bx, bz);
+      ballast.push(boxAlong(ax, ya - 0.05, az, bx, yb - 0.05, bz, 3.0, 0.12));
+      for (const o of [-0.75, 0.75]) rails.push(boxAlong(ax + nx * o, ya + 0.07, az + nz * o, bx + nx * o, yb + 0.07, bz + nz * o, 0.08, 0.12));
+      run += len;
+      // 架線柱：3 本に 1 本の線に、約 48 m ごと
+      if (ti % 3 === 0 && run > 48) {
+        run = 0;
+        const px = ax + nx * 2.2, pz = az + nz * 2.2, py = H(px, pz);
+        poles.push(new THREE.BoxGeometry(0.3, 7.5, 0.3).translate(px, py + 3.75, pz));
+        poles.push(boxAlong(px, py + 6.8, pz, ax - nx * 1.0, ya + 6.8, az - nz * 1.0, 0.15, 0.15));
+      }
+    }
+  });
+  // 止めてある電車（銀色に水色の帯、20 m の車両を 6 両）：長い線路 4 本に
+  const long = yard.tracks.map(l => ({ l, L: l.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - l[i][0], p[1] - l[i][1]), 0) }))
+    .filter(t => t.L > 160).sort((a, b) => b.L - a.L).slice(0, 7).filter((_, i) => i % 2 === 0);
+  for (const { l, L } of long) {
+    let s0 = 20 + rnd() * Math.max(1, L - 160);
+    const at = s => {
+      let acc = 0;
+      for (let k = 0; k < l.length - 1; k++) {
+        const seg = Math.hypot(l[k + 1][0] - l[k][0], l[k + 1][1] - l[k][1]);
+        if (acc + seg >= s) { const t = (s - acc) / seg; return [l[k][0] + (l[k + 1][0] - l[k][0]) * t, l[k][1] + (l[k + 1][1] - l[k][1]) * t]; }
+        acc += seg;
+      }
+      return l[l.length - 1];
+    };
+    for (let c = 0; c < 6; c++) {
+      const [ax, az] = at(s0 + c * 20.5), [bx, bz] = at(s0 + c * 20.5 + 20);
+      if (!inside(ax, az)) continue;
+      const y = (H(ax, az) + H(bx, bz)) / 2 + 0.25;
+      bodies.push(boxAlong(ax, y + 0.6, az, bx, y + 0.6, bz, 2.8, 3.1));
+      bands.push(boxAlong(ax, y + 2.0, az, bx, y + 2.0, bz, 2.84, 0.35));
+    }
+  }
+  // 柵：車両基地の範囲の縁に沿って、高さ 1.8 m の黒い柵（柱 3 m おきと横の棒）
+  const A = yard.area ?? [];
+  for (let k = 0; k < A.length - 1; k++) {
+    const [ax, az] = A[k], [bx, bz] = A[k + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    for (let s = 0; s < len; s += 3) {
+      const x = ax + (bx - ax) * s / len, z = az + (bz - az) * s / len;
+      if (!inside(x, z)) continue;
+      fence.push(new THREE.BoxGeometry(0.08, 1.8, 0.08).translate(x, H(x, z) + 0.9, z));
+      const x2 = ax + (bx - ax) * Math.min(len, s + 3) / len, z2 = az + (bz - az) * Math.min(len, s + 3) / len;
+      for (const hh of [0.2, 1.75]) fence.push(boxAlong(x, H(x, z) + hh, z, x2, H(x2, z2) + hh, z2, 0.05, 0.05));
+      mesh.push(boxAlong(x, H(x, z) + 0.2, z, x2, H(x2, z2) + 0.2, z2, 0.02, 1.55)); // 網（向こうが透けて見える薄い板）
+    }
+  }
+  addMerged(group, ballast, toon({ color: '#8a8478' }), { shadow: false });
+  addMerged(group, rails, toon({ color: '#a8a6a2' }), { shadow: false });
+  addMerged(group, poles, toon({ color: '#9aa0a4' }));
+  addMerged(group, fence, toon({ color: '#2e3230' }));
+  const net = addMerged(group, mesh, toon({ color: '#2e3230', transparent: true, opacity: 0.35, depthWrite: false }), { shadow: false });
+  addMerged(group, bodies, toon({ color: '#c8ccd0' }));
+  addMerged(group, bands, toon({ color: '#2a9ad8' }));
+  return { group };
+}
+
+/**
+ * 川につないである小舟（白い船体、半分ほどに小さな操舵室）。位置と向きは空中写真から
+ * @param {number[][]} o.boats  [x, z, 向き（x 軸から）, 長さ]
+ */
+export function createBoats({ toon, boats, level, rnd }) {
+  const group = new THREE.Group();
+  group.name = 'boats';
+  const hulls = [], cabins = [];
+  for (const [x, z, ang, L] of boats ?? []) {
+    const w = L * 0.32, yaw = -ang;
+    const hull = new THREE.BoxGeometry(L * 0.8, 0.7, w).translate(-L * 0.1, 0.25, 0);
+    const bow = new THREE.ConeGeometry(w * 0.5, L * 0.3, 4).rotateZ(-Math.PI / 2).rotateX(Math.PI / 4).scale(1, 0.5, 1).translate(L * 0.45, 0.4, 0);
+    for (const g of [hull, bow]) hulls.push(g.rotateY(yaw).translate(x, level, z));
+    if (rnd() < 0.5) cabins.push(new THREE.BoxGeometry(L * 0.25, 1.0, w * 0.7).translate(-L * 0.15, 1.05, 0).rotateY(yaw).translate(x, level, z));
+  }
+  addMerged(group, hulls, toon({ color: '#eeeeea' }));
+  addMerged(group, cabins, toon({ color: '#8fa8b8' }));
+  return { group };
+}

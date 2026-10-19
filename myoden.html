@@ -84,7 +84,7 @@
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
     import { createLife } from './realsite/life.js';
-    import { createArchPipeBridge, stripeMaterial } from './realsite/myoden-structures.js';
+    import { createArchPipeBridge, stripeMaterial, createRailYard, createBoats } from './realsite/myoden-structures.js';
     import { createAudio } from './engine/audio.js';
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { createCapture } from './engine/capture.js';
@@ -129,7 +129,7 @@
       revetment: { c: ['#4e5052', '#5e6062', '#6e7072'], pattern: 'block', photo: true },
       road: { c: ['#4a4b50', '#56575c', '#636469'], pattern: 'asphalt' } // 堤防の上の道：濃い灰色のアスファルト（360° 写真）
     };
-    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: LOOKS, midLooks: { ...EDO_MID_LOOKS, grass: '#8a8650', water: '#7e7a5a' } }); // 水面より高い干潟・水際は泥と枯れ草の色
+    const terrain = await createHeightTerrain({ scene, data, baseUrl: BASE, material: toon, looks: LOOKS, midLooks: { ...EDO_MID_LOOKS, grass: '#8a8650', water: '#a09a76' } }); // 水面より高い干潟・水際は泥と枯れ草の色
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     const isWater = (x, z) => terrain.heightAt(x, z) < level - 0.05;
@@ -168,6 +168,54 @@
     const PB = data.landmarks.specials?.pipeBridge;
     const pipeBridge = PB && createArchPipeBridge({ toon, spec: PB, heightAt: terrain.heightAt, level });
     if (pipeBridge) scene.add(pipeBridge.group);
+    // 東西線の車両基地（堤防の町側の下）と、川につないである小舟（空中写真から）
+    const railYard = createRailYard({ toon, yard: data.landmarks.railYard, heightAt: terrain.heightAt, rnd, near: (x, z) => Math.hypot(x, z) < 650 });
+    scene.add(railYard.group);
+    const boats = createBoats({ toon, boats: data.landmarks.boats, level, rnd });
+    scene.add(boats.group);
+    // 貸しボート屋（遊船）：小屋と、川の中ほどへ向けた 30 m の桟橋（OSM の点。小屋の大きさは推定）
+    {
+      const wall = toon({ color: '#e8e6e0' }), roofM = toon({ color: '#5a7a9a' }), deck = toon({ color: '#8a7a64' });
+      for (const h of data.landmarks.boathouses ?? []) {
+        const c = data.water.river.reduce((a, p) => Math.hypot(p[0] - h.x, p[1] - h.z) < Math.hypot(a[0] - h.x, a[1] - h.z) ? p : a);
+        const d = Math.hypot(c[0] - h.x, c[1] - h.z), ux = (c[0] - h.x) / d, uz = (c[1] - h.z) / d, yaw = Math.atan2(-uz, ux);
+        const y = Math.max(h.groundY, level + 0.3);
+        const house = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 4.5).translate(0, 1.6, 0), wall);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.4, 5.1).translate(0, 3.4, 0), roofM);
+        for (const m of [house, roof]) { m.position.set(h.x, y, h.z); m.rotation.y = yaw; m.castShadow = true; scene.add(m); }
+        // 桟橋：小屋の前から 30 m、幅 2 m、水面の 0.8 m 上
+        const pier = new THREE.Mesh(new THREE.BoxGeometry(30, 0.3, 2).translate(18, 0, 0), deck);
+        pier.position.set(h.x, level + 0.8, h.z); pier.rotation.y = yaw; pier.receiveShadow = true;
+        scene.add(pier);
+      }
+    }
+    // 妙典橋の街灯（写真：橋の上に等間隔に並ぶ）。両側に 30 m おき、高さ 8 m（推定）
+    {
+      const MB_ = data.landmarks.bridges.find(b => b.id === 'myoden-bridge');
+      if (MB_) {
+        const pole = toon({ color: '#c8c8c4' }), geos = [];
+        const P = MB_.path;
+        let carry = 0;
+        for (let k = 0; k < P.length - 1; k++) {
+          const [ax, az] = P[k], [bx, bz] = P[k + 1], len = Math.hypot(bx - ax, bz - az);
+          const nx = -(bz - az) / len, nz = (bx - ax) / len;
+          for (let s = carry; s < len; s += 30) {
+            for (const off of [-MB_.width / 2 + 0.5, MB_.width / 2 - 0.5]) {
+              const x = ax + (bx - ax) * s / len + nx * off, z = az + (bz - az) * s / len + nz * off;
+              geos.push(new THREE.BoxGeometry(0.2, 8, 0.2).translate(x, MB_.deckY + 4, z).toNonIndexed());
+              geos.push(new THREE.BoxGeometry(0.5, 0.25, 0.5).translate(x - nx * Math.sign(off) * 0.4, MB_.deckY + 8, z - nz * Math.sign(off) * 0.4).toNonIndexed());
+            }
+          }
+          carry = (carry - len) % 30; if (carry < 0) carry += 30;
+        }
+        let n = 0; for (const g of geos) n += g.attributes.position.count;
+        const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+        for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+        scene.add(new THREE.Mesh(geo, pole));
+      }
+    }
     // 水際の平らな芝のベンチ 3 つ（360° 写真：堤防の上から上流を見ると、斜面の下の水際に並ぶ）。川を向く
     {
       const acr = data.levee.across * Math.PI / 180, ax = Math.sin(acr), az = -Math.cos(acr);
@@ -660,7 +708,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__myoden = { THREE, data, pipeBridge, factories, forest, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+      window.__myoden = { THREE, data, pipeBridge, factories, railYard, boats, forest, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
     }
   </script>
 </body>
