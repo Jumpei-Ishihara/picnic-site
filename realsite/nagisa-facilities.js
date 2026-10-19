@@ -147,7 +147,8 @@ function pointInPoly(x, z, poly) {
 // ---------------------------------------------------------------------------
 // なぎさポニーランド：円い馬場、外の柵（檻のような縦の格子）、内側の柵、中央の小屋根、周回するポニー
 // ---------------------------------------------------------------------------
-export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward }) {
+// style：'bars' は縦格子の柵（もとの作り）、'white' は白い 2 段の横木の丸い柵（なぎさポニーランドの写真の丸い馬場）
+export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, style = 'bars' }) {
   const group = new THREE.Group();
   const { x: cx, z: cz, rIn, rOut, fenceR, centerR } = ring;
   const y0 = heightAt(cx, cz);
@@ -166,7 +167,18 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward }) {
   const angDiff = a => Math.abs(Math.atan2(Math.sin(a - gateA), Math.cos(a - gateA)));
   const fence = new GeoBuilder(), inner = new GeoBuilder();
   const P = (a, r, y) => { const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; return V(x, heightAt(x, z) + y, z); };
-  const nBars = Math.round(2 * Math.PI * fenceR / 0.22);
+  const nBars = style === 'white' ? 0 : Math.round(2 * Math.PI * fenceR / 0.22);
+  if (style === 'white') {
+    // 白い柵：柱 2 m おき、横木 2 段（高さ 0.55 m と 1.05 m）
+    const nPost = Math.max(8, Math.round(2 * Math.PI * fenceR / 2));
+    for (let i = 0; i < nPost; i++) {
+      const a = i / nPost * Math.PI * 2, a1 = (i + 1) / nPost * Math.PI * 2;
+      if (angDiff(a) < gateHalf) continue;
+      fence.beam(P(a, fenceR, 0), P(a, fenceR, 1.15), 0.12, 0.12);
+      if (angDiff(a1) < gateHalf) continue;
+      for (const y of [0.55, 1.05]) fence.beam(P(a, fenceR, y), P(a1, fenceR, y), 0.1, 0.14);
+    }
+  }
   for (let i = 0; i < nBars; i++) {
     const a = i / nBars * Math.PI * 2;
     if (angDiff(a) < gateHalf) continue;
@@ -176,18 +188,22 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward }) {
     for (const y of [0.15, 1.3]) fence.beam(P(a, fenceR, y), P(a1, fenceR, y), 0.06, 0.06); // 上下の横桟
   }
   // 内側の低い柵（走路の内縁）と、中央の柱と八角の小屋根
-  const nIn = 24;
+  const nIn = rIn >= 2.5 ? 24 : 0; // 小さな丸い馬場には内側の柵・中央の柱は無い
   for (let i = 0; i < nIn; i++) {
     const a = i / nIn * Math.PI * 2, a1 = (i + 1) / nIn * Math.PI * 2;
     inner.beam(P(a, rIn - 0.1, 0), P(a, rIn - 0.1, 0.8), 0.08, 0.08);
     inner.beam(P(a, rIn - 0.1, 0.8), P(a1, rIn - 0.1, 0.8), 0.06, 0.06);
   }
-  inner.beam(V(cx, y0, cz), V(cx, y0 + 2.8, cz), 0.25, 0.25);
-  const fenceMesh = new THREE.Mesh(fence.build(), toon({ color: '#3f6a4a' }));
-  const innerMesh = new THREE.Mesh(inner.build(), toon({ color: '#8a6a4a' }));
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(centerR + 0.4, 0.9, 8), toon({ color: '#e0b84a' }));
-  roof.position.set(cx, y0 + 3.2, cz);
-  for (const m of [fenceMesh, innerMesh, roof]) { m.castShadow = true; m.receiveShadow = true; group.add(m); }
+  if (centerR > 0) inner.beam(V(cx, y0, cz), V(cx, y0 + 2.8, cz), 0.25, 0.25);
+  const fenceMesh = new THREE.Mesh(fence.build(), toon({ color: style === 'white' ? '#f2f2ee' : '#3f6a4a' }));
+  const parts = [fenceMesh];
+  if (nIn || centerR > 0) parts.push(new THREE.Mesh(inner.build(), toon({ color: '#8a6a4a' })));
+  if (centerR > 0) {
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(centerR + 0.4, 0.9, 8), toon({ color: '#e0b84a' }));
+    roof.position.set(cx, y0 + 3.2, cz);
+    parts.push(roof);
+  }
+  for (const m of parts) { m.castShadow = true; m.receiveShadow = true; group.add(m); }
 
   // ポニー 5 頭（同じ姿）：引く人と、乗る子ども。反時計回り（上から見て）
   const N = ring.ponies ?? 5;
@@ -303,7 +319,7 @@ export function createQueue({ toon, at, toward, heightAt, loop = 6 }) {
 // ---------------------------------------------------------------------------
 // 旧江戸川の護岸の壁（胸の高さのコンクリート）。scene.json の facilities.seawall の線に沿って
 // ---------------------------------------------------------------------------
-export function createSeawall({ toon, line, heightAt, height = 1.1, thick = 0.45, minY = -1.5 }) {
+export function createSeawall({ toon, line, heightAt, height = 1.1, thick = 0.45, minY = -1.5, color = '#bdb8ac' }) {
   const b = new GeoBuilder();
   for (let i = 0; i < line.length - 1; i++) {
     const [x0, z0] = line[i], [x1, z1] = line[i + 1];
@@ -314,7 +330,7 @@ export function createSeawall({ toon, line, heightAt, height = 1.1, thick = 0.45
     if (y < minY) continue; // 水の上（地面が水面に近い所）には立てない
     b.box(V(mx, y + height / 2 - 0.2, mz), len + 0.3, height + 0.4, thick, Math.atan2(-(z1 - z0), x1 - x0));
   }
-  const m = new THREE.Mesh(b.build(), toon({ color: '#bdb8ac' }));
+  const m = new THREE.Mesh(b.build(), toon({ color }));
   m.castShadow = m.receiveShadow = true;
   return { group: m };
 }
@@ -403,4 +419,166 @@ export function createAzaleas({ toon, clumps, heightAt, seed = 9 }) {
   im.instanceColor.needsUpdate = true;
   im.castShadow = im.receiveShadow = true;
   return { group: im, count: n };
+}
+
+// ---------------------------------------------------------------------------
+// なぎさポニーランドのまわり（Google マップの空中写真・来園者の写真・OSM の範囲から。大きさは推定）
+//   大きな土の馬場（白い 2 段の柵）、その南の厩舎（黒い屋根と水色の屋根）、東の草の放牧場（茶色の 3 段の木の柵）で草を食むポニー、
+//   入口の白い門（看板）、休み所の藤棚
+// ---------------------------------------------------------------------------
+export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
+  const group = new THREE.Group();
+  const W0 = Math.PI * 2 / loop;
+  const white = new GeoBuilder(), brown = new GeoBuilder();
+  const H = (x, z) => heightAt(x, z);
+  // 四角い範囲の縁に柵（rails の高さ、posts の間隔）
+  function rectFence(b, [x0, z0, x1, z1], rails, step, gateAt = null) {
+    const corners = [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]];
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = corners[k], [bx, bz] = corners[k + 1];
+      const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / step));
+      for (let i = 0; i < n; i++) {
+        const t0 = i / n, t1 = (i + 1) / n;
+        const px = ax + (bx - ax) * t0, pz = az + (bz - az) * t0, qx = ax + (bx - ax) * t1, qz = az + (bz - az) * t1;
+        if (gateAt && Math.hypot((px + qx) / 2 - gateAt[0], (pz + qz) / 2 - gateAt[1]) < 1.6) continue;
+        b.beam(V(px, H(px, pz), pz), V(px, H(px, pz) + rails[rails.length - 1] + 0.1, pz), 0.14, 0.14);
+        for (const y of rails) b.beam(V(px, H(px, pz) + y, pz), V(qx, H(qx, qz) + y, qz), 0.09, 0.13);
+      }
+    }
+  }
+  const A = land.arena;
+  rectFence(white, A, [0.55, 1.05], 2.5);
+  const P = land.paddock;
+  rectFence(brown, P, [0.35, 0.75, 1.15], 2.2, land.paddockGate);
+  for (const m of [new THREE.Mesh(white.build(), toon({ color: '#f0f0ec' })), new THREE.Mesh(brown.build(), toon({ color: '#4a3628' }))]) {
+    m.castShadow = m.receiveShadow = true; group.add(m);
+  }
+  // 厩舎：低い建物（壁は木の色、屋根は黒と水色）
+  for (const s of land.stables) {
+    const [x0, z0, x1, z1] = s.rect, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, y = H(cx, cz);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 2.6, z1 - z0).translate(cx, y + 1.3, cz), toon({ color: '#a88a68' }));
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.8, 0.3, z1 - z0 + 0.8).translate(cx, y + 2.75, cz), toon({ color: s.roof }));
+    for (const m of [wall, roof]) { m.castShadow = m.receiveShadow = true; group.add(m); }
+  }
+  // 入口の門：白い柱 2 本と、上に看板（白地に桃色の文字の帯）
+  {
+    const [gx, gz, gyaw] = land.gate;
+    const g = new THREE.Group();
+    const post = toon({ color: '#f4f4f0' }), sign = toon({ color: '#f4f4f0' }), pink = toon({ color: '#e0607a' });
+    for (const sx of [-1.8, 1.8]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 0.3), post); m.position.set(sx, 1.6, 0); g.add(m); }
+    const board = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.8, 0.2), sign); board.position.set(0, 3.2, 0); g.add(board);
+    const text = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.25, 0.22), pink); text.position.set(0, 3.25, 0); g.add(text);
+    g.position.set(gx, H(gx, gz), gz); g.rotation.y = gyaw;
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    group.add(g);
+  }
+  // 放牧場で草を食むポニー（毛色いろいろ：薄い金色・ぶち・鹿毛・葦毛）。首を上下、しっぽを振る（ループ周期）
+  const grazers = [];
+  const coats = [['#e8d8b0', '#f4ecd8'], ['#f2efe8', '#6a4030'], ['#7a4a2a', '#2a1a14'], ['#c8c4bc', '#8a8680']];
+  land.grazing.forEach(([x, z, yaw], i) => {
+    const [body, mane] = coats[i % coats.length];
+    const p = makeQuadruped(toon, { len: 1.3, h: 1.0, color: body, mane, saddle: null });
+    p.group.position.set(x, H(x, z), z); p.group.rotation.y = yaw;
+    group.add(p.group);
+    grazers.push({ p, ph: i * 1.7 });
+  });
+  return {
+    group,
+    update(t) {
+      for (const g of grazers) {
+        g.p.head.position.y = g.p.saddleY - 0.15 + Math.sin(t * W0 + g.ph) * 0.06; // 首を下げて草を食む
+        g.p.tail.rotation.z = Math.sin(t * W0 * 2 + g.ph) * 0.2;
+      }
+    }
+  };
+}
+
+// 藤棚（休み所）：黒っぽい木の柱と、上に格子の梁（展望の丘・ポニーランドの写真）
+export function createPergola({ toon, at, w = 5, d = 3.5, h = 2.6, yaw = 0, heightAt }) {
+  const b = new GeoBuilder();
+  const g = new THREE.Group();
+  for (const sx of [-w / 2, w / 2]) for (const sz of [-d / 2, 0, d / 2]) b.beam(V(sx, 0, sz), V(sx, h, sz), 0.2, 0.2);
+  for (const sz of [-d / 2, d / 2]) b.beam(V(-w / 2 - 0.3, h, sz), V(w / 2 + 0.3, h, sz), 0.18, 0.25);
+  for (let x = -w / 2; x <= w / 2 + 0.01; x += 0.6) b.beam(V(x, h + 0.2, -d / 2 - 0.3), V(x, h + 0.2, d / 2 + 0.3), 0.08, 0.12);
+  const m = new THREE.Mesh(b.build(), toon({ color: '#5a4636' }));
+  m.castShadow = m.receiveShadow = true;
+  g.add(m);
+  g.position.set(at.x, heightAt(at.x, at.z), at.z); g.rotation.y = yaw;
+  return { group: g };
+}
+
+// 木のピクニックテーブル（長いすつき）
+export function createPicnicTable({ toon, at, yaw = 0, heightAt }) {
+  const g = new THREE.Group();
+  const wood = toon({ color: '#b8a080' });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.8), wood); top.position.y = 0.72; g.add(top);
+  for (const sz of [-0.7, 0.7]) { const s = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.05, 0.3), wood); s.position.set(0, 0.42, sz); g.add(s); }
+  for (const sx of [-0.75, 0.75]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.72, 1.7), wood); l.position.set(sx, 0.36, 0); g.add(l); }
+  g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  g.position.set(at.x, heightAt(at.x, at.z), at.z); g.rotation.y = yaw;
+  return { group: g };
+}
+
+/**
+ * 道ぞいの電柱（コンクリートの灰色、高さ 10 m）と電線 3 本。線に沿って every m おき、side 側へ offset m
+ * @param {number[][]} line
+ */
+export function createUtilityPoles({ toon, line, heightAt, every = 35, offset = 0, height = 10, bounds = null }) {
+  const group = new THREE.Group();
+  const b = new GeoBuilder();
+  const tops = [];
+  let carry = 0;
+  for (let k = 0; k < line.length - 1; k++) {
+    const [ax, az] = line[k], [bx, bz] = line[k + 1], len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.01) continue;
+    const nx = -(bz - az) / len, nz = (bx - ax) / len;
+    for (let s = carry; s < len; s += every) {
+      const x = ax + (bx - ax) * s / len + nx * offset, z = az + (bz - az) * s / len + nz * offset;
+      if (bounds && !bounds(x, z)) { tops.push(null); continue; }
+      const y = heightAt(x, z);
+      b.beam(V(x, y, z), V(x, y + height, z), 0.3, 0.3);
+      b.beam(V(x - nx * 0.9, y + height - 0.6, z - nz * 0.9), V(x + nx * 0.9, y + height - 0.6, z + nz * 0.9), 0.12, 0.12);
+      tops.push([x, y + height, z, nx, nz]);
+    }
+    carry = ((carry - len) % every + every) % every;
+  }
+  const m = new THREE.Mesh(b.build(), toon({ color: '#a4a4a0' }));
+  m.castShadow = true;
+  group.add(m);
+  // 電線：となりの電柱どうしを 3 本で結ぶ（わずかにたるむ）
+  const pos = [];
+  for (let i = 0; i < tops.length - 1; i++) {
+    const a = tops[i], c = tops[i + 1];
+    if (!a || !c) continue;
+    for (const off of [-0.8, 0, 0.8]) {
+      const N = 6;
+      for (let k = 0; k < N; k++) {
+        const t0 = k / N, t1 = (k + 1) / N, sag = t => -Math.sin(Math.PI * t) * 0.6;
+        const p0 = [a[0] + (c[0] - a[0]) * t0 + a[3] * off, a[1] - 0.6 + (c[1] - a[1]) * t0 + sag(t0), a[2] + (c[2] - a[2]) * t0 + a[4] * off];
+        const p1 = [a[0] + (c[0] - a[0]) * t1 + a[3] * off, a[1] - 0.6 + (c[1] - a[1]) * t1 + sag(t1), a[2] + (c[2] - a[2]) * t1 + a[4] * off];
+        pos.push(...p0, ...p1);
+      }
+    }
+  }
+  const wg = new THREE.BufferGeometry();
+  wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const wires = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x4a4a50 }));
+  group.add(wires);
+  return { group, wires };
+}
+
+/** 刈り込んだ生け垣（低い角ばった植え込み）を線に沿って。offset は線の横へのずらし */
+export function createHedge({ toon, line, heightAt, offset = 0, h = 0.9, w = 1.0, bounds = null }) {
+  const b = new GeoBuilder();
+  for (let k = 0; k < line.length - 1; k++) {
+    const [ax, az] = line[k], [bx, bz] = line[k + 1], len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.5 || len > 12) continue;
+    const nx = -(bz - az) / len, nz = (bx - ax) / len;
+    const mx = (ax + bx) / 2 + nx * offset, mz = (az + bz) / 2 + nz * offset;
+    if (bounds && !bounds(mx, mz)) continue;
+    b.box(V(mx, heightAt(mx, mz) + h / 2 - 0.05, mz), len + 0.2, h, w, Math.atan2(-(bz - az), bx - ax));
+  }
+  const m = new THREE.Mesh(b.build(), toon({ color: '#4a6e34' }));
+  m.castShadow = m.receiveShadow = true;
+  return { group: m };
 }

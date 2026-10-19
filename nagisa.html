@@ -81,7 +81,7 @@
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, windowTextures, createFerrisWheel } from './engine/structures.js';
     import { createLeafKit, createForest } from './engine/trees.js';
-    import { createMuseum, createPonyRing, createGoatPen, createQueue, createSeawall, createPlayground, createAzaleas } from './realsite/nagisa-facilities.js';
+    import { createMuseum, createPonyRing, createGoatPen, createQueue, createSeawall, createPlayground, createAzaleas, createPonyLand, createPergola, createPicnicTable, createUtilityPoles, createHedge } from './realsite/nagisa-facilities.js';
     import { createSurroundings, gateBridgeBackdrop } from './realsite/nagisa-surroundings.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
@@ -245,19 +245,36 @@
     const FAC = data.facilities;
     const museum = createMuseum({ toon, museum: FAC.museum, heightAt: terrain.heightAt });
     scene.add(museum.group);
-    const stable = data.landmarks.nearBuildings.find(b => b.kind === 'stable');
-    const ring = createPonyRing({ toon, ring: FAC.ponyRing, heightAt: terrain.heightAt, loop: LOOP, gateToward: stable });
+    // なぎさポニーランド：白い丸い馬場（乗馬はここを周回）と、土の馬場・厩舎・放牧場・入口の門
+    const PL = FAC.ponyLand;
+    const gatePos = { x: PL.gate[0], z: PL.gate[1] };
+    const ring = createPonyRing({ toon, ring: { ...FAC.ponyRing, ponies: 3 }, heightAt: terrain.heightAt, loop: LOOP, gateToward: gatePos, style: 'white' });
     scene.add(ring.group);
+    const ponyLand = createPonyLand({ toon, land: PL, heightAt: terrain.heightAt, loop: LOOP });
+    scene.add(ponyLand.group);
     const goatPen = createGoatPen({ toon, pen: FAC.goatPen, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(goatPen.group);
     const R = FAC.ponyRing;
-    const gateA = Math.atan2(stable.z - R.z, stable.x - R.x);
+    const gateA = Math.atan2(gatePos.z - R.z, gatePos.x - R.x);
     const gate = { x: R.x + Math.cos(gateA) * (R.fenceR + 1.0), z: R.z + Math.sin(gateA) * (R.fenceR + 1.0) };
     const queue = createQueue({ toon, at: gate, toward: { x: R.x, z: R.z }, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(queue.group);
     const ridingNow = h => FAC.ponyRing.hours.some(([a, b]) => h >= a && h < b);
     // 旧江戸川の護岸の壁と、遊具広場
-    scene.add(createSeawall({ toon, line: FAC.seawall, heightAt: terrain.heightAt }).group);
+    // 遊歩道の川側の白いコンクリートの胸壁（高さ 1.4 m・厚さ 0.5 m：Google ストリートビュー 2025 年 6 月。目の高さで川が見える高さ）と、内側の刈り込んだ生け垣
+    scene.add(createSeawall({ toon, line: FAC.seawall, heightAt: terrain.heightAt, height: 1.4, thick: 0.5, color: '#ecebe6' }).group);
+    const inNear = (x, z) => x > NB.x0 + 1 && x < NB.x1 - 1 && z > NB.z0 + 1 && z < NB.z1 - 1;
+    scene.add(createHedge({ toon, line: FAC.seawall, heightAt: terrain.heightAt, offset: 4.6, bounds: inNear }).group);
+    // 遊歩道と公園のあいだの道に沿った電柱と電線（公園の側）
+    if (FAC.riverRoad?.length > 1) {
+      const RR = FAC.riverRoad, side = RR[RR.length - 1][1] > RR[0][1] ? 1 : -1;
+      const poles = createUtilityPoles({ toon, line: RR, heightAt: terrain.heightAt, every: 35, offset: 4.5 * side, bounds: (x, z) => Math.abs(x) < 1400 && Math.abs(z) < 1400 });
+      scene.add(poles.group);
+      pixel.hideInNormalPass.add(poles.wires);
+    }
+    // 展望の丘の藤棚とピクニックテーブル（360° 写真）
+    scene.add(createPergola({ toon, at: FAC.hill.pergola, yaw: FAC.hill.pergola.yaw, heightAt: terrain.heightAt }).group);
+    for (const [tx, tz, ty] of FAC.hill.tables) scene.add(createPicnicTable({ toon, at: { x: tx, z: tz }, yaw: ty, heightAt: terrain.heightAt }).group);
     const playground = createPlayground({ toon, pg: FAC.playground, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(playground.group);
     const azaleas = createAzaleas({ toon, clumps: FAC.azaleas.shrubs, heightAt: terrain.heightAt }); // ツツジ山の株
@@ -329,6 +346,8 @@
     {
       const P = FAC.goatPen;
       collider.addRect(P.x - P.w / 2, P.z - P.d / 2, P.x + P.w / 2, P.z + P.d / 2, 'pen');
+      // ポニーランドの土の馬場・放牧場・厩舎には入れない（柵）
+      for (const r of [PL.arena, PL.paddock, ...PL.stables.map(s => s.rect)]) collider.addRect(r[0], r[1], r[2], r[3], 'ponyland');
     }
     for (const b of data.landmarks.nearBuildings ?? []) {
       const xs = b.footprint.map(p => p[0]), zs = b.footprint.map(p => p[1]);
@@ -372,7 +391,8 @@
     const base = createBaseCamp({
       root: picnicSet.group, home: { x: S.x, z: S.z, yaw: sunPath.yawOfBearing(S.bearing) }, size: { w: 2.0, d: 1.4 },
       heightAt: terrain.heightAt, isWater: (x, z) => terrain.heightAt(x, z) < level + 0.15, isBlocked: (x, z) => collider.solidAt(x, z, 0.05)
-        || Math.hypot(x - R.x, z - R.z) < R.fenceR + 0.5                                               // ポニーの馬場の中
+        || Math.hypot(x - R.x, z - R.z) < R.fenceR + 0.5                                               // ポニーの丸い馬場の中
+        || (x > PL.arena[0] - 1 && x < PL.paddock[2] + 1 && z > PL.arena[1] - 1 && z < PL.paddock[3] + 1) // ポニーランドの中
         || (Math.abs(x - FAC.goatPen.x) < FAC.goatPen.w / 2 + 0.5 && Math.abs(z - FAC.goatPen.z) < FAC.goatPen.d / 2 + 0.5), // ヤギの囲い
       storageKey: 'picnic-site:base:nagisa',
       onMove() { picnicSet.relocate(); tuftHider?.update((x, z) => base.covers(x, z, 0.15)); }
@@ -401,9 +421,10 @@
       const tp = terrain.heightAt(x, z) + data.frame.origin.tp;
       if (floorOverride) return '魔法の文学館 3 階 カフェ・キキ';
       if (Math.hypot(x - base.pose.x, z - base.pose.z) < 4) return 'シートのそば';
-      if (Math.hypot(x - R.x, z - R.z) < R.fenceR + 5) return 'なぎさポニーランド';
-      if (Math.abs(x - FAC.goatPen.x) < 7 && Math.abs(z - FAC.goatPen.z) < 6) return 'ヤギのふれあいコーナー';
-      if (Math.hypot(x - stable.x, z - stable.z) < 18) return 'ポニーの家';
+      if (Math.abs(x - FAC.goatPen.x) < 5 && Math.abs(z - FAC.goatPen.z) < 4) return 'ヤギのふれあいコーナー';
+      if (Math.hypot(x - R.x, z - R.z) < R.fenceR + 3) return 'なぎさポニーランド（丸い馬場）';
+      if (x > PL.arena[0] - 4 && x < PL.paddock[2] + 4 && z > PL.arena[1] - 4 && z < PL.paddock[3] + 4) return 'なぎさポニーランド';
+      if (Math.hypot(x - FAC.shuttleStop.x, z - FAC.shuttleStop.z) < FAC.shuttleStop.r + 2) return 'パノラマシャトル停留所';
       if (Math.hypot(x - FAC.museum.x, z - FAC.museum.z) < 34) return '魔法の文学館';
       if (Math.abs(x - FAC.playground.x) < FAC.playground.w / 2 + 3 && Math.abs(z - FAC.playground.z) < FAC.playground.d / 2 + 3) return '遊具広場';
       if (tp > data.hill.tp - 3) return '展望の丘';
@@ -613,6 +634,7 @@
       ring.update(loopT, ridingNow(tod.hour));
       queue.group.visible = ridingNow(tod.hour);
       queue.update(loopT);
+      ponyLand.update(loopT);
       goatPen.update(loopT);
       playground.update(loopT);
       if (floorOverride && Math.hypot(player.x - floorOverride.x, player.z - floorOverride.z) > 3) floorOverride = null;
@@ -643,7 +665,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__nagisa = { THREE, data, surroundings, playground, museum, ring, goatPen, queue, ridingNow, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
+      window.__nagisa = { THREE, data, surroundings, playground, museum, ring, ponyLand, goatPen, queue, ridingNow, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
     }
   </script>
 </body>

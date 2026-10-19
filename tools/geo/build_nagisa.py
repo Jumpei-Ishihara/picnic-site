@@ -30,10 +30,25 @@ G, GROUND = B.G, B.GROUND
 MID_CLASSES = ['town', 'grass', 'pitch', 'water']
 PARK_ID = 154151032   # OSM：総合レクリエーション公園（なぎさ公園）
 MUSEUM_ID = 1220677132  # OSM：角野栄子児童文学館（魔法の文学館）。2023 年開館で、空中写真より新しい
-STABLE_ID = 536919766   # OSM：ポニーランドの建物（ポニーの家と考える。空中写真で馬場のすぐ北にある一番大きな建物）
+STABLE_ID = None        # 前は公園の北東の建物（OSM 536919766）を「ポニーの家」としていたが、なぎさポニーランドは OSM・Google マップでは丘の北西（下の PONY_LAND）
+PONY_LAND_ID = 536919774  # OSM：leisure=horse_riding「なぎさポニーランド」の範囲
+RIVER_ROAD_ID = 796894975 # OSM：旧 新荒川葛西堤防線（遊歩道と公園のあいだの 2 車線の道。電柱と電線が並ぶ）
 # 馬場（空中写真の明るい輪から：中心、走路の内側・外側の半径）。docs/NAGISA_DESIGN.md 7 章
-PONY_RING = {'x': -19, 'z': 8, 'rIn': 3.5, 'rOut': 11.0, 'fenceR': 11.5, 'centerR': 2.0}
-GOAT_PEN = {'x': 1, 'z': -14, 'w': 8, 'd': 6}   # ヤギのふれあいコーナー（位置は推定）
+# なぎさポニーランド（docs/NAGISA_DESIGN.md 1.1 節）：Google マップの空中写真（2026）で測った配置。大きさは画素からの読み取り
+#   白い丸い馬場（乗馬はここを周回）、北に大きな土の馬場、その南に厩舎、東に草の放牧場、入口の門
+PONY_RING = {'x': -165.6, 'z': -46.0, 'rIn': 1.6, 'rOut': 6.0, 'fenceR': 6.7, 'centerR': 0.0}
+PONY_LAND = {
+    'arena': [-170.0, -91.0, -133.0, -66.0],
+    'yard': [-172.0, -62.0, -141.0, -37.0],
+    'paddock': [-140.0, -56.0, -121.0, -24.0], 'paddockGate': [-140.0, -40.0],
+    'stables': [{'rect': [-171.0, -65.0, -161.0, -56.0], 'roof': '#2e3034'}, {'rect': [-152.0, -65.5, -136.0, -60.0], 'roof': '#8fc4d6'}],
+    'gate': [-146.0, -35.0, 0.0],
+    'grazing': [[-133.0, -48.0, 0.6], [-127.0, -40.0, 2.2], [-131.0, -31.0, 4.0], [-125.0, -50.0, 1.2]],
+}
+GOAT_PEN = {'x': -147, 'z': -52, 'w': 7, 'd': 5}   # ヤギのふれあいコーナー（来園者の話ではポニーランドの中。位置は推定）
+SHUTTLE_STOP = {'x': -19, 'z': 8, 'r': 7, 'note': 'パノラマシャトル停留所 なぎさ公園（Google マップ）。丸い広場。前は ここをポニーの馬場と読み違えていた'}
+HILL_PERGOLA = {'x': -59.4, 'z': 32.9, 'yaw': 0.4}   # 展望の丘の 360° 写真（2020 年 10 月）：頂上の北北東に藤棚
+HILL_TABLES = [[-64.5, 43.5, 0.3]]                  # 同じ写真：南南西に木のピクニックテーブル
 # 周りの目立つ建物（OSM の id）。形を作って立てるので、ふつうの「高い建物」からは除く
 CASTLE_ID = 217727348      # シンデレラ城（高さ 51 m）
 VOLCANO_ID = 859682628     # プロメテウス火山（高さ 51 m、node）
@@ -294,7 +309,7 @@ def landmarks(osm, dem, photo=None):
             if cols:
                 roof = '#%02x%02x%02x' % tuple(int(sorted(c[k] for c in cols)[len(cols) // 2]) for k in range(3))
         out['nearBuildings'].append({'x': round(cx, 1), 'z': round(cz, 1), 'height': round(H or DEFAULT_H.get(t['building'], 8), 1), 'roof': roof,
-                                     'kind': 'stable' if e['id'] == STABLE_ID else t['building'], 'osm': e['id'], 'footprint': [[round(x, 1), round(z, 1)] for x, z in pts]})
+                                     'kind': t['building'], 'osm': e['id'], 'footprint': [[round(x, 1), round(z, 1)] for x, z in pts]})
     # 周りの目立つもの：シンデレラ城・プロメテウス火山（ディズニーリゾート）、葛西臨海水族園のガラスドーム・クリスタルビュー、東京ゲートブリッジ
     byid = {e['id']: e for e in osm if e['type'] in ('way', 'node')}
     def fp_of(i):
@@ -460,6 +475,8 @@ def main():
     mfp = [[round(x, 1), round(z, 1)] for x, z in mfp]
     in_museum = lambda x, z, pad=0: B.point_in_poly(x, z, mfp) or (pad and min(math.dist((x, z), p) for p in mfp) < pad)
     R = PONY_RING
+    L_ = PONY_LAND
+    inrect = lambda x, z, r: r[0] <= x <= r[2] and r[1] <= z <= r[3]
     for j in range(nh):
         for i in range(nw):
             x, z = NEAR['x0'] + i, NEAR['z0'] + j
@@ -471,11 +488,18 @@ def main():
                 cls[k] = G['dirt'] if R['rIn'] <= r <= R['rOut'] else (G['paved'] if r > R['rOut'] else G['lawnWorn'])
             elif abs(x - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 and abs(z - GOAT_PEN['z']) < GOAT_PEN['d'] / 2:
                 cls[k] = G['dirt']
+            elif inrect(x, z, L_['arena']) or inrect(x, z, L_['yard']):
+                cls[k] = G['dirt']
+            elif inrect(x, z, L_['paddock']):
+                cls[k] = G['lawnWorn']
+            elif math.hypot(x - SHUTTLE_STOP['x'], z - SHUTTLE_STOP['z']) < SHUTTLE_STOP['r']:
+                cls[k] = G['paved']
     trees = split_trees(cls)
     # 文学館・馬場・ヤギの囲いの上には木を立てない（写真が古く、そこに木が写っていることがある）
     trees = [t for t in trees if not in_museum(t['x'], t['z'], 3 + t['r'])
              and math.hypot(t['x'] - R['x'], t['z'] - R['z']) > R['fenceR'] + 1 + t['r'] * 0.6
-             and not (abs(t['x'] - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 + t['r'] and abs(t['z'] - GOAT_PEN['z']) < GOAT_PEN['d'] / 2 + t['r'])]
+             and not (abs(t['x'] - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 + t['r'] and abs(t['z'] - GOAT_PEN['z']) < GOAT_PEN['d'] / 2 + t['r'])
+             and not any(inrect(t['x'], t['z'], [r_[0] - 1, r_[1] - 1, r_[2] + 1, r_[3] + 1]) for r_ in (L_['arena'], L_['yard'], L_['paddock']))]
     gim = Image.new('RGB', (nw, nh))
     gp = gim.load()
     for j in range(nh):
@@ -594,7 +618,7 @@ def main():
     sight_r = Sight(near, trees, lm['nearBuildings'], dem)
     best_r = None
     for wx, wz in seawall_line[::3]:
-        x_, z_ = wx - 1.0, wz
+        x_, z_ = wx - 0.6, wz   # 胸壁（高さ 1.4 m）のすぐ内側に立つ
         if not (NEAR['z0'] + 5 < z_ < NEAR['z0'] + nh - 5):
             continue
         b_ = bearing_dist(mx - x_, mz - z_)[0]
@@ -637,6 +661,9 @@ def main():
             continue
         keep.append(t)
     trees[:] = keep
+    # 遊歩道と公園のあいだの道（OSM）：電柱を並べるのに使う
+    rr = next((e for e in osm if e.get('id') == RIVER_ROAD_ID and e.get('geometry')), None)
+    river_road = [[round(v, 1) for v in ll2local(p['lat'], p['lon'])] for p in rr['geometry']] if rr else []
     facilities = {
         'museum': {'name': '角野栄子児童文学館（魔法の文学館）', 'osm': MUSEUM_ID, 'footprint': mfp, 'x': round(mx_, 1), 'z': round(mz_, 1),
                    'baseY': round(tp2y(m_base), 2), 'floors': 3, 'height': 13.0, 'cafeFloorY': round(tp2y(cafe_tp), 2),
@@ -646,18 +673,24 @@ def main():
                      'hours': [[10.0, 11.5], [13.5, 15.0]],
                      'note': '馬場の位置と大きさは空中写真の明るい輪から。走路の形（円）と柵は、来園者の話（ポニーは柵の中を周回）にもとづく'},
         'goatPen': {**GOAT_PEN, 'y': round(tp2y(tp_at(GOAT_PEN['x'], GOAT_PEN['z'])), 2), 'note': '位置は推定'},
+        'ponyLand': {**PONY_LAND, 'osm': PONY_LAND_ID,
+                     'note': 'なぎさポニーランド。範囲は OSM、配置（白い丸い馬場・土の馬場・厩舎・放牧場・門）は Google マップの空中写真と来園者の写真から。大きさは推定'},
+        'shuttleStop': SHUTTLE_STOP,
+        'hill': {'pergola': HILL_PERGOLA, 'tables': HILL_TABLES, 'note': '展望の丘の 360° 写真（2020 年 10 月）'},
+        'riverRoad': river_road,
     }
     view = {
         'lunch':  {'x': round(sx - fx * 0.9, 2), 'z': round(sz - fz * 0.9, 2), 'eye': 0.75, 'bearing': LUNCH, 'pitch': -3, 'hour': 12.0},
         'nap':    {'x': round(sx - fx * 0.3, 2), 'z': round(sz - fz * 0.3, 2), 'eye': 0.25,
                    'bearing': round(bearing_dist(shade['x'] - sx, shade['z'] - sz)[0], 1), 'pitch': 55, 'hour': 13.5},
         'sunset': {'x': sunset_pt[0], 'z': sunset_pt[1], 'eye': 1.6, 'bearing': round(wb + 1, 1), 'pitch': 1, 'hour': 16.85},
-        'river':  {'x': px_, 'z': pz_, 'eye': 1.6, 'bearing': river_brg, 'pitch': 1, 'hour': 15.0},
+        'river':  {'x': px_, 'z': pz_, 'eye': 1.65, 'bearing': river_brg, 'pitch': 0, 'hour': 15.0},
         # カフェ・キキ（3 階のテラス）：床の上に立った目の高さ。y は床の高さ（地形ではない）
         'cafe':   {'x': round(cafe_x + local_from_bearing(cafe_b, 1.6)[0], 2), 'z': round(cafe_z + local_from_bearing(cafe_b, 1.6)[1], 2),
                    'eye': 1.5, 'bearing': cafe_b, 'pitch': -4, 'hour': 14.0, 'floorY': round(tp2y(cafe_tp), 2)},  # テラスの上（壁から 1.6 m）
         # ポニーランド：馬場の柵の南西の外から、周回するポニーを見る（乗馬の時間）
-        'pony':   {'x': round(PONY_RING['x'] - 11, 1), 'z': round(PONY_RING['z'] + 11, 1), 'eye': 1.5, 'bearing': 45, 'pitch': -8, 'hour': 10.75},
+        # ポニーランド：丸い馬場の南東の外（門のそば）から、周回するポニーと奥の土の馬場・厩舎を見る（乗馬の時間）
+        'pony':   {'x': round(PONY_RING['x'] + 9.5, 1), 'z': round(PONY_RING['z'] + 8.5, 1), 'eye': 1.5, 'bearing': 312, 'pitch': -10, 'hour': 10.75},
     }
     for v in view.values():
         v['y'] = round(tp2y(tp_at(v['x'], v['z'])), 2)
