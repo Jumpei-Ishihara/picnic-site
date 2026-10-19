@@ -80,7 +80,7 @@
     import { getSeason, seasonalSunPath, SKY, seasonGroundLooks, seasonMidLooks, treeKind, treeHash, foliageColors, lifeSeason, bindSeasonUI, dateText, FAUNA } from './engine/season.js';
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
-    import { createBridge, createPowerLines, createHouses, windowTextures, createFerrisWheel } from './engine/structures.js';
+    import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures, createFerrisWheel } from './engine/structures.js';
     import { createLeafKit, createForest } from './engine/trees.js';
     import { createMuseum, createPonyRing, createGoatPen, createQueue, createSeawall, createPlayground, createAzaleas, createPonyLand, createPergola, createPicnicTable, createUtilityPoles, createHedge } from './realsite/nagisa-facilities.js';
     import { createSurroundings, gateBridgeBackdrop } from './realsite/nagisa-surroundings.js';
@@ -172,7 +172,10 @@
     const houseWin = windowTextures({ cols: 2, rows: 2, lit: 0.55, rnd });
     const houseWall = toon({ color: '#ffffff', map: houseWin.map, emissive: 0xffd890, emissiveMap: houseWin.emissiveMap, emissiveIntensity: 0 });
     const NIGHT_LIGHTS = [houseWall];
+    // 線路（高架橋・道床。realsite/life.js が作る）の帯には家を置かない
+    const railAvoid = railCorridor(data.landmarks.railways, 16);
     const houses = createHouses({
+      avoid: railAvoid,
       // 歩ける近景の範囲には置かない
       isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
       heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
@@ -326,7 +329,7 @@
     pixel.hideInNormalPass.add(picnicSet.steam.points);
     const riverNear = data.water.river.reduce((a, b) => Math.abs(b[1] - S.z) < Math.abs(a[1] - S.z) ? b : a);
     const life = createLife({ season: lifeSeason(SEASON),
-      scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false, trainExtra: 400,
+      scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false,
       carBridges: ['wangan-expressway', 'route-357', 'kasaibashi-dori'], boatPath: data.water.river,
       gulls: { x: riverNear[0], z: riverNear[1], r: 140 }
     });

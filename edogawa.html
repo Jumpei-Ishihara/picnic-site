@@ -79,7 +79,7 @@
     import { getSeason, seasonalSunPath, SKY, seasonGroundLooks, seasonMidLooks, treeKind, treeHash, foliageColors, lifeSeason, bindSeasonUI, dateText, FAUNA } from './engine/season.js';
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
-    import { createBridge, createPowerLines, createHouses, windowTextures } from './engine/structures.js';
+    import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from './engine/structures.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
     import { createLife } from './realsite/life.js';
@@ -174,7 +174,10 @@
     const houseWin = windowTextures({ cols: 2, rows: 2, lit: 0.55, rnd });
     const houseWall = toon({ color: '#ffffff', map: houseWin.map, emissive: 0xffd890, emissiveMap: houseWin.emissiveMap, emissiveIntensity: 0 });
     const NIGHT_LIGHTS = [houseWall];
+    // 線路（高架橋・道床。realsite/life.js が作る）の帯には家を置かない
+    const railAvoid = railCorridor(data.landmarks.railways, 16);
     const houses = createHouses({
+      avoid: railAvoid,
       // 歩ける近景の範囲には置かない
       isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
       heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,

@@ -171,6 +171,91 @@ export function createBridge({ path, kind, deckY, width, heightAt, isWater, mate
 }
 
 // ---------------------------------------------------------------------------
+// 線路（橋の外）：電車の走る道の高架橋と地上の道床
+//   route は scene.json の landmarks.railways の 1 本（8 m おきの点 path と、レールの面の高さ y）。
+//   地面より 1.2 m 以上高い所は高架橋（床・壁高欄・桁・24 m おきの橋脚）、低い所は道床（砂利の盛り土）。
+//   場面の橋の形がある所（deck）とトンネルは作らない。地面は heightAt（描く地面）に合わせる。
+// ---------------------------------------------------------------------------
+export function railTrackHeight(route, heightAt, i) {
+  const [x, z] = route.path[i];
+  return Math.max(route.y[i], heightAt(x, z) + 0.6);
+}
+/** 線路の帯（線路の中心から half m 以内）にあるか。家を置かない所に使う */
+export function railCorridor(railways, half = 14) {
+  const cell = 16, grid = new Map();
+  for (const r of railways ?? []) for (const [x, z] of r.path) {
+    const k = Math.floor(x / cell) + ',' + Math.floor(z / cell);
+    (grid.get(k) ?? grid.set(k, []).get(k)).push(x, z);
+  }
+  const reach = Math.ceil(half / cell);
+  return (x, z) => {
+    const i = Math.floor(x / cell), j = Math.floor(z / cell);
+    for (let a = -reach; a <= reach; a++) for (let b = -reach; b <= reach; b++) {
+      const P = grid.get((i + a) + ',' + (j + b));
+      if (!P) continue;
+      for (let k = 0; k < P.length; k += 2) if (Math.hypot(P[k] - x, P[k + 1] - z) < half) return true;
+    }
+    return false;
+  };
+}
+export function createRailway({ route, heightAt, materials, width = 8, pierEvery = 24 }) {
+  const deck = new GeoBuilder(), concrete = new GeoBuilder(), bed = new GeoBuilder();
+  const P = route.path, n = P.length;
+  const s = [0];
+  for (let i = 1; i < n; i++) s.push(s[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const inRanges = (v, list) => list.some(([a, b]) => v >= a - 0.1 && v <= b + 0.1);
+  const y = P.map((_, i) => railTrackHeight(route, heightAt, i));
+  // 傾いた箱：a から b へ、上の面の高さ ya → yb
+  const slab = (B, a, b, ya, yb, thick, w, off = 0) => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 0.01) return;
+    const ux = (b[0] - a[0]) / len, uz = (b[1] - a[1]) / len;
+    const yaw = Math.atan2(-uz, ux), pitch = Math.atan2(yb - ya, len);
+    const g = new THREE.BoxGeometry(len + 0.05, thick, w);
+    const c = V((a[0] + b[0]) / 2 + uz * off, (ya + yb) / 2 - thick / 2, (a[1] + b[1]) / 2 - ux * off);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, yaw, pitch)).setPosition(c));
+    B.parts.push(g);
+  };
+  let nextPier = 0, viaductLen = 0, bedLen = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const sm = (s[i] + s[i + 1]) / 2;
+    if (inRanges(sm, route.hidden ?? [])) continue;
+    if (inRanges(sm, route.decks ?? [])) continue;
+    const a = P[i], b = P[i + 1];
+    const g = Math.min(heightAt(a[0], a[1]), heightAt(b[0], b[1]));
+    const ya = y[i], yb = y[i + 1];
+    if (Math.max(ya, yb) - g > 1.2) {
+      // 高架橋：床（レールの面の 0.2 m 下まで）、壁高欄、床の下の桁
+      slab(deck, a, b, ya - 0.2, yb - 0.2, 0.9, width);
+      for (const side of [-1, 1]) slab(deck, a, b, ya + 0.8, yb + 0.8, 1.0, 0.3, (width / 2 - 0.15) * side);
+      slab(concrete, a, b, ya - 1.1, yb - 1.1, 1.6, width * 0.7);
+      viaductLen += s[i + 1] - s[i];
+      if (s[i] >= nextPier) {
+        const top = ya - 2.7, h = top - g + 1.5;
+        if (h > 1.6) {
+          const ux = b[0] - a[0], uz = b[1] - a[1];
+          concrete.box(V(a[0], g - 1.5 + h / 2, a[1]), 2.0, h, width - 1, Math.atan2(-uz, ux));
+        }
+        nextPier = s[i] + pierEvery;
+      }
+    } else {
+      // 道床：レールの面から地面の 0.3 m 下まで
+      const top = (ya + yb) / 2;
+      slab(bed, a, b, ya - 0.15, yb - 0.15, top - 0.15 - g + 0.3, width - 1.5);
+      bedLen += s[i + 1] - s[i];
+    }
+  }
+  const group = new THREE.Group();
+  for (const [B, m] of [[deck, materials.deck], [concrete, materials.concrete], [bed, materials.bed]]) {
+    if (B.empty) continue;
+    const mesh = new THREE.Mesh(B.build(), m);
+    mesh.castShadow = mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return { group, y, s, viaductLen, bedLen };
+}
+
+// ---------------------------------------------------------------------------
 // 送電鉄塔と送電線
 // ---------------------------------------------------------------------------
 /**
@@ -332,7 +417,7 @@ function gableGeometry() {
  * @param {number} [o.thinFrom]    この距離より遠くは間引く（遠くの家は数ドットなので、数を減らして軽くする）。既定は間引かない
  */
 // shape：建物の大きさの幅（m）。既定は家。倉庫・工場は { w: [25, 60], d: [20, 45], h: [8, 14], tall: 0, flat: true } のように
-export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, thinFrom = Infinity, wallColors, roofColors, shape = null }) {
+export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMaterial, rnd, cell = 14, minDist = 60, maxDist = 1500, clearance = 8, thinFrom = Infinity, wallColors, roofColors, shape = null, avoid = null }) {
   const SH = { w: [7, 12], d: [8, 14], h: [5.5, 7.5], tallH: [9, 18], tall: 0.12, flat: false, ...shape };
   const pickR = ([a, b]) => a + rnd() * (b - a);
   const spots = [];
@@ -345,6 +430,7 @@ export function createHouses({ isTown, heightAt, bounds, wallMaterial, roofMater
       // 周りの 4 方向も町なら置く（堤防のきわは空ける）
       const c = clearance;
       if (!isTown(px + c, pz) || !isTown(px - c, pz) || !isTown(px, pz + c) || !isTown(px, pz - c)) continue;
+      if (avoid?.(px, pz)) continue; // 線路の上など
       spots.push([px, pz]);
     }
   }

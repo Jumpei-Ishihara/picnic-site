@@ -23,7 +23,7 @@ cd ~/picnic-site && python3 -m http.server 8790
 | `terrain.js` | 高さの画像から作る地形（近景 1 m＋中景 4 m）。地面の種類からドット絵のテクスチャを焼く。`photoMix` で空中写真の色を混ぜられる（色の表で `photo: true` の種類だけ）。中景も `files.mid.color`（2 m ごとの写真の色）があれば `midPhotoClasses` の種類に混ぜたテクスチャにする | `createHeightTerrain` `loadHeightField` `GROUND_LOOKS` |
 | `trees.js` | 木と木漏れ日（影に葉のすき間）。近くの木は 1 本ずつ揺らし、遠くの木はまとめて描く。`foliage` で木ごとに季節の葉の色（null で冬の枝だけの木） | `createLeafKit` `createForest` |
 | `grass.js` | 風で揺れる草のまとめ描き（芝の房・ススキやオギの株・穂）。ループ周期で揺れる | `createSwayingGrass` |
-| `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き。`thinFrom` より先は遠いほど間引く）、窓の模様と夜の窓明かり、大観覧車（遠くでも消えないよう 1 ドットの線と点でも描く） | `createBridge` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `createFerrisWheel` `GeoBuilder` |
+| `structures.js` | 数値から組み立てる構造物：トラス橋・桁橋・橋脚、送電鉄塔と電線（たるみつき）、家並み（まとめ描き。`thinFrom` より先は遠いほど間引く）、窓の模様と夜の窓明かり、大観覧車（遠くでも消えないよう 1 ドットの線と点でも描く）、橋の外の線路（高架橋・道床）と、家を置かない線路の帯 | `createBridge` `createRailway` `railCorridor` `createPowerLines` `pylonGeometry` `createHouses` `windowTextures` `createFerrisWheel` `GeoBuilder` |
 | `basecamp.js` | 拠点（レジャーシートと持ち物の組）を好きな場所へ移す。地面の傾きに合わせて傾け、水の上・急な坂（1:5 より急）・当たり判定のある所には敷かない。場所は場面ごとに localStorage に覚える。シートを基準にした視点は `fromHome` で読み替える。シートの下の草を隠す `instanceHider`、ボタンと B キーの `bindBaseCampUI` | `createBaseCamp` `instanceHider` `bindBaseCampUI` |
 | `season.js` | 季節（春・夏・秋・冬）：日付、覚えた季節の読み出し（`?season=` か localStorage）、⚙️ のボタン、季節の太陽（色の表の読み替え）、架空の場面の太陽の弧、空の霞、地面・中景の色、樹種（桜・落葉樹・常緑樹）と葉の色、草の房・ヨシ・穂の色、生き物 | `getSeason` `bindSeasonUI` `seasonalSunPath` `dayArc` `SKY` `seasonGroundLooks` `seasonMidLooks` `treeKind` `foliageColors` `lifeSeason` |
 | `backdrop.js` | 遠景の影絵（塔・鉄骨の塔・山・台地・家並み・点ごとに方位と高さを持つ輪郭 `profile`（長い橋））を方位と見かけの大きさを合わせて立てる。時間帯と逆光で色を変える | `createBackdrop` |

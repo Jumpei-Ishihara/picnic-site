@@ -70,16 +70,27 @@ def fetch_osm(refresh):
     print('osm:', len(json.loads(body)['elements']), 'elements')
 
 
+def fetch_rail(refresh):
+    """線路（電車の道と高さ）：場面の範囲の鉄道の線すべて（橋・高架・築堤・地上・トンネルのタグつき）"""
+    b = SITE['bbox']
+    q = f'[out:json][timeout:120];way({b["s"]},{b["w"]},{b["n"]},{b["e"]})["railway"~"^(rail|subway|light_rail)$"];out tags geom;'
+    body = fetch(OVERPASS, cache_path('osm_rail.json'), data=urllib.parse.urlencode({'data': q}).encode(), refresh=refresh)
+    import json
+    print('rail:', len(json.loads(body)['elements']), 'ways')
+
+
 def main(argv):
     refresh = '--refresh' in argv
     if '--site' in argv:  # --site 名前 は geo_common が読む
         i = argv.index('--site')
         argv = argv[:i] + argv[i + 2:]
-    what = [a for a in argv if not a.startswith('-')] or ['dem', 'osm', 'photo']
+    what = [a for a in argv if not a.startswith('-')] or ['dem', 'osm', 'rail', 'photo']
     if 'dem' in what:
         fetch_tiles('dem5a_png', DEM_Z, SITE['bbox'], 'png', refresh)
     if 'osm' in what:
         fetch_osm(refresh)
+    if 'rail' in what:
+        fetch_rail(refresh)
     if 'photo' in what:
         fetch_tiles('seamlessphoto', PHOTO_Z, SITE['photoBbox'], 'jpg', refresh)
 

@@ -16,6 +16,7 @@ os.environ['GEO_SITE'] = 'myoden'
 from PIL import Image
 
 import build_scene as B
+import rails
 import build_nagisa as N
 from geo_common import (CACHE, OUT, SITE, SITE_NAME, bearing_dist, ll2local, load_json, local_from_bearing, save_json, tp2y)
 
@@ -294,6 +295,8 @@ def main():
     cls = N.build_ground(dem, photo, wet)
     log('landmarks ...')
     lm = landmarks(osm, dem, photo)
+    # 電車の走る線路（橋から OSM の本線をたどった道と高さ。cache/<場面>/osm_rail.json）
+    lm['railways'] = rails.rail_routes(lm['bridges'], load_json(os.path.join(CACHE, 'osm_rail.json'))['elements'], dem, rails.TRAIN_IDS, log=log)
     nw, nh = NEAR['w'], NEAR['h']
     ax, az = local_from_bearing(325.0 + 90, 1.0)       # 川を横切る向き（北東へ）
     tp_at = lambda x, z: near[(min(max(round(z), NEAR['z0']), NEAR['z0'] + nh - 1) - NEAR['z0']) * nw + (min(max(round(x), NEAR['x0']), NEAR['x0'] + nw - 1) - NEAR['x0'])]

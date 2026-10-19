@@ -20,6 +20,7 @@ if '--site' not in sys.argv:
 from PIL import Image
 
 import build_scene as B
+import rails
 from geo_common import (CACHE, OUT, SITE, SITE_NAME, bearing_dist, ll2local, load_json, save_json, tp2y)
 
 
@@ -460,6 +461,8 @@ def main():
     cls = build_ground(dem, photo, wet)
     log('landmarks ...')
     lm = landmarks(osm, dem, photo)
+    # 電車の走る線路（橋から OSM の本線をたどった道と高さ。cache/<場面>/osm_rail.json）
+    lm['railways'] = rails.rail_routes(lm['bridges'], load_json(os.path.join(CACHE, 'osm_rail.json'))['elements'], dem, rails.TRAIN_IDS, log=log)
     nw, nh = NEAR['w'], NEAR['h']
     # 建物の下は舗装に（空中写真では屋根が土や芝に見える）。木も建物の上には生やさない
     for b in lm['nearBuildings']:

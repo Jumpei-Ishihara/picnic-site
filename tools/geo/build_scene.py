@@ -18,6 +18,7 @@ from collections import deque
 
 from PIL import Image
 
+import rails
 from geo_common import (CACHE, OUT, SITE, bearing_dist, ll2local, ll2tile, load_json,
                         local2ll, local_from_bearing, save_json, tp2y)
 
@@ -869,6 +870,8 @@ def main():
 
     log('landmarks ...')
     lm = landmarks(osm, rows, dem)
+    # 電車の走る線路（橋から OSM の本線をたどった道と高さ。cache/<場面>/osm_rail.json）
+    lm['railways'] = rails.rail_routes(lm['bridges'], load_json(os.path.join(CACHE, 'osm_rail.json'))['elements'], dem, rails.TRAIN_IDS, log=log)
     west, east = shorelines(dem)
     # 木：護岸より陸側のものだけ（水面の暗い波を木と間違えないように）
     by_z = {r['z']: r for r in rows}

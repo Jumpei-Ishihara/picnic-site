@@ -80,7 +80,7 @@
     import { getSeason, seasonalSunPath, SKY, seasonGroundLooks, seasonMidLooks, treeKind, treeHash, foliageColors, lifeSeason, bindSeasonUI, dateText, FAUNA } from './engine/season.js';
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
-    import { createBridge, createPowerLines, createHouses, windowTextures } from './engine/structures.js';
+    import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from './engine/structures.js';
     import { createLeafKit, createForest } from './engine/trees.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './realsite/picnic-set.js';
@@ -291,7 +291,10 @@
       for (const p of data.water.river) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = p; } }
       return best && (x - best[0]) * ACX + (z - best[1]) * ACZ > 0;
     };
+    // 線路（高架橋・道床。realsite/life.js が作る）の帯には家を置かない
+    const railAvoid = railCorridor(data.landmarks.railways, 16);
     const houses = createHouses({
+      avoid: railAvoid,
       // 歩ける近景の範囲には置かない。対岸（工場と倉庫の低い町並み）は下の倉庫だけ
       // 堤防の町側 250 m（東西線の車両基地が堤防に沿って続く）にも家を置かない：堤防の上から家はほとんど見えない（360° 写真）
       isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !farSide(x, z) && !(x * ACX + z * ACZ > -250 && Math.abs(x * ACZ - z * ACX) < 900) && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
@@ -304,6 +307,7 @@
     // 工場・倉庫の地区（対岸の原木・高谷・二俣、河口の塩浜）：大きな平屋根の箱
     // 写真の対岸は、低い白い倉庫・工場が横に長く並ぶ平らな町並み（ごちゃつかせない）
     const factories = createHouses({
+      avoid: railAvoid,
       isTown: (x, z) => (terrain.midClassAt(x, z) === 'industrial' || (terrain.midClassAt(x, z) === 'town' && farSide(x, z))),
       heightAt: terrain.heightAt, bounds: MB, rnd, cell: 90, clearance: 30,
       wallMaterial: houseWall, roofMaterial: toon({ color: '#ffffff' }), minDist: 400, maxDist: 2800, thinFrom: 1000,
@@ -404,7 +408,7 @@
     pixel.hideInNormalPass.add(picnicSet.steam.points);
     const riverNear = data.water.river.reduce((a, b) => Math.abs(b[1] - S.z) < Math.abs(a[1] - S.z) ? b : a);
     const life = createLife({ season: lifeSeason(SEASON),
-      scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false, trainExtra: 400,
+      scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH, reeds: false,
       carBridges: ['myoden-bridge', 'route-357', 'wangan-expressway', 'gyotoku-bypass'], boatPath: data.water.river,
       gulls: { x: riverNear[0], z: riverNear[1], r: 140 }
     });

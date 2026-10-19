@@ -3,6 +3,7 @@
 //   繰り返さないもの（交通）：鉄橋を渡る電車、市川橋の車、川を行く小さな船。traffic.enabled で止められる（ループ動画の書き出し用）
 import * as THREE from 'three';
 import { createSwayingGrass } from '../engine/grass.js';
+import { createRailway } from '../engine/structures.js';
 
 // 位置から決まる乱数とまだら模様（草の群れの濃い・薄いに使う）
 function hash2(i, j) {
@@ -17,8 +18,9 @@ function noise(x, z) {
   return (a + (b - a) * sx) * (1 - sz) + (c + (d - c) * sx) * sz;
 }
 
-// 折れ線（[x, z] の並び）を、端の向きのまま ext m ずつ延ばして、長さに沿った位置を引けるようにする
-function track(path, ext = 0) {
+// 折れ線（[x, z] の並び）を、端の向きのまま ext m ずつ延ばして、長さに沿った位置を引けるようにする。
+// ys（点ごとの高さ）を渡すと out.y・out.dy（1 m あたりの上り）も返す
+function track(path, ext = 0, ys = null) {
   const p = path.map(([x, z]) => new THREE.Vector2(x, z));
   if (ext > 0) {
     const a = p[0].clone().sub(p[1]).normalize(), b = p[p.length - 1].clone().sub(p[p.length - 2]).normalize();
@@ -37,6 +39,10 @@ function track(path, ext = 0) {
       const t = (s - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
       out.x = p[i - 1].x + (p[i].x - p[i - 1].x) * t;
       out.z = p[i - 1].y + (p[i].y - p[i - 1].y) * t;
+      if (ys) {
+        out.y = ys[i - 1] + (ys[i] - ys[i - 1]) * t;
+        out.dy = (ys[i] - ys[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
+      }
       const d = p[i].clone().sub(p[i - 1]).normalize();
       out.dx = d.x; out.dz = d.y;
       return out;
@@ -58,8 +64,8 @@ function track(path, ext = 0) {
  * @param {{x:number, z:number, r:number}} [o.gulls]  カモメ（ユリカモメ）を飛ばす水の上の範囲
  * @param {boolean} [o.reeds]    水際のススキ・オギ（江戸川の断面データがあるとき）
  */
-export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, light = false, ext = 500,
-  carBridges = ['ichikawa-bridge'], boatPath = null, gulls = null, reeds: withReeds = !!data.section, trainExtra = 200, season = null }) {
+export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, light = false,
+  carBridges = ['ichikawa-bridge'], boatPath = null, gulls = null, reeds: withReeds = !!data.section, season = null }) {
   // 季節（engine/season.js）：草の房・ヨシの色、穂（春・夏は無い）、赤とんぼ（秋だけ）、カモメの数（冬に多い）
   const SZ = season ?? { colors: {}, fauna: { dragonflies: true, gulls: 1 } };
   const W0 = Math.PI * 2 / loop;
@@ -220,10 +226,23 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   };
   const bodyMat = toon({ color: '#c9ccd1' }), winMat = toon({ color: '#2a2f3a', emissive: 0xfff0c8, emissiveIntensity: 0 });
   winMat.userData.lampMax = 1.4;
-  for (const b of data.landmarks.bridges) {
-    const look = TRAIN_LOOKS[b.id];
+  // 線路：scene.json の railways（橋から OSM の本線をたどった道と高さ。tools/geo/rails.py）。
+  // 橋の外は高架橋か地上の道床を作り、電車はその上（レールの面 + 0.4 m）を走る。トンネルの中は見せない
+  const railMats = { deck: toon({ color: '#9a9892' }), concrete: toon({ color: '#b9b4a8' }), bed: toon({ color: '#7a746a' }) };
+  traffic.railways = [];
+  for (const route of data.landmarks.railways ?? []) {
+    const look = TRAIN_LOOKS[route.id];
     if (!look) continue;
-    const tr = track(b.path, ext);
+    const rw = createRailway({ route, heightAt: terrain.heightAt, materials: railMats });
+    rw.group.name = 'railway-' + route.id;
+    scene.add(rw.group);
+    traffic.railways.push(rw);
+    const tr = track(route.path, 0, rw.y);
+    // 1 編成で回すので、走る区間は every 秒で行って帰れる長さまで（原点にいちばん近い所を中心に）
+    const span = Math.min(tr.L, look.every * look.v - look.cars * look.len - 40);
+    let c = 0, best = Infinity;
+    route.path.forEach(([x, z], i) => { const d = Math.hypot(x, z); if (d < best) { best = d; c = rw.s[i]; } });
+    const s0 = Math.min(Math.max(0, c - span / 2), tr.L - span);
     const bandMat = toon({ color: look.band }), band2Mat = look.band2 ? toon({ color: look.band2 }) : null;
     const topMat = look.top ? toon({ color: look.top }) : bodyMat;
     for (const dir of [1, -1]) {
@@ -241,7 +260,7 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
         scene.add(g);
         cars.push(g);
       }
-      traffic.trains.push({ id: b.id, dir, cars, tr, look, deckY: b.deckY, offset: dir > 0 ? rnd() * look.every : look.every * 0.5 + rnd() * 30, side: dir * 1.8 });
+      traffic.trains.push({ id: route.id, dir, cars, tr, s0, span, hidden: route.hidden ?? [], look, offset: dir > 0 ? rnd() * look.every : look.every * 0.5 + rnd() * 30, side: dir * 1.8 });
     }
   }
   counts.trains = traffic.trains.length;
@@ -294,10 +313,12 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
   // ==========================================================================
   const tmp = {}, up = new THREE.Vector3(0, 1, 0);
   const dfPos = dfGeo.attributes.position;
+  // y を省くと線路の高さ（レールの面 + 0.4 m）。坂では車体も傾ける
   function placeOnTrack(obj, tr, s, y, side) {
     tr.at(s, tmp);
-    obj.position.set(tmp.x + tmp.dz * side, y, tmp.z - tmp.dx * side);
-    obj.rotation.y = Math.atan2(-tmp.dz, tmp.dx);
+    const onRail = y == null;
+    obj.position.set(tmp.x + tmp.dz * side, onRail ? tmp.y + 0.4 : y, tmp.z - tmp.dx * side);
+    obj.rotation.set(0, Math.atan2(-tmp.dz, tmp.dx), onRail ? Math.atan(tmp.dy) : 0);
   }
   return {
     counts, traffic, kites, gulls: gullBirds, dragonflies, tufts, reeds, plumes, grassTime, nightLights,
@@ -338,13 +359,12 @@ export function createLife({ scene, toon, data, terrain, pixel, rnd, loop = 6, l
         // 時刻表：every 秒ごとに 1 本。入ってから出るまで (L + 編成長) / v 秒
         const ph = ((clock + T.offset) % T.look.every + T.look.every) % T.look.every;
         const head = ph * T.look.v;
-        const run = on && head < T.tr.L + total;
+        const run = on && head < T.span + total;
         T.cars.forEach((g, k) => {
           const sAlong = head - k * T.look.len - T.look.len / 2;
-          const s = T.dir > 0 ? sAlong : T.tr.L - sAlong;
-          // 延ばした線路（高架や築堤は作っていない）の遠くでは見せない：橋の両端から 200 m まで
-          g.visible = run && sAlong > ext - trainExtra && sAlong < T.tr.L - ext + trainExtra;
-          if (g.visible) placeOnTrack(g, T.tr, s, T.deckY + 0.4, T.side);
+          const s = T.s0 + (T.dir > 0 ? sAlong : T.span - sAlong);
+          g.visible = run && sAlong > 0 && sAlong < T.span && !T.hidden.some(([a, b]) => s > a && s < b);
+          if (g.visible) placeOnTrack(g, T.tr, s, null, T.side);
         });
       }
       for (const C of traffic.carSets) {
