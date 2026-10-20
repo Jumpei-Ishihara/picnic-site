@@ -74,7 +74,7 @@ function foliageMassMaterial() {
  * @param {object} [o.bridgeColors]   橋の id → 塗装の色
  * @param {(pbr:Function) => THREE.Material} [o.towerMaterial]  送電鉄塔の素材（紅白の鉄塔など）
  * @param {object} [o.houses]         家並みの createHouses への上書き（maxDist・thinFrom など）と isTownExtra(x, z)
- * @param {object[]} [o.extraHouses]  ほかの家並み（工場・倉庫の地区など）の createHouses の設定。wallMaterial・roofMaterial は省略できる
+ * @param {object[]|Function} [o.extraHouses]  ほかの家並み（工場・倉庫の地区など）の createHouses の設定（({ terrain }) => [...] でもよい）。wallMaterial・roofMaterial は省略できる
  * @param {(b:object, mats:object) => THREE.Material[]} [o.buildingMaterials]  高い建物ごとの [屋根, 壁]
  * @param {object[]} [o.backdropExtra] 遠景の影絵に足すもの
  * @param {number} [o.houseMax]       家並みを置く最も遠い距離（m）
@@ -124,7 +124,7 @@ export function createRealStructures({ scene, data, terrain, level, collider, se
     ...houseRest
   });
   group.add(houses.group);
-  for (const h of extraHouses) {
+  for (const h of (typeof extraHouses === 'function' ? extraHouses({ terrain }) : extraHouses)) {
     const more = createHouses({ avoid: railCorridor(L.railways ?? [], 16), heightAt: terrain.heightAt, bounds: MB, rnd, wallMaterial: houseWall, roofMaterial: pbr({ roughness: 0.8 }), ...h });
     group.add(more.group);
   }

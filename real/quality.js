@@ -1,9 +1,9 @@
 // 写実版の画質の段階（高・中・低）。?quality= か覚えた値、なければ端末から選ぶ
 //   描く解像度・影・地形の細かさ・地面の素材の大きさ・水の反射（0 で空の色だけ）・木の葉の数・草の段
 export const QUALITY = {
-  high:   { key: 'high',   label: '高', pixelRatio: 2,    shadowSize: 2048, shadowExtent: 70, nearStep: 0.25, texSize: 1024, reflScale: 0.5,  leafScale: 1,    treeNear: 110, grass: { rings: [{ tile: 2, perM2: 500, to: 12, width: 1 }, { tile: 4, perM2: 120, to: 30, width: 1.7 }, { tile: 8, perM2: 14, to: 80, width: 2.8 }] } },
-  medium: { key: 'medium', label: '中', pixelRatio: 1.5,  shadowSize: 1024, shadowExtent: 60, nearStep: 0.5,  texSize: 1024, reflScale: 0.35, leafScale: 0.75, treeNear: 80,  grass: { rings: [{ tile: 2, perM2: 250, to: 10, width: 1.2 }, { tile: 4, perM2: 60, to: 25, width: 2 }, { tile: 8, perM2: 8, to: 50, width: 3 }] } },
-  low:    { key: 'low',    label: '低', pixelRatio: 1,    shadowSize: 1024, shadowExtent: 45, nearStep: 1,    texSize: 512,  reflScale: 0,    leafScale: 0.45, treeNear: 55,  grass: { rings: [{ tile: 2, perM2: 120, to: 8, width: 1.5 }, { tile: 4, perM2: 25, to: 20, width: 2.5 }] } }
+  high:   { key: 'high',   label: '高', pixelRatio: 2,    shadowSize: 2048, shadowExtent: 70, nearStep: 0.25, texSize: 1024, reflScale: 0.5,  leafScale: 0.85, treeNear: 110, treeMax: 35, grass: { rings: [{ tile: 2, perM2: 500, to: 12, width: 1 }, { tile: 4, perM2: 120, to: 30, width: 1.7 }, { tile: 8, perM2: 14, to: 80, width: 2.8 }] } },
+  medium: { key: 'medium', label: '中', pixelRatio: 1.5,  shadowSize: 1024, shadowExtent: 60, nearStep: 0.5,  texSize: 1024, reflScale: 0.35, leafScale: 0.75, treeNear: 80,  treeMax: 22, grass: { rings: [{ tile: 2, perM2: 250, to: 10, width: 1.2 }, { tile: 4, perM2: 60, to: 25, width: 2 }, { tile: 8, perM2: 8, to: 50, width: 3 }] } },
+  low:    { key: 'low',    label: '低', pixelRatio: 1,    shadowSize: 1024, shadowExtent: 45, nearStep: 1,    texSize: 512,  reflScale: 0,    leafScale: 0.45, treeNear: 55,  treeMax: 12, grass: { rings: [{ tile: 2, perM2: 120, to: 8, width: 1.5 }, { tile: 4, perM2: 25, to: 20, width: 2.5 }] } }
 };
 const STORAGE_KEY = 'picnic-site:real-quality';
 

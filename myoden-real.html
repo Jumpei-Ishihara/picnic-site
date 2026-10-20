@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>妙典の岸のピクニック（写実版・試作）</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    #view { image-rendering: auto; }
+    #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    #start small a, #credit a { color: var(--accent); }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font-size: 14px; background: #1b1a33; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="loading">妙典の岸を読み込み中…</div>
+
+  <div id="hud-tl" class="box chip fade"><div id="loc">📍 江戸川 妙典の岸（写実版・試作）</div></div>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く ・ 1〜5: 視点 ・ B: シートをここに敷く ・ Esc: メニューを閉じる</div>
+  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box dock fade">
+    <button id="v-lunch" title="拠点に戻る：シートに座って、江戸川の下流を眺める。時刻はそのまま（1）" aria-label="拠点に戻る">🧺</button>
+    <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
+    <button id="v-photo" title="堤防の上：自転車・歩行者道から下流を見る（Google マップの 360° 写真と同じ場所・向き）（3）" aria-label="堤防の上">🚲</button>
+    <button id="v-sunset" title="夕日：堤防の上から、妙典の町の向こうに沈む夕日を見る（4）" aria-label="夕日">🌇</button>
+    <button id="v-bridge" title="アーチの水管橋：堤防の川側の斜面から、3 つのアーチの水管橋と奥の東西線の鉄橋を見る（5）" aria-label="アーチの水管橋">🌉</button>
+    <button id="o-more" title="時刻・表示の設定" aria-label="設定">⚙️</button>
+  </div>
+
+  <div id="menu" class="box hidden">
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
+    <div class="row" id="quality-row"><span>画質</span></div>
+    <div class="row"><span>表示</span><button id="o-help">❔ 操作説明</button><button id="o-pixel" title="同じ場所のドット絵版を開く">🎮 ドット絵版へ</button></div>
+    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
+    <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類：国土地理院 シームレス空中写真をもとに作成（地面の色は加工して作成） ／ 地図データ：© OpenStreetMap contributors<br>地面の素材：ambientCG（CC0）／ 木：ez-tree（MIT、Daniel Greenheck）</div>
+  </div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🚲 妙典の岸のピクニック（写実版・試作）</h1>
+      <p>市川市 妙典の江戸川の岸を、写実的な 3DCG で。行徳可動堰より下流の、もとの江戸川放水路の南西の岸です。堤防の上の自転車道から下流の妙典橋を眺め、川側の芝でお昼を食べて、3 つのアーチの水管橋と東西線の鉄橋を見上げます。夕日は妙典の町の向こうに沈みます。</p>
+      <p>地形・川・橋・水管橋・送電線は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。🚲 の視点は Google マップの 360° 写真（2025 年 6 月）と同じ場所・向きです。太陽は 2026年10月18日の位置です。</p>
+      <div class="btns">
+        <button id="s-lunch">🍲 シートに座る</button>
+        <button id="s-sunset" class="sub">🌇 夕日を見る</button>
+        <button id="s-walk" class="sub">🚶 自由に歩く</button>
+      </div>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜5 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="myoden.html">ドット絵版はこちら</a></small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { startRealScene } from './real/app.js';
+    import { createArchPipeBridge, stripeMaterial, createRailYard, createBoats } from './realsite/myoden-structures.js';
+
+    const data0 = await (await fetch('scenes/myoden/scene.json', { cache: 'no-cache' })).json();
+    // 川の向こう側か（川の中ほどの線から、川を横切る向き（北東）に）
+    const ACR = data0.levee.across * Math.PI / 180, ACX = Math.sin(ACR), ACZ = -Math.cos(ACR);
+    const farSide = (x, z) => {
+      let best = null, bd = Infinity;
+      for (const p of data0.water.river) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = p; } }
+      return best && (x - best[0]) * ACX + (z - best[1]) * ACZ > 0;
+    };
+    // 位置・法線だけの箱をまとめて 1 つの形に
+    function mergeBoxes(geos) {
+      let n = 0; for (const g of geos) n += g.attributes.position.count;
+      const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+      for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      return geo;
+    }
+
+    startRealScene({
+      id: 'myoden', base: 'scenes/myoden/', label: '江戸川 妙典の岸', pixelPage: 'myoden.html',
+      viewKeys: ['lunch', 'nap', 'photo', 'sunset', 'bridge'],
+      nearStepScale: 2, // 近景が 361 × 451 m と広いので、格子を 2 倍に（高で 50 cm）
+      treeKinds: { cherry: 0.3, evergreen: 0.35 },
+      structures: {
+        bridgeColors: {
+          'tozai-line': '#c4c8cc', 'myoden-bridge': '#d6d2ca', 'route-357': '#a9a9a2', 'wangan-expressway': '#9aa4ae', 'jr-keiyo': '#b8b4a8',
+          'higashi-kanto-expressway': '#a4a8ac', 'gaikan-expressway': '#a4a8ac', 'gyotoku-bypass': '#a9a9a2', 'pipe-bridge': '#c4d0d8'
+        },
+        towerMaterial: pbr => stripeMaterial(pbr, { band: 6, from: -10 }),
+        // 対岸（工場と倉庫の低い町並み）と、堤防の町側 250 m（東西線の車両基地が続く）には家を置かない（360° 写真）
+        houses: { maxDist: 2400, thinFrom: 500, isTownExtra: (x, z) => !farSide(x, z) && !(x * ACX + z * ACZ > -250 && Math.abs(x * ACZ - z * ACX) < 900) },
+        // 工場・倉庫の地区（対岸の原木・高谷・二俣、河口の塩浜）：大きな平屋根の箱
+        extraHouses: ({ terrain }) => [{
+          isTown: (x, z) => terrain.midClassAt(x, z) === 'industrial' || (terrain.midClassAt(x, z) === 'town' && farSide(x, z)),
+          cell: 90, clearance: 30, minDist: 400, maxDist: 2800, thinFrom: 1000,
+          shape: { w: [50, 110], d: [25, 50], h: [5, 9], tall: 0.03, tallH: [12, 18], flat: true },
+          wallColors: ['#e6e6e2', '#dcdedc', '#eeece6', '#d2d6d8'], roofColors: ['#c8ccce', '#d4d4d0']
+        }],
+        // 川の向こう側の高い建物は倉庫・工場（窓のない白い箱）
+        buildingMaterials: (b, m) => farSide(b.x, b.z) ? [m.roof, m.plain] : [m.roof, m.wall]
+      },
+      build({ scene, data, terrain, level, pbr, rnd, NB, MB, structures }) {
+        const toon = pbr, H = terrain.heightAt;
+        const add = o => { o.traverse?.(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); scene.add(o); return o; };
+        // 水管橋：妙典の岸の側は白いトラス、川の上に 3 つのアーチ、床に太い水道管 2 本
+        const PB = data.landmarks.specials?.pipeBridge;
+        if (PB) add(createArchPipeBridge({ toon, spec: PB, heightAt: H, level }).group);
+        // 東西線の車両基地と、川につないである小舟
+        add(createRailYard({ toon, yard: data.landmarks.railYard, heightAt: H, rnd, near: (x, z) => Math.hypot(x, z) < 650 }).group);
+        add(createBoats({ toon, boats: data.landmarks.boats, level, rnd }).group);
+        // 貸しボート屋（遊船）：小屋と、川の中ほどへ向けた 30 m の桟橋
+        {
+          const wall = toon({ color: '#e8e6e0' }), roofM = toon({ color: '#5a7a9a' }), deck = toon({ color: '#8a7a64' });
+          for (const h of data.landmarks.boathouses ?? []) {
+            const c = data.water.river.reduce((a, p) => Math.hypot(p[0] - h.x, p[1] - h.z) < Math.hypot(a[0] - h.x, a[1] - h.z) ? p : a);
+            const d = Math.hypot(c[0] - h.x, c[1] - h.z), ux = (c[0] - h.x) / d, uz = (c[1] - h.z) / d, yaw = Math.atan2(-uz, ux);
+            const y = Math.max(h.groundY, level + 0.3);
+            const house = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 4.5).translate(0, 1.6, 0), wall);
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.4, 5.1).translate(0, 3.4, 0), roofM);
+            for (const m of [house, roof]) { m.position.set(h.x, y, h.z); m.rotation.y = yaw; add(m); }
+            const pier = new THREE.Mesh(new THREE.BoxGeometry(30, 0.3, 2).translate(18, 0, 0), deck);
+            pier.position.set(h.x, level + 0.8, h.z); pier.rotation.y = yaw; add(pier);
+          }
+        }
+        // 妙典橋の街灯（両側に 30 m おき、高さ 8 m は推定）
+        {
+          const MB_ = data.landmarks.bridges.find(b => b.id === 'myoden-bridge');
+          if (MB_) {
+            const geos = [], P = MB_.path;
+            let carry = 0;
+            for (let k = 0; k < P.length - 1; k++) {
+              const [ax, az] = P[k], [bx, bz] = P[k + 1], len = Math.hypot(bx - ax, bz - az);
+              const nx = -(bz - az) / len, nz = (bx - ax) / len;
+              for (let s = carry; s < len; s += 30) for (const off of [-MB_.width / 2 + 0.5, MB_.width / 2 - 0.5]) {
+                const x = ax + (bx - ax) * s / len + nx * off, z = az + (bz - az) * s / len + nz * off;
+                geos.push(new THREE.BoxGeometry(0.2, 8, 0.2).translate(x, MB_.deckY + 4, z).toNonIndexed());
+                geos.push(new THREE.BoxGeometry(0.5, 0.25, 0.5).translate(x - nx * Math.sign(off) * 0.4, MB_.deckY + 8, z - nz * Math.sign(off) * 0.4).toNonIndexed());
+              }
+              carry = (carry - len) % 30; if (carry < 0) carry += 30;
+            }
+            add(new THREE.Mesh(mergeBoxes(geos), toon({ color: '#c8c8c4', roughness: 0.5, metalness: 0.4 })));
+          }
+        }
+        // 水際の平らな芝のベンチ 3 つ（川を向く）
+        {
+          const acr = data.levee.across * Math.PI / 180, ax = Math.sin(acr), az = -Math.cos(acr);
+          const upr = (data.levee.across - 90) * Math.PI / 180, ux = Math.sin(upr), uz = -Math.cos(upr);
+          let t = 10;
+          while (t < 120 && H(ax * t, az * t) + data.frame.origin.tp > 3.4) t += 1;
+          const wood = toon({ color: '#8a6a48' }), leg = toon({ color: '#6a6c70', roughness: 0.5, metalness: 0.5 });
+          for (const u of [18, 27, 36]) {
+            const x = ax * (t - 4) + ux * u, z = az * (t - 4) + uz * u, y = H(x, z);
+            const g = new THREE.Group();
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.42), wood); seat.position.y = 0.42;
+            const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.32, 0.05), wood); back.position.set(0, 0.68, 0.2); back.rotation.x = -0.15;
+            g.add(seat, back);
+            for (const sx of [-0.75, 0.75]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.42), leg); l.position.set(sx, 0.21, 0); g.add(l); }
+            g.position.set(x, y, z);
+            g.rotation.y = Math.atan2(-ax, -az);
+            add(g);
+          }
+        }
+        // 堤防の上の道：アスファルトの両側に白いコンクリートの縁石
+        {
+          const geos = [];
+          for (const line of data.landmarks.leveePaths ?? []) for (let k = 0; k < line.length - 1; k++) {
+            const [ax, az] = line[k], [bx, bz] = line[k + 1], len = Math.hypot(bx - ax, bz - az);
+            if (len < 0.5) continue;
+            const ux = (bx - ax) / len, uz = (bz - az) / len, nx = -uz, nz = ux;
+            for (let s = 0; s < len; s += 2) {
+              const l = Math.min(2, len - s);
+              for (const side of [-2.1, 2.1]) {
+                const cx = ax + ux * (s + l / 2) + nx * side, cz = az + uz * (s + l / 2) + nz * side;
+                if (cx < NB.x0 || cx > NB.x1 || cz < NB.z0 || cz > NB.z1) continue;
+                if (terrain.groundAt(cx + nx * Math.sign(side) * 0.8, cz + nz * Math.sign(side) * 0.8) === 'road') continue;
+                geos.push(new THREE.BoxGeometry(l, 0.12, 0.2).rotateY(Math.atan2(-uz, ux)).translate(cx, H(cx, cz) + 0.06, cz).toNonIndexed());
+              }
+            }
+          }
+          if (geos.length) add(new THREE.Mesh(mergeBoxes(geos), toon({ color: '#d8d6d0', roughness: 0.9 })));
+        }
+        // 市川市クリーンセンター：白い煙突（高さ 100 m）と白い四角い工場（大きさは推定）
+        const CH = data.landmarks.specials?.chimney;
+        if (CH) {
+          const white = toon({ color: '#ecebe6' }), cap = toon({ color: '#7a7a78' });
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(CH.radius * 0.85, CH.radius, CH.height - 3, 24), white);
+          body.position.set(CH.x, CH.groundY + (CH.height - 3) / 2, CH.z);
+          const top = new THREE.Mesh(new THREE.CylinderGeometry(CH.radius * 0.88, CH.radius * 0.85, 3, 24), cap);
+          top.position.set(CH.x, CH.groundY + CH.height - 1.5, CH.z);
+          const plant = new THREE.Mesh(new THREE.BoxGeometry(70, 26, 45).translate(0, 13, 0), white);
+          plant.position.set(CH.x + 40 * ACX - 30 * ACZ, CH.groundY, CH.z + 40 * ACZ + 30 * ACX);
+          plant.rotation.y = -ACR;
+          for (const m of [body, top, plant]) add(m);
+        }
+        // 場所の名前。川を横切る向き（北東）に、原点の断面から川側か町側か
+        const LV = data.levee, pipeEnd = PB ? PB.path[0] : null;
+        return {
+          zoneName(x, z, { distToWater }) {
+            const tp = H(x, z) + data.frame.origin.tp;
+            const side = x * ACX + z * ACZ;
+            if (pipeEnd && Math.hypot(x - pipeEnd[0], z - pipeEnd[1]) < 14) return '水管橋のたもと';
+            const g = terrain.groundAt(x, z);
+            if (tp > LV.crestTP - 1.2 && (g === 'road' || g === 'paved')) return '堤防の上の自転車・歩行者道';
+            if (tp > LV.crestTP - 1.2) return '堤防の上';
+            if (distToWater(x, z) < 10) return '江戸川の水際';
+            if (side > 0) return tp > 3.5 ? '堤防の川側の斜面' : '江戸川の河川敷';
+            return g === 'paved' || g === 'road' ? '妙典の町' : '堤防の町側';
+          }
+        };
+      }
+    });
+  </script>
+</body>
+</html>

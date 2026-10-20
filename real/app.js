@@ -117,7 +117,7 @@ export async function startRealScene(site) {
   const treeKinds = site.treeKinds ?? { cherry: 0.2, evergreen: 0.3 };
   const treeList = data.trees.map(t => ({ x: t.x, z: t.z, r: Math.max(2, t.r), kind: t.kind }));
   treeList.push(...(site.extraTrees?.(data, MB) ?? []));
-  const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, kinds: treeKinds });
+  const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, maxNear: Q.treeMax, kinds: treeKinds });
 
   // ============================================================================
   // 歩く範囲と当たり判定・遠景と構造物・その場面だけの施設

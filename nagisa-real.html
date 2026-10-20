@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>なぎさ公園のピクニック（写実版・試作）</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    #view { image-rendering: auto; }
+    #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    #start small a, #credit a { color: var(--accent); }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font-size: 14px; background: #1b1a33; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="loading">なぎさ公園を読み込み中…</div>
+
+  <div id="hud-tl" class="box chip fade"><div id="loc">📍 なぎさ公園（写実版・試作）</div></div>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く ・ 1〜6: 視点 ・ B: シートをここに敷く ・ Esc: メニューを閉じる</div>
+  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box dock fade">
+    <button id="v-lunch" title="拠点に戻る：シートに座って、旧江戸川と舞浜を眺める。時刻はそのまま（1）" aria-label="拠点に戻る">🧺</button>
+    <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
+    <button id="v-sunset" title="夕日：展望の丘から、大観覧車と富士山のあいだに沈む夕日を見る（3）" aria-label="夕日">🌇</button>
+    <button id="v-river" title="川辺：旧江戸川沿いの遊歩道から、河口の橋と舞浜を見る（4）" aria-label="川辺">🌊</button>
+    <button id="o-more" title="時刻・表示の設定" aria-label="設定">⚙️</button>
+  </div>
+
+  <div id="menu" class="box hidden">
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>寄り道</span><button id="v-cafe" title="魔法の文学館 3 階のカフェ・キキのテラスから、旧江戸川を見渡す（5）">☕ カフェ・キキ</button><button id="v-pony" title="なぎさポニーランド：柵の中を周回するポニーを見る（6）">🐴 ポニーランド</button></div>
+    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
+    <div class="row" id="quality-row"><span>画質</span></div>
+    <div class="row"><span>表示</span><button id="o-help">❔ 操作説明</button><button id="o-pixel" title="同じ場所のドット絵版を開く">🎮 ドット絵版へ</button></div>
+    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
+    <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors<br>地面の素材：ambientCG（CC0）／ 木：ez-tree（MIT、Daniel Greenheck）</div>
+  </div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🌊 なぎさ公園のピクニック（写実版・試作）</h1>
+      <p>江戸川区 南葛西の なぎさ公園を、写実的な 3DCG で。旧江戸川の河口に面した、木の多い公園です。展望の丘の芝生でスープを飲んで、木陰で昼寝をして、夕方は葛西臨海公園の大観覧車と富士山のあいだに沈む夕日を眺めます。魔法の文学館のカフェ・キキや、ポニーが柵の中を周回するポニーランドにも寄り道できます（⚙️ の「寄り道」）。</p>
+      <p>地形・川・橋・建物・観覧車は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
+      <div class="btns">
+        <button id="s-lunch">🍲 シートに座る</button>
+        <button id="s-sunset" class="sub">🌇 夕日を見る</button>
+        <button id="s-walk" class="sub">🚶 自由に歩く</button>
+      </div>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜6 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="nagisa.html">ドット絵版はこちら</a></small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { startRealScene } from './real/app.js';
+    import { createMuseum, createPonyRing, createGoatPen, createQueue, createSeawall, createPlayground, createAzaleas, createPonyLand, createPergola, createPicnicTable, createUtilityPoles, createHedge, createCafeDeck } from './realsite/nagisa-facilities.js';
+    import { stripeMaterial } from './realsite/myoden-structures.js';
+    import { createSurroundings, gateBridgeBackdrop } from './realsite/nagisa-surroundings.js';
+    import { createFerrisWheel } from './engine/structures.js';
+
+    const data0 = await (await fetch('scenes/nagisa/scene.json', { cache: 'no-cache' })).json();
+    const SP = data0.landmarks.specials;
+    // イトーヨーカドーの建物の上には家を置かない
+    const ITO = SP.itoYokado?.footprint;
+    const inIto = (x, z) => { if (!ITO) return false; let r = false; for (let i = 0, j = ITO.length - 1; i < ITO.length; j = i++) { const [xi, zi] = ITO[i], [xj, zj] = ITO[j]; if ((zi > z) !== (zj > z) && x < xi + (z - zi) * (xj - xi) / (zj - zi)) r = !r; } return r; };
+
+    startRealScene({
+      id: 'nagisa', base: 'scenes/nagisa/', label: 'なぎさ公園', pixelPage: 'nagisa.html',
+      viewKeys: ['lunch', 'nap', 'sunset', 'river', 'cafe', 'pony'],
+      nearStepScale: 2, // 近景が 361 × 371 m と広いので、格子を 2 倍に（高で 50 cm）
+      // 樹冠は低い所から枝を広げる傘形（ケヤキ・桜）。イチョウも少し（秋は黄色）
+      treeKinds: { cherry: 0.16, evergreen: 0.3, ginkgo: 0.06 },
+      structures: {
+        bridgeColors: { 'route-357': '#a9a9a2', 'wangan-expressway': '#9aa4ae', 'jr-keiyo': '#b8b4a8', 'tozai-line': '#a0a8b0', 'kasaibashi-dori': '#a9a9a2' },
+        towerMaterial: pbr => stripeMaterial(pbr, { band: 7, from: -10 }), // 紅白の鉄塔（写真：川の向こう・公園の南西）
+        houses: { maxDist: 2400, thinFrom: 500, isTownExtra: (x, z) => !inIto(x, z) },
+        backdropExtra: SP.gateBridge ? [gateBridgeBackdrop(SP.gateBridge, data0.frame.upstreamBearing)] : []
+      },
+      // 公園の施設：魔法の文学館・カフェのデッキ・ポニーランド・ヤギ・遊具・ツツジ山・胸壁・藤棚、まわりの目立つもの、大観覧車
+      build({ scene, data, terrain, collider, pbr, LOOP, tod, NB }) {
+        const FAC = data.facilities, toon = pbr, H = terrain.heightAt;
+        const add = o => { o.traverse?.(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); scene.add(o); return o; };
+        const museum = createMuseum({ toon, museum: FAC.museum, heightAt: H }); add(museum.group);
+        const cafeDeck = createCafeDeck({ toon, deck: FAC.cafeDeck }); add(cafeDeck.group);
+        const PL = FAC.ponyLand, R = FAC.ponyRing, RD = FAC.ponyRide;
+        const gatePos = { x: PL.gate[0], z: PL.gate[1] };
+        const gateA = Math.atan2(gatePos.z - R.z, gatePos.x - R.x);
+        const ring = createPonyRing({ toon, ring: R, heightAt: H, loop: LOOP, gateToward: gatePos, style: 'white' }); add(ring.group);
+        const ride = createPonyRing({ toon, ring: RD, heightAt: H, loop: LOOP, style: 'none' }); add(ride.group);
+        const ponyLand = createPonyLand({ toon, land: PL, heightAt: H, loop: LOOP }); add(ponyLand.group);
+        const goatPen = createGoatPen({ toon, pen: FAC.goatPen, heightAt: H, loop: LOOP }); add(goatPen.group);
+        const queue = createQueue({ toon, at: { x: PL.mountBlock[0] + 3.5, z: PL.mountBlock[1] - 1.5 }, toward: { x: RD.x, z: RD.z }, heightAt: H, loop: LOOP }); add(queue.group);
+        const ridingNow = h => R.hours.some(([a, b]) => h >= a && h < b);
+        // 遊歩道の川側の白いコンクリートの胸壁（高さ 1.4 m）と、内側の刈り込んだ生け垣
+        add(createSeawall({ toon, line: FAC.seawall, heightAt: H, height: 1.4, thick: 0.5, color: '#ecebe6' }).group);
+        const inNear = (x, z) => x > NB.x0 + 1 && x < NB.x1 - 1 && z > NB.z0 + 1 && z < NB.z1 - 1;
+        add(createHedge({ toon, line: FAC.seawall, heightAt: H, offset: 4.6, bounds: inNear }).group);
+        if (FAC.riverRoad?.length > 1) {
+          const RR = FAC.riverRoad, side = RR[RR.length - 1][1] > RR[0][1] ? 1 : -1;
+          add(createUtilityPoles({ toon, line: RR, heightAt: H, every: 35, offset: 4.5 * side, bounds: (x, z) => Math.abs(x) < 1400 && Math.abs(z) < 1400 }).group);
+        }
+        add(createPergola({ toon, at: FAC.hill.pergola, yaw: FAC.hill.pergola.yaw, heightAt: H }).group);
+        for (const [tx, tz, ty] of FAC.hill.tables) add(createPicnicTable({ toon, at: { x: tx, z: tz }, yaw: ty, heightAt: H }).group);
+        const playground = createPlayground({ toon, pg: FAC.playground, heightAt: H, loop: LOOP }); add(playground.group);
+        add(createAzaleas({ toon, clumps: FAC.azaleas.shrubs, heightAt: H }).group);
+        // シンデレラ城・プロメテウス火山、葛西臨海水族園のガラスドーム・クリスタルビュー
+        add(createSurroundings({ toon, specials: SP }).group);
+        // 葛西臨海公園の大観覧車（高さ 117 m・直径 111 m・ゴンドラ 68 台）
+        const FW = data.landmarks.ferrisWheel;
+        const wheel = FW && createFerrisWheel({
+          at: { x: FW.x, y: FW.groundY, z: FW.z }, face: { x: 0, z: 0 }, height: FW.height, diameter: FW.diameter, gondolas: FW.gondolas, loop: LOOP,
+          materials: { frame: pbr({ color: '#e8e8e4', roughness: 0.5, metalness: 0.3 }), gondola: pbr({ color: '#9cc4e4' }), rim: pbr({ color: '#e8e8e4' }) }
+        });
+        if (wheel) add(wheel.group);
+        // 当たり判定：文学館の中・ポニーの馬場の柵（門だけ通れる）・ヤギの囲い・ポニーランドの馬場と厩舎
+        collider.addDynamic((x, z) => museum.contains(x, z));
+        collider.addDynamic((x, z, r) => {
+          const d = Math.hypot(x - R.x, z - R.z) - R.fenceR;
+          if (Math.abs(d) > r + 0.1) return false;
+          const a = Math.atan2(z - R.z, x - R.x);
+          return Math.abs(Math.atan2(Math.sin(a - gateA), Math.cos(a - gateA))) > 1.2 / R.fenceR;
+        });
+        { const P = FAC.goatPen; collider.addRect(P.x - P.w / 2, P.z - P.d / 2, P.x + P.w / 2, P.z + P.d / 2, 'pen'); }
+        for (const r of [PL.arena, PL.paddock, ...PL.stables.map(s => s.rect)]) collider.addRect(r[0], r[1], r[2], r[3], 'ponyland');
+        return {
+          floorName: '魔法の文学館 3 階 カフェ・キキ',
+          // シートを敷けない所：ポニーの丸い馬場・ポニーランド・ヤギの囲いの中
+          isBlocked: (x, z) => Math.hypot(x - R.x, z - R.z) < R.fenceR + 0.5
+            || (x > PL.arena[0] - 1 && x < PL.paddock[2] + 1 && z > PL.arena[1] - 1 && z < PL.paddock[3] + 1)
+            || (Math.abs(x - FAC.goatPen.x) < FAC.goatPen.w / 2 + 0.5 && Math.abs(z - FAC.goatPen.z) < FAC.goatPen.d / 2 + 0.5),
+          update(loopT) {
+            const riding = ridingNow(tod());
+            ring.update(loopT, riding); ride.update(loopT, riding);
+            queue.group.visible = riding; queue.update(loopT);
+            ponyLand.update(loopT); goatPen.update(loopT); playground.update(loopT);
+            wheel?.update(loopT);
+          },
+          zoneName(x, z, { distToWater }) {
+            const tp = H(x, z) + data.frame.origin.tp;
+            if (cafeDeck.contains(x, z)) return 'カフェ・キキのデッキ';
+            if (Math.abs(x - FAC.goatPen.x) < 5 && Math.abs(z - FAC.goatPen.z) < 4) return 'ヤギのふれあいコーナー';
+            if (Math.hypot(x - R.x, z - R.z) < R.fenceR + 3) return 'なぎさポニーランド（丸い馬場）';
+            if (Math.hypot(x - RD.x, z - RD.z) < RD.rOut + 2) return 'なぎさポニーランド（乗馬の広場）';
+            if (x > PL.arena[0] - 4 && x < PL.paddock[2] + 4 && z > PL.arena[1] - 4 && z < PL.paddock[3] + 4) return 'なぎさポニーランド';
+            if (Math.hypot(x - FAC.shuttleStop.x, z - FAC.shuttleStop.z) < FAC.shuttleStop.r + 2) return 'パノラマシャトル停留所';
+            if (Math.hypot(x - FAC.museum.x, z - FAC.museum.z) < 34) return '魔法の文学館';
+            if (Math.abs(x - FAC.playground.x) < FAC.playground.w / 2 + 3 && Math.abs(z - FAC.playground.z) < FAC.playground.d / 2 + 3) return '遊具広場';
+            if (tp > data.hill.tp - 3) return '展望の丘';
+            if (tp > 6 && FAC.azaleas.shrubs.some(([ax, az]) => Math.hypot(ax - x, az - z) < 4)) return 'ツツジ山';
+            if (distToWater(x, z) < 12) return '旧江戸川沿いの遊歩道';
+            const g = terrain.groundAt(x, z);
+            if (g === 'dirt') return 'グラウンド';
+            if (g === 'paved' || g === 'road') return '園路';
+            return tp > 6 ? '丘の斜面' : 'なぎさ公園の芝生';
+          }
+        };
+      }
+    });
+  </script>
+</body>
+</html>

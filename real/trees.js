@@ -99,9 +99,10 @@ function mergeTwo(a, b) {
  * @param {number} [o.leafScale]  葉の数の倍率（画質）
  * @param {THREE.WebGLRenderer} [o.renderer]  遠くの木の絵（インポスター）を作るのに使う。無ければ全部立体で描く
  * @param {number} [o.nearRadius]  これより遠い木は板の絵にする（m）
+ * @param {number} [o.maxNear]     立体で描く木の本数の上限（近い順）
  * @param {object} [o.kinds]       樹種の割合（engine/season.js の treeKind。ginkgo はケヤキ風の形で秋は黄色）
  */
-export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1, renderer = null, nearRadius = 110, kinds = { cherry: 0.2, evergreen: 0.3 } }) {
+export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1, renderer = null, nearRadius = 110, maxNear = 60, kinds = { cherry: 0.2, evergreen: 0.3 } }) {
   const uniforms = { uTime: { value: 0 } };
   const group = new THREE.Group();
   group.name = 'trees';
@@ -202,18 +203,23 @@ export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1,
   function relod(cam) {
     if (cam.distanceToSquared(lastAt) < 16) return;
     lastAt.copy(cam);
+    // 近い順に maxNear 本まで（nearRadius より内側）を立体に、ほかは板の絵に
+    const all = [];
+    bucketsOut.forEach((B, bi) => B.list.forEach((tr, i) => all.push([(tr.x - cam.x) ** 2 + (tr.z - cam.z) ** 2, bi, i])));
+    all.sort((a, b) => a[0] - b[0]);
     const r2 = nearRadius * nearRadius;
-    for (const B of bucketsOut) {
+    const near = new Set();
+    for (let k = 0; k < all.length && k < maxNear && all[k][0] < r2; k++) near.add(all[k][1] * 1e6 + all[k][2]);
+    bucketsOut.forEach((B, bi) => {
       let n = 0, f = 0;
       B.list.forEach((tr, i) => {
-        const d2 = (tr.x - cam.x) ** 2 + (tr.z - cam.z) ** 2;
-        if (!B.imp || d2 < r2) { B.bark.setMatrixAt(n, B.mats[i]); B.leaves.setMatrixAt(n, B.mats[i]); n++; }
+        if (!B.imp || near.has(bi * 1e6 + i)) { B.bark.setMatrixAt(n, B.mats[i]); B.leaves.setMatrixAt(n, B.mats[i]); n++; }
         else B.imp.mesh.setMatrixAt(f++, B.mats[i]);
       });
       B.bark.count = B.leaves.count = n;
       B.bark.instanceMatrix.needsUpdate = B.leaves.instanceMatrix.needsUpdate = true;
       if (B.imp) { B.imp.mesh.count = f; B.imp.mesh.instanceMatrix.needsUpdate = true; }
-    }
+    });
   }
   relod(new THREE.Vector3(0, 0, 0));
 
