@@ -41,7 +41,7 @@
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
       <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R1（地形と地面）まで：空・太陽・地形・地面の素材・水面と歩行です。草・木・橋などは次の段階で足します。</p>
+      <p>いまは R2（水）まで：空・太陽・地形・地面の素材・水面と歩行です。草・木・橋などは次の段階で足します。</p>
       <div class="btns">
         <button id="s-lunch">🧺 シートの場所から</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
@@ -64,6 +64,7 @@
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide } from './engine/ui.js';
     import { createRealTerrain } from './real/terrain.js';
     import { createRealSky } from './real/sky.js';
+    import { createRealWater } from './real/water.js';
     import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
 
     const BASE = 'scenes/edogawa/';
@@ -86,10 +87,12 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 6000);
     camera.rotation.order = 'YXZ';
+    let water = null; // 水面（下で作る）。画面の大きさが変わったら反射の解像度も変える
     function resize() {
       renderer.setSize(innerWidth, innerHeight, false);
       camera.aspect = innerWidth / innerHeight;
       camera.updateProjectionMatrix();
+      water?.resize(renderer.domElement.width, renderer.domElement.height);
     }
     addEventListener('resize', resize);
     resize();
@@ -106,19 +109,16 @@
     };
 
     // ============================================================================
-    // 地形（R1：25 cm の格子と PBR の地面）と水面（R2 で反射・波の水面に置き換える）
+    // 地形（R1：25 cm の格子と PBR の地面）と水面（R2：反射・波・濁り）
     // ============================================================================
     const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep: Q.nearStep, texSize: Q.texSize });
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
-    const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(MB.x1 - MB.x0, MB.z1 - MB.z0).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x4a5444, roughness: 0.12, metalness: 0 })
-    );
-    water.position.set((MB.x0 + MB.x1) / 2, level, (MB.z0 + MB.z1) / 2);
-    water.receiveShadow = true;
-    water.name = 'water';
-    scene.add(water);
+    // 水面：両岸の中景の範囲いっぱいに張る（陸の下は地形に隠れる）。水深は近景を細かく
+    water = createRealWater({
+      scene, level, bounds: MB, heightAt: terrain.heightAt, depthBox: { x0: NB.x0 - 90, z0: NB.z0, x1: NB.x1, z1: NB.z1 },
+      reflScale: Q.reflScale, flow: [0.15, 1]
+    });
 
     // ============================================================================
     // 歩く
@@ -206,7 +206,8 @@
     // 毎フレーム
     // ============================================================================
     const hud = DEBUG ? createDebugHud(renderer) : null;
-    let last = performance.now();
+    let last = performance.now(), elapsed = 0;
+    const skyColor = new THREE.Color();
     function step(dt) {
       if (!started) player.yaw += dt * 0.03;
       tod.update(dt);
@@ -217,6 +218,9 @@
       camera.updateMatrixWorld();
       if (tod.hour !== sky.hour) sky.apply(tod.hour);
       sky.follow(camera.position);
+      elapsed += dt;
+      skyColor.copy(sky.uniforms.uHorizon.value).lerp(sky.uniforms.uZenith.value, 0.4).multiplyScalar(sky.uniforms.uScale.value);
+      water.update(elapsed, { sun: sky.sun, skyColor });
       renderer.render(scene, camera);
       hud?.update();
     }
