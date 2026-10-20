@@ -17,7 +17,7 @@ import { createRealTrees } from './trees.js';
 import { createRealStructures, pbr } from './structures.js';
 import { getQuality, bindQualityUI, createDebugHud } from './quality.js';
 import { createResolutionScaler, createShadowScheduler } from './perf.js';
-import { mergeStatic } from './merge.js';
+import { mergeStatic, findMoving } from './merge.js';
 import { mulberry32 } from '../../engine/pixel-kit.js';
 
 // 季節：秋（10 月中旬）と初夏（6 月上旬）。初夏の草木の色は engine/season.js の「夏」を使う
@@ -163,7 +163,17 @@ export async function startRealScene(site) {
   // 動かない物（橋・建物・施設など）を素材と 200 m の区画ごとにまとめて、描画命令を減らす
   {
     const keep = new Set([terrain.near, terrain.mid, water.mesh, sky.sky, sky.sun, sky.sun.target, sky.hemi, trees.group, structures.backdrop.group, ...grass.layers]);
-    const merged = mergeStatic(scene, { roots: scene.children.filter(o => !keep.has(o)), exclude: local.dynamic ?? [] });
+    // 動く組の中から、動く部品だけを選ぶ：0〜24 時（1 時間ごと）× ループの 6 か所で動かしてくらべる
+    let moving = [];
+    if (local.dynamic?.length && local.update) {
+      const hour0 = tod.hour, hours = 24, steps = 6;
+      const env = h => ({ horizon: new THREE.Color(), top: new THREE.Color(), sunDir: new THREE.Vector3(0, 1, 0), night: h < 6 || h >= 18 ? 1 : 0, day: h >= 6 && h < 18 ? 1 : 0, hour: h, elapsed: 0 });
+      moving = findMoving(local.dynamic, i => { const h = Math.floor(i / steps); tod.hour = h; local.update((i % steps) * LOOP / steps + 0.37, env(h)); }, hours * steps);
+      tod.hour = hour0;
+      local.update(0, env(hour0));
+    }
+    const merged = mergeStatic(scene, { roots: scene.children.filter(o => !keep.has(o)), exclude: moving });
+    merged.moving = moving.length;
     if (DEBUG) console.log('まとめた形', merged);
     window.__mergedStatic = merged;
   }

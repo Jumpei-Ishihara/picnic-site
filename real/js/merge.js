@@ -1,7 +1,8 @@
 // 動かない物をまとめて描く：同じ素材・同じ影の設定・同じレイヤーの形を、1 km 四方の区画ごとに 1 つの形にまとめる
 //   描画命令（ドローコール）を減らす。区画に分けるのは、画面の外の区画を描かない仕組み（視錐台カリング）を残すため。
 //   200 m では見えている区画の数だけ描画命令が増え（なぎさ公園で 108 回）、1 km で 71 回になった
-//   まとめないもの：インスタンス（家並み・木・草）、線と点（送電線）、動く物（exclude に渡す組の中）、userData.noMerge の付いた物
+//   まとめないもの：インスタンス（家並み・木・草）、線と点（送電線）、動く物（exclude に渡す物）、userData.noMerge の付いた物
+//   動く組（ポニーの馬場など）の中でも、柵や小屋のように動かない部品はまとめる（findMoving で動く部品だけを選ぶ）
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -114,4 +115,31 @@ export function mergeStatic(scene, { roots, exclude = [], cell = 1000 }) {
   }
   scene.add(group);
   return { before: meshes.length, after };
+}
+
+// 動く組の中で、本当に動く（または消える・色が変わる）メッシュだけを選ぶ。
+// probe(i) で i 番目の状態（時刻・ループの位置）に動かし、メッシュの位置・見え方・素材の色をくらべる。1 度でも変われば動く物
+const sig = (o, root) => {
+  let vis = o.visible;
+  for (let p = o.parent; p && vis; p = p === root ? null : p.parent) vis = p.visible;
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  return o.matrixWorld.elements.map(v => v.toFixed(4)).join(',') + '|' + vis + '|' + o.geometry?.attributes.position?.version + '|'
+    + mats.map(m => m && [m.uuid, hex(m.color), hex(m.emissive), m.emissiveIntensity, m.opacity, m.visible].join(':')).join(';');
+};
+export function findMoving(roots, probe, count) {
+  roots = roots.filter(Boolean);
+  const meshes = [];
+  for (const r of roots) r.traverse(o => { if (o.isMesh || o.isLine || o.isPoints) meshes.push([o, r]); });
+  const first = new Map(), moving = new Set();
+  for (let i = 0; i < count; i++) {
+    probe(i);
+    for (const r of roots) r.updateMatrixWorld(true);
+    for (const [o, r] of meshes) {
+      if (moving.has(o)) continue;
+      const s = sig(o, r);
+      if (i === 0) first.set(o, s); else if (first.get(o) !== s) moving.add(o);
+    }
+  }
+  // インスタンス（ヤギの群れなど）は中身が動くことがあるので、まとめない（mergeStatic も扱わない）
+  return [...moving];
 }
