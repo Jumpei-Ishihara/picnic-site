@@ -41,7 +41,7 @@
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
       <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R3（草）まで：空・太陽・地形・地面の素材・水面・草と歩行です。木・橋などは次の段階で足します。</p>
+      <p>いまは R4（木）まで：空・太陽・地形・地面の素材・水面・草・木と歩行です。橋・建物などは次の段階で足します。</p>
       <div class="btns">
         <button id="s-lunch">🧺 シートの場所から</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
@@ -66,6 +66,7 @@
     import { createRealSky } from './real/sky.js';
     import { createRealWater } from './real/water.js';
     import { createRealGrass } from './real/grass.js';
+    import { createRealTrees } from './real/trees.js';
     import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
 
     const BASE = 'scenes/edogawa/';
@@ -88,6 +89,7 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 6000);
     camera.rotation.order = 'YXZ';
+    camera.layers.enable(1); // 草（水面の反射には描かない）
     let water = null; // 水面（下で作る）。画面の大きさが変わったら反射の解像度も変える
     function resize() {
       renderer.setSize(innerWidth, innerHeight, false);
@@ -124,12 +126,28 @@
     // 草（R3）：人のまわり 30 m は密に、その先は粗く
     const grass = createRealGrass({ scene, terrain, quality: Q.grass });
 
+    // 木（R4）：空中写真で見えた木と、堤防の町側の並木（ドット絵版と同じく桜とした。樹種は確かめていない）
+    const treeList = data.trees.map(t => ({ x: t.x, z: t.z, r: Math.max(2, t.r) }));
+    for (const row of data.landmarks.treeRows ?? []) {
+      for (let k = 0; k < row.length - 1; k++) {
+        const [x0, z0] = row[k], [x1, z1] = row[k + 1];
+        const L = Math.hypot(x1 - x0, z1 - z0);
+        for (let s = 0; s < L; s += 9) {
+          const x = x0 + (x1 - x0) * s / L, z = z0 + (z1 - z0) * s / L;
+          if (z > MB.z1 || z < MB.z0) continue;
+          treeList.push({ x, z, r: 2.6 + ((s * 7.3) % 1) * 0.6, kind: 'cherry' });
+        }
+      }
+    }
+    const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON });
+
     // ============================================================================
     // 歩く
     // ============================================================================
     const collider = createCollider({ cell: 2 });
     collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
     collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
+    for (const t of treeList) if (t.x > NB.x0 && t.x < NB.x1 && t.z > NB.z0 && t.z < NB.z1) collider.addCircle(t.x, t.z, 0.45, 'tree');
     const toast = createToast(document.getElementById('toast'));
     let started = false;
     const controls = createPlayerController({
@@ -226,6 +244,7 @@
       skyColor.copy(sky.uniforms.uHorizon.value).lerp(sky.uniforms.uZenith.value, 0.4).multiplyScalar(sky.uniforms.uScale.value);
       water.update(elapsed, { sun: sky.sun, skyColor });
       grass.update(elapsed, camera);
+      trees.update(elapsed, sky.state.day);
       renderer.render(scene, camera);
       hud?.update();
     }
@@ -234,7 +253,7 @@
     document.getElementById('loading').remove();
     renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
-    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, controls, player, tod, setView, setHour, begin, sunPath };
+    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, controls, player, tod, setView, setHour, begin, sunPath };
   </script>
 </body>
 </html>

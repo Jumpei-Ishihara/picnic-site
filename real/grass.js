@@ -164,6 +164,7 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
     mesh.castShadow = false;
     mesh.count = 0;
     mesh.name = 'grass-' + li;
+    mesh.layers.set(1); // 水面の反射（レイヤー 0 だけを描く）には草を描かない。カメラはレイヤー 1 も描く
     scene.add(mesh);
     return { tile: R.tile, perM2: R.perM2, from: lod[0], to: lod[3], mesh };
   });
