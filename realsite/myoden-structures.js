@@ -2,6 +2,7 @@
 //   createArchPipeBridge：妙典給水場の水管橋。手前（妙典の岸）は白い上路でないトラス、川の上は 3 つのアーチ（タイドアーチ。吊り材が縦に並ぶ）。
 //     床の両側に太い白い水道管が 2 本。橋脚は白い円柱。写真（妙典の堤防から上流を見たもの）にもとづく。大きさは推定
 //   stripeMaterial：高さで紅白に塗り分ける（送電線の鉄塔・煙突。航空障害の塗装）
+//   妙典の対岸（myoden-far.html）でも使う。対岸の端の形（farTruss・farPiers・tower）、干潟の杭、外環道の遮音シェルター、堤防の上のガードレール
 import * as THREE from 'three';
 
 /**
@@ -71,6 +72,49 @@ export function createArchPipeBridge({ toon, spec, heightAt, level }) {
       beam(P(a + span * t, -W, yAt(t)), P(a + span * t, W, yAt(t)), 0.35, mat);
     }
   });
+  // 対岸（田尻）の端：水道管の上に淡い水色のワーレントラス（高さ 4 m）、堤防の上に四角い灰色の橋脚（下半分が白）、
+  // 陸側の端にコンクリートの塔（2 本の柱と階段）。360° 写真・ストリートビューから。大きさは推定
+  if (spec.farTruss) {
+    const [fa, fb] = spec.farTruss, FH = 4.2, fp = 6, topY = spec.deckY + spec.pipeR * 2 + 0.2;
+    for (const off of [-W, W]) {
+      beam(P(fa, off, topY), P(fb, off, topY), 0.4, pale);
+      beam(P(fa, off, topY + FH), P(fb, off, topY + FH), 0.4, pale);
+      for (let s = fa, k = 0; s < fb - 0.1; s += fp, k++) {
+        const s2 = Math.min(fb, s + fp);
+        const [lo, hi] = k % 2 ? [s2, s] : [s, s2];
+        beam(P(lo, off, topY), P(hi, off, topY + FH), 0.3, pale);
+      }
+    }
+    for (let s = fa; s <= fb + 0.1; s += fp) {
+      beam(P(s, -W, topY + FH), P(s, W, topY + FH), 0.25, pale);
+      beam(P(s, -W, topY), P(s, W, topY), 0.25, pale);
+    }
+    const grey = toon({ color: '#9c9a94' });
+    for (const s of spec.farPiers ?? []) {
+      const p = P(s, 0), g0 = heightAt(p.x, p.z) - 0.3, h = spec.deckY - 0.3 - g0;
+      if (h < 0.5) continue;
+      // 下の 40 % は白く塗った面、上は打ちっぱなし
+      push(white, new THREE.BoxGeometry(2.4, h * 0.4, 2.4).rotateY(yaw).translate(p.x, g0 + h * 0.2, p.z));
+      push(grey, new THREE.BoxGeometry(2.3, h * 0.6, 2.3).rotateY(yaw).translate(p.x, g0 + h * 0.7, p.z));
+      push(grey, new THREE.BoxGeometry(3.4, 1.2, spec.width + 2).rotateY(yaw).translate(p.x, spec.deckY - 0.6, p.z));
+    }
+    if (spec.tower != null) {
+      const p = P(spec.tower - 2, 0), g0 = heightAt(p.x, p.z) - 0.3, h = spec.deckY + 1 - g0;
+      for (const off of [-W - 0.6, W + 0.6]) {
+        const q = P(spec.tower - 2, off);
+        push(grey, new THREE.BoxGeometry(1.6, h, 1.6).rotateY(yaw).translate(q.x, g0 + h / 2, q.z));
+      }
+      push(grey, new THREE.BoxGeometry(4, 1.4, spec.width + 3).rotateY(yaw).translate(p.x, spec.deckY - 0.2, p.z));
+      // 点検の階段（折り返し）と踊り場
+      const rail = toon({ color: '#7e9aa8' });
+      for (let k = 0; k < Math.floor(h / 2.6); k++) {
+        const y = g0 + 1.3 + k * 2.6, dir = k % 2 ? 1 : -1;
+        const a0 = P(spec.tower - 2 - dir * 2.5, W + 2.4, y), a1 = P(spec.tower - 2 + dir * 2.5, W + 2.4, y + 2.6);
+        beam(a0, a1, 0.7, rail);
+        push(rail, new THREE.BoxGeometry(1.4, 0.15, 1.4).translate(a1.x, a1.y, a1.z));
+      }
+    }
+  }
   // 橋脚：白い円柱（トラスの両端・アーチの継ぎ目・陸の桁の下）
   const pierAt = [...(spec.trussPiers ?? [spec.truss[0]]), ...spec.arches.map(r => r[0]), spec.arches[spec.arches.length - 1][1], ...(spec.girder ?? [])];
   for (const s of [...new Set(pierAt.map(v => Math.round(v)))]) {
@@ -235,18 +279,122 @@ export function createRailYard({ toon, yard, heightAt, rnd, near = null }) {
  * 川につないである小舟（白い船体、半分ほどに小さな操舵室）。位置と向きは空中写真から
  * @param {number[][]} o.boats  [x, z, 向き（x 軸から）, 長さ]
  */
-export function createBoats({ toon, boats, level, rnd }) {
+export function createBoats({ toon, boats, level, rnd, heightAt = null }) {
   const group = new THREE.Group();
   group.name = 'boats';
   const hulls = [], cabins = [];
   for (const [x, z, ang, L] of boats ?? []) {
     const w = L * 0.32, yaw = -ang;
+    // 干潮で干潟に出た舟は泥の上に置く（少し傾ける代わりに 0.1 m 沈める）
+    const y = heightAt ? Math.max(level, heightAt(x, z) - 0.1) : level;
     const hull = new THREE.BoxGeometry(L * 0.8, 0.7, w).translate(-L * 0.1, 0.25, 0);
     const bow = new THREE.ConeGeometry(w * 0.5, L * 0.3, 4).rotateZ(-Math.PI / 2).rotateX(Math.PI / 4).scale(1, 0.5, 1).translate(L * 0.45, 0.4, 0);
-    for (const g of [hull, bow]) hulls.push(g.rotateY(yaw).translate(x, level, z));
-    if (rnd() < 0.5) cabins.push(new THREE.BoxGeometry(L * 0.25, 1.0, w * 0.7).translate(-L * 0.15, 1.05, 0).rotateY(yaw).translate(x, level, z));
+    for (const g of [hull, bow]) hulls.push(g.rotateY(yaw).translate(x, y, z));
+    if (rnd() < 0.5) cabins.push(new THREE.BoxGeometry(L * 0.25, 1.0, w * 0.7).translate(-L * 0.15, 1.05, 0).rotateY(yaw).translate(x, y, z));
   }
   addMerged(group, hulls, toon({ color: '#eeeeea' }));
   addMerged(group, cabins, toon({ color: '#8fa8b8' }));
+  return { group };
+}
+
+/**
+ * 干潟の木の杭（小舟をつなぐ）。干潮では泥から、満ち潮では水から頭を出す
+ * @param {number[][]} o.stakes  [x, z, 高さ（地面から）]
+ */
+export function createStakes({ toon, stakes, heightAt }) {
+  const n = stakes?.length ?? 0;
+  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 1, 0.16).translate(0, 0.5, 0), toon({ color: '#5a4a3a' }), Math.max(1, n));
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  (stakes ?? []).forEach(([x, z, h], i) => {
+    const t = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453, r = t - Math.floor(t);
+    q.setFromEuler(e.set((r - 0.5) * 0.12, r * 3, (0.5 - r) * 0.1)); // 少し傾く
+    m.compose(new THREE.Vector3(x, heightAt(x, z) - 0.4, z), q, new THREE.Vector3(1, h + 0.4, 1));
+    im.setMatrixAt(i, m);
+  });
+  im.count = n;
+  im.castShadow = true;
+  im.name = 'stakes';
+  return { group: im };
+}
+
+/**
+ * 外環道の掘割を覆う遮音シェルター：銀色の波板のかまぼこ形（半円を横に広げた形）を、道の線に沿ってつなぐ
+ * @param {{path:number[][], width:number, height:number}} o.spec
+ */
+export function createShelter({ toon, spec, heightAt }) {
+  const group = new THREE.Group();
+  group.name = 'gaikan-shelter';
+  if (!spec) return { group, rects: [] };
+  // 波板の筋（縦の明暗の縞）を細いテクスチャで
+  const cv = document.createElement('canvas'); cv.width = 2; cv.height = 16;
+  const c = cv.getContext('2d');
+  for (let y = 0; y < 16; y++) { c.fillStyle = y % 4 < 2 ? '#ffffff' : '#c8ccd0'; c.fillRect(0, y, 2, 1); }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  const mat = toon({ color: '#c4c9ce', map: tex, side: THREE.DoubleSide }); // 銀色
+  const geos = [], rects = [];
+  const P = spec.path;
+  for (let k = 0; k < P.length - 1; k++) {
+    const [ax, az] = P[k], [bx, bz] = P[k + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.5) continue;
+    const yaw = Math.atan2(-(bz - az), bx - ax);
+    const y0 = Math.min(heightAt(ax, az), heightAt(bx, bz)) - 0.5;
+    // 半円の筒（軸は x）を、幅 width・高さ height に引き伸ばす
+    const g = new THREE.CylinderGeometry(1, 1, len + 0.6, 20, 1, true, 0, Math.PI).rotateZ(Math.PI / 2); // 軸は x、上半分
+    g.scale(1, spec.height, spec.width / 2);
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 8, uv.getY(i) * len / 6); // 波板の筋は 1.5 m ごと
+    g.rotateY(yaw).translate((ax + bx) / 2, y0, (az + bz) / 2);
+    geos.push(g.toNonIndexed());
+    rects.push([Math.min(ax, bx) - spec.width / 2, Math.min(az, bz) - spec.width / 2, Math.max(ax, bx) + spec.width / 2, Math.max(az, bz) + spec.width / 2]);
+  }
+  let n = 0; for (const g of geos) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uvs = new Float32Array(n * 2); let o = 0;
+  for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); uvs.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  group.add(mesh);
+  return { group, rects };
+}
+
+/**
+ * 堤防の上の川側の縁のガードレール（鋼の管 2 本と支柱。360° 写真）
+ * @param {number[][][]} o.lines  堤防の上の道の線
+ * @param {(x:number, z:number) => number} o.side  川側ほど大きい値
+ */
+export function createGuardrail({ toon, lines, heightAt, offset = 3.2, side }) {
+  const geos = [];
+  const mat = toon({ color: '#b8bcbe' });
+  for (const line of lines ?? []) {
+    for (let k = 0; k < line.length - 1; k++) {
+      const [ax, az] = line[k], [bx, bz] = line[k + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.5) continue;
+      const ux = (bx - ax) / len, uz = (bz - az) / len;
+      let nx = -uz, nz = ux;
+      if (side(ax + nx, az + nz) < side(ax, az)) { nx = -nx; nz = -nz; } // 川側へ
+      const yaw = Math.atan2(-uz, ux);
+      const cx = (ax + bx) / 2 + nx * offset, cz = (az + bz) / 2 + nz * offset, y = heightAt(cx, cz);
+      for (const h of [0.45, 0.85]) geos.push(new THREE.BoxGeometry(len + 0.05, 0.09, 0.09).rotateY(yaw).translate(cx, y + h, cz).toNonIndexed());
+      for (let s = 0; s < len; s += 2) {
+        const px = ax + ux * s + nx * offset, pz = az + uz * s + nz * offset;
+        geos.push(new THREE.BoxGeometry(0.1, 0.95, 0.1).translate(px, heightAt(px, pz) + 0.47, pz).toNonIndexed());
+      }
+    }
+  }
+  const group = new THREE.Group();
+  if (!geos.length) return { group };
+  let n = 0; for (const g of geos) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+  for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  group.add(mesh);
   return { group };
 }

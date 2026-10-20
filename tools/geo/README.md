@@ -15,6 +15,9 @@ python3 tools/geo/build_nagisa.py               # scenes/nagisa/ を作る（15 
 
 python3 tools/geo/fetch_data.py --site myoden   # 江戸川 妙典の岸
 python3 tools/geo/build_myoden.py               # scenes/myoden/ を作る（15 秒ほど）
+
+python3 tools/geo/fetch_data.py --site myoden-far   # 妙典の対岸（田尻）
+python3 tools/geo/build_myoden_far.py               # scenes/myoden-far/ を作る（20 秒ほど）
 ```
 
 `ground.png` を手で直したあとは、上書きしないように `build_scene.py --keep-ground` で作り直します。
@@ -29,6 +32,7 @@ python3 tools/geo/build_myoden.py               # scenes/myoden/ を作る（15 
 | `fetch_data.py` | 標高タイル DEM5A（z15）、OSM（Overpass）、線路（`rail`：範囲の中の鉄道の線すべて → `osm_rail.json`）、シームレス空中写真（z17）を取得 |
 | `build_scene.py` | 断面の読み取り、近景・中景の高さ、地面の種類、ランドマーク、視点を作って書き出す |
 | `build_nagisa.py` | なぎさ公園用：標高そのままの近景、明るさのばらつきで木を拾う、建物、見通しを計算して視点を決める |
+| `build_myoden_far.py` | 妙典の対岸用：妙典の部品を使い、堤防の上（コンクリート）・干潟と杭・潮の高さ・外環道のシェルター・視点を作る |
 | `build_myoden.py` | 妙典の岸用：なぎさ公園の部品を使い、橋・水管橋・送電線・煙突・工場地区・視点を作る |
 | `rails.py` | 電車の走る線路：川をまたぐ本線から OSM の本線を両側へたどり（車両基地・側線には入らない）、8 m おきの点とレールの面の高さ・橋の形がある所・高架橋を作る所を `landmarks.railways` に書く（3 つの場面で共通） |
 | `check_scene.py` | 水際のずれ、断面の差を数字で出し、確認用の図を作る |
