@@ -42,7 +42,8 @@ function riverFlow(data) {
 /**
  * @param {object} site
  * @param {string} site.id          場面の名前（ブラウザに覚える拠点のキーなど）
- * @param {string} site.base        場面データのフォルダ（'scenes/edogawa/'）
+ * @param {string} site.base        場面データのフォルダ（'../scenes/edogawa/'）
+ * @param {object} [site.data]      すでに読んだ scene.json（ページで読んだときに渡すと、読み直さない）
  * @param {string} site.label       左上の場所の表示（場所の名前が決まらない所）
  * @param {string} site.pixelPage   ドット絵版のページ
  * @param {string[]} site.viewKeys  1〜9 のキーに割り当てる視点（data.viewpoints のキー）
@@ -56,7 +57,12 @@ function riverFlow(data) {
  */
 export async function startRealScene(site) {
   const BASE = site.base;
-  const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+  // 起動の段階ごとの時間（?debug のとき、読み込みが終わったらコンソールに表で出す）
+  const T0 = performance.now(), marks = [];
+  let tPrev = T0;
+  const mark = label => { const t = performance.now(); marks.push({ 段階: label, 'ms': Math.round(t - tPrev), '累計 ms': Math.round(t - T0) }); tPrev = t; };
+  const data = site.data ?? await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+  mark('scene.json');
   const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
   const UB = data.frame.upstreamBearing;
   const SEASON = getRealSeason();
@@ -93,6 +99,7 @@ export async function startRealScene(site) {
   // ============================================================================
   const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON);
   const sky = createRealSky({ renderer, scene, sunPath, shadowSize: Q.shadowSize, shadowExtent: Q.shadowExtent, hour: 12 });
+  mark('描画の準備・空');
   // engine/ui.js の時刻の操作は tod（hour・auto・update）を使う。それに合わせた小さな時計
   const tod = {
     hour: 12, auto: false, hoursPerSecond: 1 / 15,
@@ -104,6 +111,7 @@ export async function startRealScene(site) {
   // ============================================================================
   const nearStep = Math.min(1, Q.nearStep * (site.nearStepScale ?? 1));
   const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep, texSize: Q.texSize, season: SEASON.key });
+  mark('地形と地面の素材');
   const NB = terrain.bounds.near, MB = terrain.bounds.mid;
   const level = data.water.levelY;
   // 水面：中景の範囲いっぱいに張る（陸の下は地形に隠れる）。水深は近景（とそのまわり）を細かく
@@ -113,11 +121,14 @@ export async function startRealScene(site) {
     depthBox: { x0: NB.x0 - pad.x0, z0: NB.z0 - pad.z0, x1: NB.x1 + pad.x1, z1: NB.z1 + pad.z1 },
     reflScale: Q.reflScale, flow: site.flow ?? riverFlow(data)
   });
+  mark('水面');
   const grass = createRealGrass({ scene, terrain, quality: Q.grass });
+  mark('草');
   const treeKinds = site.treeKinds ?? { cherry: 0.2, evergreen: 0.3 };
   const treeList = data.trees.map(t => ({ x: t.x, z: t.z, r: Math.max(2, t.r), kind: t.kind }));
   treeList.push(...(site.extraTrees?.(data, MB) ?? []));
   const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, maxNear: Q.treeMax, kinds: treeKinds });
+  mark('木');
 
   // ============================================================================
   // 歩く範囲と当たり判定・遠景と構造物・その場面だけの施設
@@ -127,9 +138,11 @@ export async function startRealScene(site) {
   collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
   for (const t of treeList) if (t.x > NB.x0 && t.x < NB.x1 && t.z > NB.z0 && t.z < NB.z1) collider.addCircle(t.x, t.z, 0.45, 'tree');
   const structures = createRealStructures({ scene, data, terrain, level, collider, season: SEASON, rnd, ...site.structures });
+  mark('遠景・構造物');
   const S = data.sheet;
   const ctx = { THREE, scene, data, terrain, level, collider, season: SEASON, sunPath, sky, rnd, NB, MB, LOOP, pbr, structures, tod: () => tod.hour };
   const local = site.build?.(ctx) ?? {};
+  mark('場面の施設');
 
   const toast = createToast(document.getElementById('toast'));
   const audio = createAudio();
@@ -320,9 +333,14 @@ export async function startRealScene(site) {
     renderer.render(scene, camera);
     hud?.update();
   }
+  mark('ピクニック・UI');
   setView('lunch');
   controls.setEye(1.6, true);
+  // 最初の 1 コマを描く（シェーダーの組み立てはここで起きる）
+  step(0);
+  mark('最初の 1 コマ（シェーダーの組み立て）');
   document.getElementById('loading').remove();
+  if (DEBUG) { console.table(marks); window.__realMarks = marks; }
   renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
   if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, local, picnicSet, base, audio, controls, player, tod, setView, setHour, begin, sunPath, collider };

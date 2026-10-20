@@ -75,7 +75,7 @@
     const inIto = (x, z) => { if (!ITO) return false; let r = false; for (let i = 0, j = ITO.length - 1; i < ITO.length; j = i++) { const [xi, zi] = ITO[i], [xj, zj] = ITO[j]; if ((zi > z) !== (zj > z) && x < xi + (z - zi) * (xj - xi) / (zj - zi)) r = !r; } return r; };
 
     startRealScene({
-      id: 'nagisa', base: '../scenes/nagisa/', label: 'なぎさ公園', pixelPage: '../nagisa.html',
+      data: data0, id: 'nagisa', base: '../scenes/nagisa/', label: 'なぎさ公園', pixelPage: '../nagisa.html',
       viewKeys: ['lunch', 'nap', 'sunset', 'river', 'cafe', 'pony'],
       nearStepScale: 2, // 近景が 361 × 371 m と広いので、格子を 2 倍に（高で 50 cm）
       // 樹冠は低い所から枝を広げる傘形（ケヤキ・桜）。イチョウも少し（秋は黄色）
