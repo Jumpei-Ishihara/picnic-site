@@ -149,14 +149,16 @@ export function createRealSky({ renderer, scene, sunPath, shadowSize = 2048, sha
   }
 
   // 影の範囲をカメラのまわりに。光の向きは太陽の向き
+  // 影の範囲の中心：4 m の格子に合わせて動かす（影は中心が格子をまたいだときだけ描き直す。real/js/perf.js）
+  const shadowCenter = new THREE.Vector3();
   function follow(center) {
     const d = 320;
-    // 影の格子に合わせて動かす（歩くたびに影の縁がちらつかないように）
-    const texel = (2 * shadowExtent) / shadowSize;
-    sun.target.position.set(Math.round(center.x / texel) * texel, center.y, Math.round(center.z / texel) * texel);
+    shadowCenter.set(Math.round(center.x / 4) * 4, Math.round(center.y / 4) * 4, Math.round(center.z / 4) * 4);
+    sun.target.position.copy(shadowCenter);
     sun.position.copy(sun.target.position).addScaledVector(sunDir, d);
   }
 
   apply(hour);
-  return { sky, sun, hemi, state, uniforms, apply, follow, get hour() { return state.hour; } };
+  sun.shadow.camera.layers.enable(1); // レイヤー 1（水面に映さない物：ピクニックの持ち物など）も影を落とす
+  return { sky, sun, hemi, state, uniforms, apply, follow, shadowCenter, get hour() { return state.hour; } };
 }

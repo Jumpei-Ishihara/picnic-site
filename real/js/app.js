@@ -16,6 +16,7 @@ import { createRealGrass } from './grass.js';
 import { createRealTrees } from './trees.js';
 import { createRealStructures, pbr } from './structures.js';
 import { getQuality, bindQualityUI, createDebugHud } from './quality.js';
+import { createResolutionScaler, createShadowScheduler } from './perf.js';
 import { mulberry32 } from '../../engine/pixel-kit.js';
 
 // 季節：秋（10 月中旬）と初夏（6 月上旬）。初夏の草木の色は engine/season.js の「夏」を使う
@@ -76,7 +77,6 @@ export async function startRealScene(site) {
   // ============================================================================
   const canvas = document.getElementById('view');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pixelRatio));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -85,6 +85,11 @@ export async function startRealScene(site) {
   camera.rotation.order = 'YXZ';
   camera.layers.enable(1); // 草（水面の反射には描かない）
   let water = null; // 水面（下で作る）。画面の大きさが変わったら反射の解像度も変える
+  // 描く解像度：画質の倍率（端末の画素密度が上限）の 0.5〜1 倍で自動調整（?res=fixed で止める）
+  const resScaler = createResolutionScaler({
+    renderer, baseRatio: Math.min(devicePixelRatio, Q.pixelRatio), enabled: new URLSearchParams(location.search).get('res') !== 'fixed',
+    onChange: (w, h) => water?.resize(w, h)
+  });
   function resize() {
     renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight;
@@ -93,6 +98,8 @@ export async function startRealScene(site) {
   }
   addEventListener('resize', resize);
   resize();
+  // 影は必要なときだけ描き直す（太陽・影の範囲・視点が変わったときと、葉の揺れのため数コマに 1 回）
+  const shadows = createShadowScheduler(renderer, Q.shadowEvery);
 
   // ============================================================================
   // 空・太陽
@@ -168,12 +175,13 @@ export async function startRealScene(site) {
   // ピクニック：シートと持ち物（すべてのピクニックの場面で共通の engine/picnic-set.js）、拠点の移動
   // ============================================================================
   const picnicSet = createPicnicSet({ scene, toon: pbr, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP, season: SEASON.key });
+  picnicSet.group.traverse(o => o.layers.set(1)); // 水面には映さない（小さく、水際から遠い）
   const base = createBaseCamp({
     root: picnicSet.group, home: { x: S.x, z: S.z, yaw: sunPath.yawOfBearing(S.bearing) }, size: { w: 2.0, d: 1.4 },
     heightAt: terrain.heightAt, isWater: (x, z) => terrain.heightAt(x, z) < level + 0.15,
     isBlocked: (x, z) => collider.solidAt(x, z, 0.05) || !!local.isBlocked?.(x, z),
     storageKey: `picnic-site:base:${site.id}-real`,
-    onMove() { picnicSet.relocate(); grass.hideRect(base.pose.x, base.pose.z, 1.05, 0.75, base.pose.yaw); }
+    onMove() { picnicSet.relocate(); grass.hideRect(base.pose.x, base.pose.z, 1.05, 0.75, base.pose.yaw); shadows.invalidate(); }
   });
   base.restore();
   grass.hideRect(base.pose.x, base.pose.z, 1.05, 0.75, base.pose.yaw);
@@ -212,6 +220,7 @@ export async function startRealScene(site) {
     floorOverride = v.floorY !== undefined ? { y: v.floorY, x: v.x, z: v.z } : null;
     controls.setEye(v.eye, true);
     controls.settle();
+    shadows.invalidate();
     markView(name);
   }
   for (const k of VIEWS) btn('v-' + k, () => setView(k));
@@ -301,7 +310,7 @@ export async function startRealScene(site) {
   // ============================================================================
   // 毎フレーム
   // ============================================================================
-  const hud = DEBUG ? createDebugHud(renderer) : null;
+  const hud = DEBUG ? createDebugHud(renderer, () => `res ×${resScaler.scale.toFixed(2)}` + (resScaler.gpuMs !== null ? `  gpu ${resScaler.gpuMs.toFixed(1)} ms` : '')) : null;
   let last = performance.now(), elapsed = 0;
   const skyColor = new THREE.Color(), skyTop = new THREE.Color(), skyHor = new THREE.Color();
   function step(dt) {
@@ -315,6 +324,7 @@ export async function startRealScene(site) {
     camera.updateMatrixWorld();
     if (tod.hour !== sky.hour) sky.apply(tod.hour);
     sky.follow(camera.position);
+    shadows.update(sky.state.sunDir, sky.shadowCenter);
     elapsed += dt;
     const loopT = elapsed % LOOP;
     skyColor.copy(sky.uniforms.uHorizon.value).lerp(sky.uniforms.uZenith.value, 0.4).multiplyScalar(sky.uniforms.uScale.value);
@@ -330,7 +340,10 @@ export async function startRealScene(site) {
     picnicSet.update(loopT, { night: sky.state.night, dusk: Math.max(0, 1 - Math.abs(sky.state.elevation - 1) / 6) });
     if (started) updateSound(dt);
     if (Math.hypot(player.x - zoneAt.x, player.z - zoneAt.z) > 0.5) { zoneAt = { x: player.x, z: player.z }; locEl.textContent = '📍 ' + zoneName(player.x, player.z); }
+    resScaler.begin();
     renderer.render(scene, camera);
+    resScaler.end();
+    resScaler.update(dt * 1000);
     hud?.update();
   }
   mark('ピクニック・UI');
@@ -343,5 +356,5 @@ export async function startRealScene(site) {
   if (DEBUG) { console.table(marks); window.__realMarks = marks; }
   renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
-  if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, local, picnicSet, base, audio, controls, player, tod, setView, setHour, begin, sunPath, collider };
+  if (DEBUG) window.__real = { resScaler, shadows, THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, local, picnicSet, base, audio, controls, player, tod, setView, setHour, begin, sunPath, collider };
 }

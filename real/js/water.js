@@ -180,6 +180,21 @@ export function createRealWater({ scene, level, bounds, heightAt, depthBox, refl
   U.uFlow.value.set(flow[0], flow[1]);
   U.uReflMix.value = reflScale > 0 ? 1 : 0;
   if (reflScale <= 0) mesh.onBeforeRender = () => {}; // 反射を描かない（空の色だけ）
+  else {
+    // 映り込みは 2 コマに 1 回描く（あいだは前の絵と行列をそのまま使う）。大きく向きを変えた・動いたコマは描く。
+    // 見上げているとき（視線の上向きが 0.5 以上）は、水面がほとんど見えないので描かない
+    const draw = mesh.onBeforeRender, lastQ = new THREE.Quaternion(), lastP = new THREE.Vector3(1e9, 0, 0), fwd = new THREE.Vector3();
+    let n = 0;
+    mesh.onBeforeRender = (renderer, scene, camera, ...rest) => {
+      n++;
+      fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      if (fwd.y > 0.5) return;
+      const turned = camera.quaternion.angleTo(lastQ) > 0.03 || camera.position.distanceToSquared(lastP) > 0.25;
+      if (n % 2 === 0 && !turned) return;
+      lastQ.copy(camera.quaternion); lastP.copy(camera.position);
+      draw(renderer, scene, camera, ...rest);
+    };
+  }
   scene.add(mesh);
 
   return {
