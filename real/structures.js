@@ -31,6 +31,37 @@ function smoothTex(t) {
   return t;
 }
 
+// 茂みの塊の素材：頂点色に、場所で決まる 3 つの大きさのノイズで明暗のむらと凹凸を足す（遠くから見る植え込み・ヨシ原用）
+function foliageMassMaterial() {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  m.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFW;')
+      .replace('#include <fog_vertex>', '#include <fog_vertex>\nvFW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vFW;
+        float fH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float fN(vec3 p) {
+          vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(fH(i), fH(i + vec3(1,0,0)), f.x), mix(fH(i + vec3(0,1,0)), fH(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(fH(i + vec3(0,0,1)), fH(i + vec3(1,0,1)), f.x), mix(fH(i + vec3(0,1,1)), fH(i + vec3(1,1,1)), f.x), f.y), f.z);
+        }
+        float fF(vec3 p) { return fN(p * 0.6) * 0.5 + fN(p * 1.9) * 0.3 + fN(p * 5.3) * 0.2; }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float fv = fF(vFW);
+        diffuseColor.rgb *= 0.35 + 0.75 * fv;`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          float e = 0.15;
+          vec3 g = vec3(fF(vFW + vec3(e, 0, 0)), fF(vFW + vec3(0, e, 0)), fF(vFW + vec3(0, 0, e))) - fF(vFW);
+          normal = normalize(normal - mat3(viewMatrix) * (g / e) * 0.6);
+        }`);
+  };
+  m.customProgramCacheKey = () => 'real-foliage-mass';
+  return m;
+}
+
 /**
  * @param {object} o
  * @param {THREE.Scene} o.scene
@@ -102,6 +133,9 @@ export function createRealStructures({ scene, data, terrain, level, collider, se
   // ---- 両岸の水際：対岸のヨシ・低木・柳の帯、市川側の護岸と船着場（手すりは当たり判定にも）
   const banks = createBanks({ toon: pbr, data, terrain, level, collider, season });
   banks.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  // 対岸のヨシ原・低木・柳の塊（多面体）に、葉の茂みのようなむらと凹凸を付ける
+  const veg = banks.group.getObjectByName('bank-vegetation');
+  if (veg) veg.material = foliageMassMaterial();
   group.add(banks.group);
 
   // ---- 遠景の影絵（スカイツリー・富士山など。方位と見かけの大きさを合わせる）

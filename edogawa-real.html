@@ -36,7 +36,7 @@
     <div class="row" id="quality-row"><span>画質</span></div>
     <div class="row"><span>表示</span><button id="o-help">❔ 操作説明</button><button id="o-pixel" title="同じ場所のドット絵版を開く">🎮 ドット絵版へ</button></div>
     <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
-    <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・地面の色：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
+    <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・地面の色：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors<br>地面の素材：ambientCG（CC0）／ 木：ez-tree（MIT、Daniel Greenheck）</div>
   </div>
 
   <div id="start">
@@ -158,7 +158,7 @@
         }
       }
     }
-    const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON });
+    const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale });
 
     // ============================================================================
     // 歩く

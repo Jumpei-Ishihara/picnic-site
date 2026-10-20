@@ -21,10 +21,13 @@ const KINDS = {
 };
 
 // 見本から作った木を、高さ 1 に正規化した形と素材にする
-function buildPrototype(shape, seed) {
+function buildPrototype(shape, seed, leafScale = 1) {
   const t = new Tree();
   t.loadPreset('Oak Medium');
   shape(t.options);
+  // 画質の低い端末は葉の数を減らし、1 枚を大きくして樹冠の詰まり具合を保つ
+  t.options.leaves.count = Math.max(4, Math.round(t.options.leaves.count * leafScale));
+  t.options.leaves.size *= 1 / Math.sqrt(leafScale);
   t.options.seed = seed;
   t.generate();
   t.updateMatrixWorld(true);
@@ -41,8 +44,9 @@ function buildPrototype(shape, seed) {
  * @param {{x:number, z:number, r:number, kind?:string}[]} o.trees  木の位置と樹冠の半径（m）
  * @param {(x:number, z:number) => number} o.heightAt
  * @param {object} o.season       engine/season.js の季節
+ * @param {number} [o.leafScale]  葉の数の倍率（画質）
  */
-export function createRealTrees({ scene, trees, heightAt, season }) {
+export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1 }) {
   const uniforms = { uTime: { value: 0 } };
   const group = new THREE.Group();
   group.name = 'trees';
@@ -61,7 +65,7 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
   const leafMats = [];
   for (const { kind, variant, list } of buckets.values()) {
     const K = KINDS[kind];
-    const proto = buildPrototype(K.shape, K.seeds[variant]);
+    const proto = buildPrototype(K.shape, K.seeds[variant], leafScale);
     // 幹と枝（PBR）
     const pb = proto.barkMat;
     const barkMat = new THREE.MeshStandardMaterial({
