@@ -60,12 +60,68 @@
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
     } }
   </script>
+  <!-- preload:start（tools/real/preload.py が書く。手で直さない） -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" />
+  <link rel="modulepreload" href="js/app.js" />
+  <link rel="modulepreload" href="../realsite/myoden-structures.js" />
+  <link rel="modulepreload" href="../engine/collision.js" />
+  <link rel="modulepreload" href="../engine/player.js" />
+  <link rel="modulepreload" href="../engine/season.js" />
+  <link rel="modulepreload" href="../engine/picnic-set.js" />
+  <link rel="modulepreload" href="../engine/basecamp.js" />
+  <link rel="modulepreload" href="../engine/audio.js" />
+  <link rel="modulepreload" href="../engine/ui.js" />
+  <link rel="modulepreload" href="js/terrain.js" />
+  <link rel="modulepreload" href="js/sky.js" />
+  <link rel="modulepreload" href="js/water.js" />
+  <link rel="modulepreload" href="js/grass.js" />
+  <link rel="modulepreload" href="js/trees.js" />
+  <link rel="modulepreload" href="js/structures.js" />
+  <link rel="modulepreload" href="js/quality.js" />
+  <link rel="modulepreload" href="js/perf.js" />
+  <link rel="modulepreload" href="../engine/pixel-kit.js" />
+  <link rel="modulepreload" href="../engine/sun.js" />
+  <link rel="modulepreload" href="js/ground.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/objects/Reflector.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/index.js" />
+  <link rel="modulepreload" href="../engine/structures.js" />
+  <link rel="modulepreload" href="../engine/backdrop.js" />
+  <link rel="modulepreload" href="../realsite/edogawa-banks.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/tree.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/enums.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/presets.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/textures.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/rng.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/branch.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/options.js" />
+  <link rel="modulepreload" href="js/vendor/ez-tree/trellis.js" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/scene.json" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/near_height.png" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/ground.png" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/ground_color.png" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/mid_height.png" />
+  <link rel="preload" as="fetch" crossorigin href="../scenes/myoden/mid_color.png" />
+  <link rel="preload" as="image" crossorigin="anonymous" href="assets/trees/oak_bark_ao.webp" />
+  <link rel="preload" as="image" crossorigin="anonymous" href="assets/trees/oak_bark_color.webp" />
+  <link rel="preload" as="image" crossorigin="anonymous" href="assets/trees/oak_bark_normal.webp" />
+  <link rel="preload" as="image" crossorigin="anonymous" href="assets/trees/oak_bark_rough.webp" />
+  <link rel="preload" as="image" crossorigin="anonymous" href="assets/trees/oak_leaves.webp" />
+  <script>
+    // 地面の素材の予告：画質の決め方は real/js/quality.js の getQuality と同じ
+    (() => { const F = {"high":["grass_color_1024.webp","worn_color_1024.webp","gravel_color_1024.webp","asphalt_color_1024.webp","concrete_color_1024.webp","grass_normal_1024.webp","worn_normal_1024.webp","gravel_normal_1024.webp","asphalt_normal_1024.webp","concrete_normal_1024.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"],"medium":["grass_color_1024.webp","worn_color_1024.webp","gravel_color_1024.webp","asphalt_color_1024.webp","concrete_color_1024.webp","grass_normal_512.webp","worn_normal_512.webp","gravel_normal_512.webp","asphalt_normal_512.webp","concrete_normal_512.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"],"low":["grass_color_512.webp","worn_color_512.webp","gravel_color_512.webp","asphalt_color_512.webp","concrete_color_512.webp","grass_normal_512.webp","worn_normal_512.webp","gravel_normal_512.webp","asphalt_normal_512.webp","concrete_normal_512.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"]};
+      let q = null; try { q = new URLSearchParams(location.search).get('quality'); } catch { q = null; }
+      if (!F[q]) { try { q = localStorage.getItem('picnic-site:real-quality'); } catch { q = null; } }
+      if (!F[q]) q = matchMedia('(pointer: coarse)').matches ? 'low' : devicePixelRatio >= 2 ? 'high' : 'medium';
+      for (const f of F[q]) { const l = document.createElement('link'); l.rel = 'preload'; l.as = 'fetch'; l.crossOrigin = ''; l.href = 'assets/ground/' + f; document.head.append(l); }
+    })();
+  </script>
+  <!-- preload:end -->
   <script type="module">
     import * as THREE from 'three';
     import { startRealScene } from './js/app.js';
     import { createArchPipeBridge, stripeMaterial, createRailYard, createBoats } from '../realsite/myoden-structures.js';
 
-    const data0 = await (await fetch('../scenes/myoden/scene.json', { cache: 'no-cache' })).json();
+    const data0 = await (await fetch('../scenes/myoden/scene.json')).json();
     // 川の向こう側か（川の中ほどの線から、川を横切る向き（北東）に）
     const ACR = data0.levee.across * Math.PI / 180, ACX = Math.sin(ACR), ACZ = -Math.cos(ACR);
     const farSide = (x, z) => {

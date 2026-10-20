@@ -62,7 +62,7 @@ export async function startRealScene(site) {
   const T0 = performance.now(), marks = [];
   let tPrev = T0;
   const mark = label => { const t = performance.now(); marks.push({ 段階: label, 'ms': Math.round(t - tPrev), '累計 ms': Math.round(t - T0) }); tPrev = t; };
-  const data = site.data ?? await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+  const data = site.data ?? await (await fetch(BASE + 'scene.json')).json();
   mark('scene.json');
   const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
   const UB = data.frame.upstreamBearing;
@@ -117,7 +117,7 @@ export async function startRealScene(site) {
   // 地形・水面・草・木
   // ============================================================================
   const nearStep = Math.min(1, Q.nearStep * (site.nearStepScale ?? 1));
-  const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep, texSize: Q.texSize, season: SEASON.key });
+  const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep, colorSize: Q.texColor, normalSize: Q.texNormal, season: SEASON.key });
   mark('地形と地面の素材');
   const NB = terrain.bounds.near, MB = terrain.bounds.mid;
   const level = data.water.levelY;
@@ -134,7 +134,7 @@ export async function startRealScene(site) {
   const treeKinds = site.treeKinds ?? { cherry: 0.2, evergreen: 0.3 };
   const treeList = data.trees.map(t => ({ x: t.x, z: t.z, r: Math.max(2, t.r), kind: t.kind }));
   treeList.push(...(site.extraTrees?.(data, MB) ?? []));
-  const trees = createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, maxNear: Q.treeMax, kinds: treeKinds });
+  const trees = await createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, maxNear: Q.treeMax, kinds: treeKinds });
   mark('木');
 
   // ============================================================================

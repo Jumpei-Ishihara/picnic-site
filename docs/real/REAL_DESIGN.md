@@ -41,7 +41,6 @@ picnic-site/
 | `engine/player.js`・`engine/collision.js` | 歩行・視点の操作と当たり判定 |
 | `engine/basecamp.js`・`engine/picnic-set.js` | 拠点とピクニックの持ち物（素材は写実版の `pbr()` を渡す） |
 | `engine/audio.js`・`engine/ui.js`・`engine/ui.css` | 音、時刻の操作・通知、画面の部品の見た目 |
-| `engine/terrain.js` | 高さの画像の読み込み（`loadHeightField`）だけ |
 | `engine/structures.js`・`engine/backdrop.js`・`engine/pixel-kit.js` | 鉄橋・送電線・家並み・窓の模様・観覧車・遠景の影絵の形、乱数 |
 | `realsite/edogawa-banks.js` | 江戸川の両岸の水際（護岸・船着場・植え込み） |
 | `realsite/nagisa-facilities.js`・`realsite/nagisa-surroundings.js` | なぎさ公園の施設とまわりの目立つもの |
@@ -310,3 +309,23 @@ picnic-site/
 
 - 改修前の同じ条件（2880 × 1800）は測っていないが、1090 × 1770 で 62 fps だったので、画素数から 35 fps 前後と見込まれる
 - この Mac（Apple の GPU）では GPU の時間が 1 コマの間隔より長く出ることがあり、正確でない。上げる判断は控えめ（11 ms より短いとき）なので、上げすぎることはない
+
+### P2 送る量を半分に（B1・B2・B3）
+
+| 項目 | 作り方 |
+|---|---|
+| ez-tree | 1.1.0 の木の形を作る部分（`tree.js`・`branch.js`・`options.js`・`enums.js`・`rng.js`・`trellis.js`）を `real/js/vendor/ez-tree/` に取り込んだ（import の拡張子を足しただけ）。見本は `Oak Medium` だけ（`presets.js`）、素材はオークの樹皮と葉の WebP を読む（`textures.js`、読み終わりを `texturesReady` で待つ）。CDN から読んでいた 2.99 MB（すべての樹種の画像を埋め込んだもの）が、コード 約 10 KB（圧縮後）と素材 539 KB に |
+| 木の形 | `loadPreset` は形を作ってしまうので使わず、見本を写してから 1 回だけ作る（今まで 2 回作っていた）。木の段階 212 → 155 ms |
+| 地面の素材 | `tools/real/build_textures.py` が ambientCG の元の画像から 1024・512 の WebP と色の平均 `means.json` を作る。画質ごとに 高：色・凹凸 1024、中：色 1024・凹凸 512、低：どれも 512。起動のたびの色の平均の計算はやめた |
+| 予告 | `tools/real/preload.py` が、ページの import をたどって部品（`modulepreload`）、場面データ（`fetch`）、木の素材（`image`）の予告を各ページの頭に書く。地面の素材は画質で変わるので、画質を決める小さなスクリプトが予告する。予告と実際の読み込みが一致するよう、写実版では場面データを `cache: 'no-cache'` なしで読む（高さの画像の読み込みも `real/js/terrain.js` に持った） |
+
+送る量（圧縮後の見込み。文字のファイルは gzip、画像はそのまま）：
+
+| 場面 | 高 | 中 | 低 |
+|---|---|---|---|
+| なぎさ公園 | 4.7 MB（改修前 約 8 MB） | 3.4 MB | 2.6 MB |
+| 江戸川 | 4.5 MB | 3.2 MB | 2.3 MB |
+| 妙典 | 5.2 MB | 3.9 MB | 3.0 MB |
+
+- 目標（高 4.5・中 3.5・低 2 MB）に対し、妙典と低画質は場面データ（高さ・空中写真の画像、妙典で 約 1.5 MB）の分だけ上回る
+- 二重に読むファイルが無いこと（同じ URL の読み込みが 1 回だけ）を確かめた

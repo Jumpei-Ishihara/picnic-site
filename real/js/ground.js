@@ -1,5 +1,6 @@
 // 写実版の地面の素材：地面の種類（1 m ごと）に PBR の素材（色・凹凸・粗さ）を割り当て、境目をゆらがせて混ぜる
-//   素材は real/assets/ground/（ambientCG、CC0。このファイルからの相対で読む）。テクスチャ配列（sampler2DArray）にまとめて 3 枚で渡す
+//   素材は real/assets/ground/ の WebP（ambientCG、CC0。tools/real/build_textures.py で作る。このファイルからの相対で読む）。
+//   色の平均（線形）は means.json に前もって計算してある。テクスチャ配列（sampler2DArray）にまとめて 3 枚で渡す
 //   色の平均は頂点色（地面の種類の色＋空中写真の色）にそろえ、素材は細部の模様だけを足す
 //   繰り返しが目立たないよう、大きさと向きの違う 2 枚の色を重ねる
 import * as THREE from 'three';
@@ -20,23 +21,15 @@ export const CLASS_LAYER = {
   leveeGrass: 'grass', road: 'asphalt', tree: 'grass', reeds: 'worn', other: 'grass'
 };
 
+export const GROUND_BASE = new URL('../assets/ground/', import.meta.url).href;
+
 async function loadLayerArray(urls, size, srgb) {
   const data = new Uint8Array(size * size * 4 * urls.length);
-  const means = [];
   const cv = new OffscreenCanvas(size, size), g = cv.getContext('2d', { willReadFrequently: true });
   const bitmaps = await Promise.all(urls.map(async u => createImageBitmap(await (await fetch(u)).blob(), { colorSpaceConversion: 'none' })));
   bitmaps.forEach((bmp, i) => {
     g.drawImage(bmp, 0, 0, size, size);
-    const px = g.getImageData(0, 0, size, size).data;
-    data.set(px, i * size * size * 4);
-    // 色の平均（線形）。模様を平均で割って、明るさの平均を 1 にするため
-    if (srgb) {
-      let r = 0, gg = 0, b = 0;
-      const toLin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-      for (let k = 0; k < px.length; k += 16) { r += toLin(px[k]); gg += toLin(px[k + 1]); b += toLin(px[k + 2]); }
-      const n = px.length / 16;
-      means.push(new THREE.Vector3(r / n, gg / n, b / n));
-    }
+    data.set(g.getImageData(0, 0, size, size).data, i * size * size * 4);
     bmp.close();
   });
   const tex = new THREE.DataArrayTexture(data, size, size, urls.length);
@@ -49,36 +42,44 @@ async function loadLayerArray(urls, size, srgb) {
   tex.generateMipmaps = true;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
-  return { tex, means };
+  return tex;
 }
+
+/** 画質ごとに読む素材の大きさ（px）。素材の画像は 1024 と 512 を用意してある（粗さは 512 だけ） */
+export const groundTextureFiles = (baseUrl, colorSize, normalSize) => GROUND_LAYERS.flatMap(l => [
+  `${baseUrl}${l.name}_color_${colorSize}.webp`, `${baseUrl}${l.name}_normal_${normalSize}.webp`, `${baseUrl}${l.name}_rough_512.webp`
+]);
 
 /**
  * @param {object} o
  * @param {Uint8Array} o.layerOfCell  近景の 1 m ごとの層の番号（w × h、行は z）
  * @param {{x0:number, z0:number, w:number, h:number}} o.grid
- * @param {number} [o.size]  テクスチャの大きさ（px）
+ * @param {number} [o.colorSize]   色の素材の大きさ（1024 か 512）
+ * @param {number} [o.normalSize]  凹凸の素材の大きさ（1024 か 512）
  * @param {string} [o.baseUrl]
  */
-export async function createGroundMaterial({ layerOfCell, grid, size = 1024, baseUrl = new URL('../assets/ground/', import.meta.url).href }) {
+export async function createGroundMaterial({ layerOfCell, grid, colorSize = 1024, normalSize = 1024, baseUrl = GROUND_BASE }) {
   const names = GROUND_LAYERS.map(l => l.name);
-  const [color, normal, rough] = await Promise.all([
-    loadLayerArray(names.map(n => `${baseUrl}${n}_color.jpg`), size, true),
-    loadLayerArray(names.map(n => `${baseUrl}${n}_normal.jpg`), size, false),
-    loadLayerArray(names.map(n => `${baseUrl}${n}_rough.jpg`), size / 2, false)
+  const [color, normal, rough, meansJson] = await Promise.all([
+    loadLayerArray(names.map(n => `${baseUrl}${n}_color_${colorSize}.webp`), colorSize, true),
+    loadLayerArray(names.map(n => `${baseUrl}${n}_normal_${normalSize}.webp`), normalSize, false),
+    loadLayerArray(names.map(n => `${baseUrl}${n}_rough_512.webp`), 512, false),
+    fetch(`${baseUrl}means.json`).then(r => r.json())
   ]);
+  const means = names.map(n => new THREE.Vector3(...meansJson[n]));
   const classTex = new THREE.DataTexture(layerOfCell, grid.w, grid.h, THREE.RedFormat, THREE.UnsignedByteType);
   classTex.magFilter = classTex.minFilter = THREE.NearestFilter;
   classTex.needsUpdate = true;
 
   const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, specularIntensity: 0.25 });
   const uniforms = {
-    tGColor: { value: color.tex }, tGNormal: { value: normal.tex }, tGRough: { value: rough.tex }, tClass: { value: classTex },
+    tGColor: { value: color }, tGNormal: { value: normal }, tGRough: { value: rough }, tClass: { value: classTex },
     uGrid: { value: new THREE.Vector4(grid.x0, grid.z0, grid.w, grid.h) },
     uLayerScale: { value: GROUND_LAYERS.map(l => l.scale) },
     uLayerNormal: { value: GROUND_LAYERS.map(l => l.normal) },
     uLayerContrast: { value: GROUND_LAYERS.map(l => l.contrast) },
     uLayerRough: { value: GROUND_LAYERS.map(l => l.rough) },
-    uLayerMean: { value: color.means }
+    uLayerMean: { value: means }
   };
   const N = GROUND_LAYERS.length;
   mat.onBeforeCompile = shader => {

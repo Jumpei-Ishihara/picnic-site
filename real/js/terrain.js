@@ -4,7 +4,6 @@
 //   中景：4 m 間隔の高さ。空中写真の色（2 m ごと）を貼る。写真の外は地面の種類の色。近景の下は沈めて隠す
 //   heightAt(x, z)：近景の中は近景、外は中景。近景の縁 blend m で中景になめらかにつなぐ（engine/terrain.js と同じ）
 import * as THREE from 'three';
-import { loadHeightField } from '../../engine/terrain.js';
 import { createGroundMaterial, GROUND_LAYERS, CLASS_LAYER } from './ground.js';
 
 // 地面の種類ごとの色の平均（sRGB）。素材（real/js/ground.js）の模様はこの色のまわりで明暗をつける
@@ -27,8 +26,20 @@ export const REAL_GROUND_EARLY_SUMMER = {
 };
 export const REAL_MID = { town: '#8a857c', grass: '#62783f', pitch: '#9c8866', water: '#4e4a38' };
 
+// 高さの PNG を読む。R*256+G = (TP+10)*100、B = 地面の種類の番号（engine/terrain.js の loadHeightField と同じ形式）。
+// engine の方はキャッシュを使わずに読むので、ページの頭の予告（preload）が無駄になる。写実版はこちらを使う
+async function loadHeightField(url, { x0, z0, step, originTP }) {
+  const { w, h, px } = await loadPixels(url);
+  const n = w * h, y = new Float32Array(n), cls = new Uint8Array(n);
+  for (let k = 0; k < n; k++) {
+    y[k] = (px[k * 4] * 256 + px[k * 4 + 1]) / 100 - 10 - originTP;
+    cls[k] = px[k * 4 + 2];
+  }
+  return { w, h, x0, z0, step, y, cls };
+}
+
 async function loadPixels(url) {
-  const blob = await (await fetch(url, { cache: 'no-cache' })).blob();
+  const blob = await (await fetch(url)).blob();
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
   const cv = new OffscreenCanvas(bmp.width, bmp.height);
   const g = cv.getContext('2d', { willReadFrequently: true });
@@ -98,10 +109,11 @@ function gridGeometry(x0, z0, x1, z1, step, height, color, uv = null) {
  * @param {number} [o.blend]   近景の縁で中景につなぐ幅（m）
  * @param {number} [o.photoMix] 近景で空中写真の色を混ぜる割合
  * @param {number} [o.nearStep] 近景の格子の間隔（m）
- * @param {number} [o.texSize]  地面の素材のテクスチャの大きさ（px）
+ * @param {number} [o.colorSize]  地面の素材（色）の大きさ（px）
+ * @param {number} [o.normalSize] 地面の素材（凹凸）の大きさ（px）
  * @param {string} [o.season]   'autumn'（10 月中旬）か 'summer'（初夏）
  */
-export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.3, nearStep = 0.25, texSize = 1024, season = 'autumn' }) {
+export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.3, nearStep = 0.25, colorSize = 1024, normalSize = 1024, season = 'autumn' }) {
   const looks = season === 'summer' ? { ...REAL_GROUND, ...REAL_GROUND_EARLY_SUMMER } : REAL_GROUND;
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
@@ -182,7 +194,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
   };
   const rgbTmp = [0, 0, 0];
   const nearGeo = gridGeometry(N.x0, N.z0, nx1, nz1, nearStep, heightAt, (x, z, c) => { cellAt(x, z, rgbTmp); c.setRGB(rgbTmp[0], rgbTmp[1], rgbTmp[2]); });
-  const nearMat = await createGroundMaterial({ layerOfCell, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h }, size: texSize });
+  const nearMat = await createGroundMaterial({ layerOfCell, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h }, colorSize, normalSize });
   const nearMesh = new THREE.Mesh(nearGeo, nearMat);
   nearMesh.receiveShadow = true;
   nearMesh.castShadow = true;

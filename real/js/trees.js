@@ -1,9 +1,9 @@
-// 写実版の木：ez-tree（MIT、https://github.com/dgreenheck/ez-tree）で樹種ごとに数本の形を作り、実際の位置にインスタンスで並べる
+// 写実版の木：ez-tree（MIT、https://github.com/dgreenheck/ez-tree。real/js/vendor/ez-tree/ に取り込んだもの）で樹種ごとに数本の形を作り、実際の位置にインスタンスで並べる
 //   樹種は engine/season.js の treeKind（桜・落葉樹・常緑樹）。秋の桜は葉を赤茶・橙に塗り替える（foliageColors）
 //   ez-tree の素材（Phong）は環境光を受けないので、同じテクスチャで PBR の素材に作り直す。葉は風で揺れ、葉のすき間を通った光が木漏れ日の影になる
 //   葉は影を受けず、樹冠の内側ほど暗くする陰で代える
 import * as THREE from 'three';
-import { Tree } from 'https://cdn.jsdelivr.net/npm/@dgreenheck/ez-tree@1.1.0/build/ez-tree.es.js';
+import { Tree, OAK_MEDIUM, texturesReady } from './vendor/ez-tree/index.js';
 import { treeKind, treeHash, foliageColors } from '../../engine/season.js';
 
 // 樹種ごとの形。ez-tree の見本「Oak Medium」をもとに枝と葉を変える（ほかの見本は葉がまばらな若木で、
@@ -23,7 +23,8 @@ const KINDS = {
 // 見本から作った木を、高さ 1 に正規化した形と素材にする
 function buildPrototype(shape, seed, leafScale = 1) {
   const t = new Tree();
-  t.loadPreset('Oak Medium');
+  // 見本を写すだけ（loadPreset は形を作ってしまうので使わない。形を作るのは下の 1 回だけ）
+  t.options.copy(structuredClone(OAK_MEDIUM));
   shape(t.options);
   // 画質の低い端末は葉の数を減らし、1 枚を大きくして樹冠の詰まり具合を保つ
   t.options.leaves.count = Math.max(4, Math.round(t.options.leaves.count * leafScale));
@@ -102,7 +103,7 @@ function mergeTwo(a, b) {
  * @param {number} [o.maxNear]     立体で描く木の本数の上限（近い順）
  * @param {object} [o.kinds]       樹種の割合（engine/season.js の treeKind。ginkgo はケヤキ風の形で秋は黄色）
  */
-export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1, renderer = null, nearRadius = 110, maxNear = 60, kinds = { cherry: 0.2, evergreen: 0.3 } }) {
+export async function createRealTrees({ scene, trees, heightAt, season, leafScale = 1, renderer = null, nearRadius = 110, maxNear = 60, kinds = { cherry: 0.2, evergreen: 0.3 } }) {
   const uniforms = { uTime: { value: 0 } };
   const group = new THREE.Group();
   group.name = 'trees';
@@ -120,6 +121,7 @@ export function createRealTrees({ scene, trees, heightAt, season, leafScale = 1,
     buckets.get(key).list.push(tr);
   }
 
+  await texturesReady; // 樹皮・葉の素材を読み終えてから（板の絵に写すため）
   const leafMats = [], bucketsOut = [];
   const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   for (const { kind, leafKind, variant, list } of buckets.values()) {
