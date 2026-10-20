@@ -693,6 +693,7 @@
     }
     setView('lunch');
     controls.setEye(1.55, true);
+    await terrain.ready; // 近景の地面の模様（別スレッドで焼いている）を待つ
     document.getElementById('loading').remove();
     requestAnimationFrame(function frame(now) {
       step(Math.min(0.05, (now - last) / 1000));
