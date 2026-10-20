@@ -273,6 +273,7 @@
     const goatPen = createGoatPen({ toon, pen: FAC.goatPen, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(goatPen.group);
     const R = FAC.ponyRing, RD = FAC.ponyRide;
+    const gateA = Math.atan2(gatePos.z - R.z, gatePos.x - R.x); // 馬場の中心から見た門の向き（柵の当たり判定で、門のところだけ通す）
     // 順番を待つ親子：日よけの下、乗り台のそば
     const queue = createQueue({ toon, at: { x: PL.mountBlock[0] + 3.5, z: PL.mountBlock[1] - 1.5 }, toward: { x: RD.x, z: RD.z }, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(queue.group);
