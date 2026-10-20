@@ -1021,3 +1021,6 @@ def write_attribution():
 
 if __name__ == '__main__':
     main()
+    # ページが読む劣化なしの WebP を作り、scene.json をそちらに向ける（PNG は編集用に残す）
+    import to_webp
+    to_webp.convert(OUT)
