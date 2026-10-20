@@ -12,9 +12,9 @@
  },
  "files": {
   "near": {
-   "height": "near_height.png",
-   "ground": "ground.png",
-   "groundColor": "ground_color.png",
+   "height": "near_height.webp",
+   "ground": "ground.webp",
+   "groundColor": "ground_color.webp",
    "x0": -220,
    "z0": -190,
    "step": 1,
@@ -23,7 +23,7 @@
    "encoding": "TP = (R*256+G)/100 - 10、y = TP - origin.tp"
   },
   "mid": {
-   "height": "mid_height.png",
+   "height": "mid_height.webp",
    "x0": -2700,
    "z0": -2500,
    "step": 8,

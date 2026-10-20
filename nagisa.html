@@ -176,7 +176,9 @@
     // 線路（高架橋・道床。realsite/life.js が作る）の帯には家を置かない
     const railAvoid = railCorridor(data.landmarks.railways, 16);
     const ITO = data.landmarks.specials.itoYokado?.footprint;
-    const inIto = (x, z) => { if (!ITO) return false; let r = false; for (let i = 0, j = ITO.length - 1; i < ITO.length; j = i++) { const [xi, zi] = ITO[i], [xj, zj] = ITO[j]; if ((zi > z) !== (zj > z) && x < xi + (z - zi) * (xj - xi) / (zj - zi)) r = !r; } return r; };
+    // 輪郭を囲む四角の外ならすぐに外（家並みを置くときに町の区画ごとに何十万回も呼ばれるので）
+    const ITO_BOX = ITO && [Math.min(...ITO.map(p => p[0])), Math.min(...ITO.map(p => p[1])), Math.max(...ITO.map(p => p[0])), Math.max(...ITO.map(p => p[1]))];
+    const inIto = (x, z) => { if (!ITO || x < ITO_BOX[0] || z < ITO_BOX[1] || x > ITO_BOX[2] || z > ITO_BOX[3]) return false; let r = false; for (let i = 0, j = ITO.length - 1; i < ITO.length; j = i++) { const [xi, zi] = ITO[i], [xj, zj] = ITO[j]; if ((zi > z) !== (zj > z) && x < xi + (z - zi) * (xj - xi) / (zj - zi)) r = !r; } return r; };
     const houses = createHouses({
       avoid: railAvoid,
       // 歩ける近景の範囲には置かない

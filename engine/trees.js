@@ -92,6 +92,18 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
     return list.map(([x, y, z, rr]) => [x - mx / w, y, z - mz / w, rr]);
   }
   const far = { geo: [] };
+  // 形の頂点を行列で動かした配列（BufferGeometry.applyMatrix4 と同じ計算。形の複製は作らない）
+  const tv = new THREE.Vector3(), nm = new THREE.Matrix3();
+  function transformed(geo, m) {
+    const P = geo.attributes.position.array, Nn = geo.attributes.normal.array;
+    const pos = new Float32Array(P.length), nor = new Float32Array(Nn.length);
+    nm.getNormalMatrix(m);
+    for (let i = 0; i < P.length; i += 3) {
+      tv.set(P[i], P[i + 1], P[i + 2]).applyMatrix4(m); pos[i] = tv.x; pos[i + 1] = tv.y; pos[i + 2] = tv.z;
+      tv.set(Nn[i], Nn[i + 1], Nn[i + 2]).applyMatrix3(nm).normalize(); nor[i] = tv.x; nor[i + 1] = tv.y; nor[i + 2] = tv.z;
+    }
+    return { pos, nor };
+  }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3();
   // 遠くの木は色ごとに 1 つにまとめる（マスに分けて画面外を省く方法も試したが、描く回数が増えて速くならなかった）
   const farParts = new Map(), trunkParts = new Map();
@@ -152,7 +164,7 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
       sway.push({ obj: foliage, amp: 0.008 + 0.006 / r, phase: rnd() * 6 });
       scene.add(g);
     } else {
-      // 遠くの木：まとめ描き用に、変換済みの形をためる
+      // 遠くの木：まとめ描き用に、変換済みの頂点をためる（形の複製は作らず、まとめ先の配列に直接書く）
       for (const [cx, cy, cz, cr] of cl) {
         if (bare) {
           // 遠くの葉の無い木：幹の先から塊の中心へ細い枝
@@ -163,10 +175,8 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
           bucket(trunkParts, tile(t.x, t.z)).push(bg);
           continue;
         }
-        const geo = farLeafGeo.clone();
         m4.compose(p.set(t.x + cx, y0 + cy, t.z + cz), q.setFromEuler(e.set(rnd() * 3, rnd() * 3, rnd() * 3)), sc.set(cr, cr * 0.82, cr));
-        geo.applyMatrix4(m4);
-        bucket(farParts, `${pal}|${cy > h + r * 0.4 ? 1 : 0}|${tile(t.x, t.z)}`).push(geo);
+        bucket(farParts, `${pal}|${cy > h + r * 0.4 ? 1 : 0}|${tile(t.x, t.z)}`).push(transformed(farLeafGeo, m4));
       }
       const tg = new THREE.CylinderGeometry(trunkR * 0.7, trunkR, h + r * 0.2, 5).translate(t.x, y0 + (h + r * 0.2) / 2, t.z);
       bucket(trunkParts, tile(t.x, t.z)).push(tg);
@@ -174,15 +184,17 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
   }
   const merge = list => {
     let nv = 0, ni = 0;
-    const count = g => (g.index ? g.index.count : g.attributes.position.count);
-    for (const g of list) { nv += g.attributes.position.count; ni += count(g); }
+    // list の要素は BufferGeometry か、頂点の配列だけ { pos, nor }（番号なし）
+    const verts = g => (g.isBufferGeometry ? g.attributes.position.count : g.pos.length / 3);
+    const count = g => (g.isBufferGeometry && g.index ? g.index.count : verts(g));
+    for (const g of list) { nv += verts(g); ni += count(g); }
     const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), idx = new Uint32Array(ni);
     let ov = 0, oi = 0;
     for (const g of list) {
-      pos.set(g.attributes.position.array, ov * 3); nor.set(g.attributes.normal.array, ov * 3);
-      const n = count(g);
-      for (let k = 0; k < n; k++) idx[oi + k] = (g.index ? g.index.array[k] : k) + ov;
-      ov += g.attributes.position.count; oi += n; g.dispose();
+      pos.set(g.isBufferGeometry ? g.attributes.position.array : g.pos, ov * 3); nor.set(g.isBufferGeometry ? g.attributes.normal.array : g.nor, ov * 3);
+      const n = count(g), ix = g.isBufferGeometry && g.index ? g.index.array : null;
+      for (let k = 0; k < n; k++) idx[oi + k] = (ix ? ix[k] : k) + ov;
+      ov += verts(g); oi += n; if (g.isBufferGeometry) g.dispose();
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
