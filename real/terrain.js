@@ -21,6 +21,10 @@ export const REAL_GROUND = {
   reeds:      '#8a8350',
   other:      '#6a7a48'
 };
+// 初夏（6 月上旬）：芝・堤防の草・ヨシが青々とした緑に
+export const REAL_GROUND_EARLY_SUMMER = {
+  lawn: '#547a32', lawnWorn: '#74844a', leveeGrass: '#4e7430', tree: '#46682e', reeds: '#62803c', other: '#5e7a40'
+};
 export const REAL_MID = { town: '#8a857c', grass: '#62783f', pitch: '#9c8866', water: '#4e4a38' };
 
 async function loadPixels(url) {
@@ -95,8 +99,10 @@ function gridGeometry(x0, z0, x1, z1, step, height, color, uv = null) {
  * @param {number} [o.photoMix] 近景で空中写真の色を混ぜる割合
  * @param {number} [o.nearStep] 近景の格子の間隔（m）
  * @param {number} [o.texSize]  地面の素材のテクスチャの大きさ（px）
+ * @param {string} [o.season]   'autumn'（10 月中旬）か 'summer'（初夏）
  */
-export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.3, nearStep = 0.25, texSize = 1024 }) {
+export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.3, nearStep = 0.25, texSize = 1024, season = 'autumn' }) {
+  const looks = season === 'summer' ? { ...REAL_GROUND, ...REAL_GROUND_EARLY_SUMMER } : REAL_GROUND;
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
   const [near, mid, groundImg, photoImg, midPhotoImg] = await Promise.all([
@@ -155,7 +161,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
     const c = new THREE.Color(), photo = new THREE.Color();
     for (let j = 0; j < N.h; j++) for (let i = 0; i < N.w; i++) {
       const k = j * N.w + i, name = groundNames[groundCls[k]];
-      c.setStyle(REAL_GROUND[name] ?? REAL_GROUND.other);
+      c.setStyle(looks[name] ?? looks.other);
       if (photoImg) {
         photo.setRGB(photoImg.px[k * 4] / 255, photoImg.px[k * 4 + 1] / 255, photoImg.px[k * 4 + 2] / 255, THREE.SRGBColorSpace);
         c.lerp(photo, photoMix);

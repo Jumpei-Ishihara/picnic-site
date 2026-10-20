@@ -83,7 +83,8 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
     uGrid: { value: new THREE.Vector4(G.x0, G.z0, G.w, G.h) },
     uHBox: { value: new THREE.Vector4(NB.x0, NB.z0, NB.x1, NB.z1) },
     uTime: { value: 0 }, uWind: { value: 1 }, uWindDir: { value: new THREE.Vector2(0.3, 0.9).normalize() },
-    uHide: { value: new THREE.Vector4(0, 0, 0, 0) } // シートの下（中心 x, z・半幅 w, d）。R6 で使う
+    uHide: { value: new THREE.Vector4(0, 0, 0, 0) }, // シートの下（中心 x, z・半幅 w, d）
+    uHideYaw: { value: 0 }                            // シートの向き（engine/basecamp.js の yaw）
   };
 
   // lod：内側の境目 a〜b で増え、外側の境目 c〜d で減る
@@ -97,7 +98,7 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
           attribute vec2 aRand;
           uniform sampler2D tMask, tColor, tHeight;
           uniform vec4 uGrid, uHBox, uHide;
-          uniform float uTime, uWind;
+          uniform float uTime, uWind, uHideYaw;
           uniform vec2 uWindDir;
           varying vec3 vGrassCol;
           varying float vGrassT;
@@ -111,7 +112,8 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
           float dist = length(bxz - cameraPosition.xz);
           // 密な所と粗い所の受け渡し、遠くで消す
           float lod = ${layer === 0 ? '1.0' : `smoothstep(${lod[0].toFixed(1)}, ${lod[1].toFixed(1)}, dist)`} * (1.0 - smoothstep(${lod[2].toFixed(1)}, ${lod[3].toFixed(1)}, dist));
-          vec2 hd = abs(bxz - uHide.xy);
+          vec2 hq = bxz - uHide.xy;
+          vec2 hd = abs(vec2(hq.x * cos(uHideYaw) - hq.y * sin(uHideYaw), hq.x * sin(uHideYaw) + hq.y * cos(uHideYaw)));
           float hidden = (hd.x < uHide.z && hd.y < uHide.w) ? 0.0 : 1.0;
           float keep = step(aBlade.w, m.g * lod) * hidden;
           float h = m.r * ${MAX_H.toFixed(2)} * (0.55 + 0.9 * aRand.x) * keep;
@@ -202,8 +204,8 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
 
   return {
     layers: layers.map(l => l.mesh), uniforms, update,
-    /** シートの下の草を消す（中心・半幅、シートの向きは無視して外接する四角） */
-    hideRect(x, z, hw, hd) { uniforms.uHide.value.set(x, z, hw, hd); },
+    /** シートの下の草を消す（中心・半幅・向き） */
+    hideRect(x, z, hw, hd, yaw = 0) { uniforms.uHide.value.set(x, z, hw, hd); uniforms.uHideYaw.value = yaw; },
     get blades() { return layers.reduce((a, L) => a + L.mesh.count * L.tile * L.tile * L.perM2, 0); }
   };
 }

@@ -1,6 +1,7 @@
 // 写実版の木：ez-tree（MIT、https://github.com/dgreenheck/ez-tree）で樹種ごとに数本の形を作り、実際の位置にインスタンスで並べる
 //   樹種は engine/season.js の treeKind（桜・落葉樹・常緑樹）。秋の桜は葉を赤茶・橙に塗り替える（foliageColors）
 //   ez-tree の素材（Phong）は環境光を受けないので、同じテクスチャで PBR の素材に作り直す。葉は風で揺れ、葉のすき間を通った光が木漏れ日の影になる
+//   葉は影を受けず、樹冠の内側ほど暗くする陰で代える
 import * as THREE from 'three';
 import { Tree } from 'https://cdn.jsdelivr.net/npm/@dgreenheck/ez-tree@1.1.0/build/ez-tree.es.js';
 import { treeKind, treeHash, foliageColors } from '../engine/season.js';
@@ -65,7 +66,7 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
     const pb = proto.barkMat;
     const barkMat = new THREE.MeshStandardMaterial({
       map: pb.map ?? null, normalMap: pb.normalMap ?? null, aoMap: pb.aoMap ?? null,
-      roughness: 0.9, metalness: 0, color: new THREE.Color(K.barkTint)
+      roughness: 0.9, metalness: 0, color: new THREE.Color(K.barkTint).multiplyScalar(1.4)
     });
     // 葉（PBR・両面・アルファで切り抜く）。秋の桜は葉の色を塗り替える
     const pl = proto.leafMat;
@@ -73,7 +74,8 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
     // 葉は日に透けて明るく見えるので、葉の色を少し自分で光らせる（強さは昼の明るさに合わせて update で変える）
     const leafMat = new THREE.MeshStandardMaterial({
       map: pl.map ?? null, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7, metalness: 0,
-      color: new THREE.Color(K.leafTint), emissive: new THREE.Color(K.leafTint), emissiveMap: pl.map ?? null, emissiveIntensity: 0
+      // ez-tree の葉のテクスチャは暗いので 1.7 倍に（太陽の高い初夏の昼に、横から見た樹冠が黒くつぶれていた）
+      color: new THREE.Color(K.leafTint).multiplyScalar(1.7), emissive: new THREE.Color(K.leafTint), emissiveMap: pl.map ?? null, emissiveIntensity: 0
     });
     const recolor = fc ? new THREE.Color(fc[1]) : null;
     leafMat.onBeforeCompile = shader => {
@@ -101,6 +103,9 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
             // 1 枚ごとに色づきをずらし、緑の残る葉もまぜる（10 月中旬の桜）
             float turn = smoothstep(0.25, 0.75, fract(sin(dot(floor(vLeafP * 14.0), vec3(12.9, 78.2, 37.7))) * 43758.5));
             diffuseColor.rgb = mix(diffuseColor.rgb, uRecolor * l * 3.4, uRecolorAmt * mix(0.55, 1.0, turn));
+            // 樹冠の内側・下側ほど暗く（葉は影を受けないので、そのかわりの陰）
+            float rr = length((vLeafP - vec3(0.0, 0.62, 0.0)) * vec3(1.7, 2.3, 1.7));
+            diffuseColor.rgb *= mix(0.7, 1.0, smoothstep(0.2, 0.8, rr)) * mix(0.9, 1.05, clamp((vLeafP.y - 0.3) / 0.7, 0.0, 1.0));
           }`);
     };
     leafMat.customProgramCacheKey = () => 'real-leaf-' + (recolor ? 'r' : 'n');
@@ -120,7 +125,9 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
       leaves.setMatrixAt(i, m4);
     });
     for (const m of [bark, leaves]) {
-      m.castShadow = m.receiveShadow = true;
+      // 葉は影を受けない（葉が小さく影の解像度が粗いので、1 枚ずつ自分の影で黒くなっていた）。影は落とす
+      m.castShadow = true;
+      m.receiveShadow = m === bark;
       m.computeBoundingSphere();
       group.add(m);
     }
@@ -131,7 +138,7 @@ export function createRealTrees({ scene, trees, heightAt, season }) {
     /** 毎フレーム：風の時間と、葉の透ける明るさ（day：昼 1・夜 0） */
     update(t, day = 1) {
       uniforms.uTime.value = t;
-      for (const m of leafMats) m.emissiveIntensity = 0.12 * day;
+      for (const m of leafMats) m.emissiveIntensity = 0.22 * day;
     },
     get triangles() { let n = 0; group.traverse(o => { if (o.isInstancedMesh) n += (o.geometry.index.count / 3) * o.count; }); return n; }
   };

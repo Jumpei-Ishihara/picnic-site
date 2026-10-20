@@ -18,11 +18,11 @@
 
   <div id="hud-tl" class="box chip fade"><div id="loc">📍 江戸川河川敷緑地（写実版・試作）</div></div>
   <div id="toast" class="box hidden"></div>
-  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く ・ 1〜4: 視点 ・ Esc: メニューを閉じる</div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く ・ 1〜4: 視点 ・ B: シートをここに敷く ・ Esc: メニューを閉じる</div>
   <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
 
   <div id="bar" class="box dock fade">
-    <button id="v-lunch" title="シートの場所：座って川と鉄橋を眺める（1）" aria-label="シートの場所">🧺</button>
+    <button id="v-lunch" title="拠点に戻る：シートに座って川と鉄橋を眺める。時刻はそのまま（1）" aria-label="拠点に戻る">🧺</button>
     <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
     <button id="v-sunset" title="夕日：水際で夕日を見る（3）" aria-label="夕日">🌇</button>
     <button id="v-bridge" title="鉄橋：堤防の上から上流を見る（4）" aria-label="鉄橋">🌉</button>
@@ -31,9 +31,11 @@
 
   <div id="menu" class="box hidden">
     <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
     <div class="row" id="season-row"><span>季節</span></div>
     <div class="row" id="quality-row"><span>画質</span></div>
     <div class="row"><span>表示</span><button id="o-help">❔ 操作説明</button><button id="o-pixel" title="同じ場所のドット絵版を開く">🎮 ドット絵版へ</button></div>
+    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button></div>
     <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・地面の色：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
   </div>
 
@@ -41,12 +43,13 @@
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
       <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川・鉄橋・送電線は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R5（遠景・構造物）まで：空・太陽・地形・地面・水面・草・木・鉄橋・送電線・町並みと歩行です。ピクニックの持ち物は次の段階で足します。</p>
+      <p>秋晴れの昼にシートに座ってスープを飲み、寝ころんで空を見上げ、夕方はスカイツリーの横に沈む夕日を眺めます。⚙️ で初夏にも、画質も変えられます。</p>
       <div class="btns">
-        <button id="s-lunch">🧺 シートの場所から</button>
+        <button id="s-lunch">🍲 シートに座る</button>
+        <button id="s-sunset" class="sub">🌇 夕日を見る</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
       </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜4 で視点 ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="edogawa.html">ドット絵版はこちら</a></small>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜4 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="edogawa.html">ドット絵版はこちら</a></small>
     </div>
   </div>
 
@@ -60,21 +63,36 @@
     import * as THREE from 'three';
     import { createCollider } from './engine/collision.js';
     import { createPlayerController } from './engine/player.js';
-    import { getSeason, seasonalSunPath, bindSeasonUI, dateText } from './engine/season.js';
+    import { SEASONS, seasonalSunPath, dateText, FAUNA } from './engine/season.js';
+    import { createPicnicSet } from './engine/picnic-set.js';
+    import { createBaseCamp, bindBaseCampUI } from './engine/basecamp.js';
+    import { createAudio } from './engine/audio.js';
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide } from './engine/ui.js';
     import { createRealTerrain } from './real/terrain.js';
     import { createRealSky } from './real/sky.js';
     import { createRealWater } from './real/water.js';
     import { createRealGrass } from './real/grass.js';
     import { createRealTrees } from './real/trees.js';
-    import { createRealStructures } from './real/structures.js';
+    import { createRealStructures, pbr } from './real/structures.js';
     import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
 
     const BASE = 'scenes/edogawa/';
     const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
     const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
     const UB = data.frame.upstreamBearing;
-    const SEASON = getSeason('autumn');
+    // 季節：秋（10 月中旬）と初夏（6 月上旬）。初夏の草木の色は engine/season.js の「夏」を使う
+    const REAL_SEASONS = {
+      autumn: SEASONS.autumn,
+      summer: { ...SEASONS.summer, icon: '🌿', label: '初夏', date: '2026-06-01', when: '6 月上旬' }
+    };
+    const SEASON_KEY = 'picnic-site:real-season';
+    const SEASON = (() => {
+      let k = null;
+      try { k = new URLSearchParams(location.search).get('season'); } catch { k = null; }
+      if (!REAL_SEASONS[k]) { try { k = localStorage.getItem(SEASON_KEY); } catch { k = null; } }
+      return REAL_SEASONS[k] ?? REAL_SEASONS.autumn;
+    })();
+    const LOOP = 6;
     const Q = getQuality();
     const DEBUG = new URLSearchParams(location.search).has('debug');
 
@@ -115,7 +133,7 @@
     // ============================================================================
     // 地形（R1：25 cm の格子と PBR の地面）と水面（R2：反射・波・濁り）
     // ============================================================================
-    const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep: Q.nearStep, texSize: Q.texSize });
+    const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep: Q.nearStep, texSize: Q.texSize, season: SEASON.key });
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     // 水面：両岸の中景の範囲いっぱいに張る（陸の下は地形に隠れる）。水深は近景を細かく
@@ -161,9 +179,27 @@
       joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
       tapTargets: [terrain.near],
       isInputEnabled: () => started,
-      onStuck: () => toast.show('ここから先へは進めないみたい')
+      onStuck: () => toast.show('ここから先へは進めないみたい'),
+      onPointerDown: () => audio.init(),
+      onStep: (x, z) => audio.footstep(FOOT[terrain.groundAt(x, z)] ?? 'grass')
     });
     const player = controls.player;
+
+    // ============================================================================
+    // ピクニック（R6）：シートと持ち物（すべてのピクニックの場面で共通の engine/picnic-set.js）、拠点の移動、音
+    // ============================================================================
+    const S = data.sheet;
+    const picnicSet = createPicnicSet({ scene, toon: pbr, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP, season: SEASON.key });
+    const base = createBaseCamp({
+      root: picnicSet.group, home: { x: S.x, z: S.z, yaw: sunPath.yawOfBearing(S.bearing) }, size: { w: 2.0, d: 1.4 },
+      heightAt: terrain.heightAt, isWater: (x, z) => terrain.heightAt(x, z) < level + 0.15, isBlocked: (x, z) => collider.solidAt(x, z, 0.05),
+      storageKey: 'picnic-site:base:edogawa-real',
+      onMove() { picnicSet.relocate(); grass.hideRect(base.pose.x, base.pose.z, 1.05, 0.75, base.pose.yaw); }
+    });
+    base.restore();
+    grass.hideRect(base.pose.x, base.pose.z, 1.05, 0.75, base.pose.yaw);
+    const audio = createAudio();
+    const FOOT = { paved: 'stone', road: 'stone', revetment: 'stone', dirt: 'grass' };
 
     // ============================================================================
     // 視点・UI
@@ -186,15 +222,31 @@
       if (name !== 'lunch') setHour(v.hour);
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
-      player.x = v.x; player.z = v.z;
-      player.yaw = sunPath.yawOfBearing(v.bearing);
+      // シートの視点は、シートを移した場所に読み替える
+      const p = name === 'lunch' ? base.fromHome(v.x, v.z, sunPath.yawOfBearing(v.bearing)) : { x: v.x, z: v.z, yaw: sunPath.yawOfBearing(v.bearing) };
+      player.x = p.x; player.z = p.z;
+      player.yaw = p.yaw;
       player.pitch = v.pitch * Math.PI / 180;
       controls.setEye(v.eye, true);
       controls.settle();
       for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
     }
     for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
-    bindSeasonUI(document.getElementById('season-row'), SEASON);
+    for (const ss of Object.values(REAL_SEASONS)) {
+      const b = document.createElement('button');
+      b.textContent = `${ss.icon} ${ss.label}`;
+      b.title = `${ss.label}（${ss.when}）にする。草木の色・太陽の通り道が変わります（読み直します）`;
+      b.classList.toggle('on', ss.key === SEASON.key);
+      b.addEventListener('click', () => {
+        if (ss.key === SEASON.key) return;
+        try { localStorage.setItem(SEASON_KEY, ss.key); } catch { /* URL で渡す */ }
+        const u = new URL(location.href); u.searchParams.set('season', ss.key); location.replace(u.toString());
+      });
+      document.getElementById('season-row').append(b);
+    }
+    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started });
+    btn('o-snd', el => { audio.init(); audio.setEnabled(!audio.enabled); el.classList.toggle('on', audio.enabled); el.textContent = audio.enabled ? '🔊 音' : '🔇 音'; });
+    addEventListener('keydown', () => audio.init());
     bindQualityUI(document.getElementById('quality-row'), Q);
     for (const el of document.querySelectorAll('#start p, #credit')) el.innerHTML = el.innerHTML.replace('2026年10月18日', `${dateText(SEASON)}（${SEASON.label}）`);
 
@@ -219,6 +271,7 @@
     function begin(view) {
       started = true;
       document.getElementById('start').remove();
+      audio.init();
       if (view) setView(view);
       else { setView('lunch'); controls.setEye(1.6); }
       controls.setMode('walk');
@@ -226,7 +279,21 @@
       autoHide.show();
     }
     btn('s-lunch', () => begin('lunch'));
+    btn('s-sunset', () => begin('sunset'));
     btn('s-walk', () => begin(null));
+
+    // ---- 音：川の水音、川風（堤防の上で強く）、トビ、秋の虫（初夏はまだ鳴かない）
+    let kiteTimer = 4, bugTimer = 1;
+    function updateSound(dt) {
+      const r = data.section.reduce((a, b) => Math.abs(b.z - player.z) < Math.abs(a.z - player.z) ? b : a);
+      audio.setWater(0.16 * Math.max(0, 1 - Math.max(0, player.x - r.shore) / 20), dt);
+      const onLevee = Math.min(1, Math.max(0, terrain.heightAt(player.x, player.z) / 6));
+      audio.setBed('wind', 0.05 + 0.07 * onLevee + 0.02 * Math.sin(elapsed * 2 * Math.PI / LOOP), dt);
+      kiteTimer -= dt;
+      if (kiteTimer < 0) { kiteTimer = 9 + Math.random() * 14; if (sky.state.elevation > 3) audio.kite(); }
+      bugTimer -= dt;
+      if (bugTimer < 0) { bugTimer = 0.25 + Math.random() * 0.9; if (SEASON.key === 'autumn' && FAUNA.autumn.crickets && (sky.state.night > 0.15 || sky.state.elevation < 4)) audio.cricket(0.95 + Math.random() * 0.1); }
+    }
 
     // ============================================================================
     // 毎フレーム
@@ -252,6 +319,9 @@
       skyHor.copy(sky.uniforms.uHorizon.value).multiplyScalar(sky.uniforms.uScale.value);
       skyTop.copy(sky.uniforms.uZenith.value).multiplyScalar(sky.uniforms.uScale.value);
       structures.update({ horizon: skyHor, top: skyTop, sunDir: sky.state.sunDir, night: sky.state.night }, camera.position);
+      // 持ち物（湯気・本のページ・ランタンは夕方から灯る）
+      picnicSet.update(elapsed % LOOP, { night: sky.state.night, dusk: Math.max(0, 1 - Math.abs(sky.state.elevation - 1) / 6) });
+      if (started) updateSound(dt);
       renderer.render(scene, camera);
       hud?.update();
     }
@@ -260,7 +330,7 @@
     document.getElementById('loading').remove();
     renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
-    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, controls, player, tod, setView, setHour, begin, sunPath };
+    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, picnicSet, base, audio, controls, player, tod, setView, setHour, begin, sunPath };
   </script>
 </body>
 </html>
