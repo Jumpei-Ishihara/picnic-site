@@ -22,8 +22,8 @@
   <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
 
   <div id="bar" class="box dock fade">
-    <button id="v-lunch" title="ランチ：堤防の川側の芝にシートを広げて、江戸川の下流を眺める（1）" aria-label="ランチ">🍲</button>
-    <button id="v-nap" title="昼寝：堤防の芝に寝ころんで空を見上げる（2）" aria-label="昼寝">😴</button>
+    <button id="v-lunch" title="拠点に戻る：シートに座って、江戸川の下流を眺める。時刻はそのまま（1）" aria-label="拠点に戻る">🧺</button>
+    <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
     <button id="v-photo" title="堤防の上：自転車・歩行者道から下流を見る（Google マップの 360° 写真と同じ場所・向き）（3）" aria-label="堤防の上">🚲</button>
     <button id="v-sunset" title="夕日：堤防の上から、妙典の町の向こうに沈む夕日を見る（4）" aria-label="夕日">🌇</button>
     <button id="v-bridge" title="アーチの水管橋：堤防の川側の斜面から、3 つのアーチの水管橋と奥の東西線の鉄橋を見る（5）" aria-label="アーチの水管橋">🌉</button>
@@ -464,7 +464,7 @@
       onMove() { picnicSet.relocate(); tuftHider?.update((x, z) => base.covers(x, z, 0.15)); }
     });
     base.restore();
-    const SHEET_VIEWS = ['lunch', 'nap'];
+    const SHEET_VIEWS = ['lunch']; // 🧺 はシート（拠点）へ戻る。😴 はその場に寝そべるだけ（lieDown）
 
     // 水までの距離（8 方向に 2 m おきに調べる。60 m まで）。同じ場所（0.5 m 以内）なら前の答えを使う
     let dwCache = { x: 1e9, z: 1e9, d: 999 };
@@ -515,11 +515,23 @@
     // ============================================================================
     const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
     function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
+    // 😴 寝っ転がる：その場で寝そべって空を見上げる（場所・向き・時刻はそのまま）。寝ているときにもう一度押すと起きる。歩き出しても起きる
+    function lieDown() {
+      controls.cancelWalk();
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      const lying = controls.eye < 0.5;
+      const v = data.viewpoints.nap;
+      player.pitch = lying ? 0 : v.pitch * Math.PI / 180;
+      controls.setEye(lying ? 1.55 : v.eye, true);
+      controls.settle();
+      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === 'nap' && !lying);
+    }
     function setView(name) {
       let v = data.viewpoints[name];
+      if (name === 'nap') { lieDown(); return; }
       // 夕日の視点：季節ごとの日の入りの少し前に、日の沈む方位を向く（秋はもとの構図）
       if (name === 'sunset' && SEASON.key !== 'autumn') { const hh = sunPath.sunset - 0.2; v = { ...v, hour: hh, bearing: sunPath.sunAt(hh).azimuth }; }
-      setHour(v.hour);
+      if (name !== 'lunch') setHour(v.hour); // 拠点に戻るだけのときは、時刻はそのまま
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
       // シートの視点は、シートを移した場所に読み替える
