@@ -1,20 +1,22 @@
 // 写実版の地形（近景＋中景）。tools/geo/build_scene.py の出力（scene.json の files）を読む
-//   近景：1 m 間隔の高さ。地面の種類の色と空中写真の色を頂点色に（R1 で PBR の素材に置き換える）
+//   近景：1 m 間隔の高さを双三次補間して細かい格子（高 25 cm）に。色の平均は地面の種類の色と空中写真の色（頂点色）、
+//         細部は地面の種類ごとの PBR の素材（real/ground.js）
 //   中景：4 m 間隔の高さ。空中写真の色（2 m ごと）を貼る。写真の外は地面の種類の色。近景の下は沈めて隠す
 //   heightAt(x, z)：近景の中は近景、外は中景。近景の縁 blend m で中景になめらかにつなぐ（engine/terrain.js と同じ）
 import * as THREE from 'three';
 import { loadHeightField } from '../engine/terrain.js';
+import { createGroundMaterial, GROUND_LAYERS, CLASS_LAYER } from './ground.js';
 
-// 地面の種類ごとの色（写実の地面の平均の色、sRGB）。R1 で素材の色に置き換える
+// 地面の種類ごとの色の平均（sRGB）。素材（real/ground.js）の模様はこの色のまわりで明暗をつける
 export const REAL_GROUND = {
   water:      '#4e4a38', // 川底の泥
   lawn:       '#5f7a3c',
   lawnWorn:   '#7f8350',
-  dirt:       '#9a8463',
-  paved:      '#8e8c86',
-  revetment:  '#8a877e',
+  dirt:       '#a09078', // 砂っぽい土・砂利道
+  paved:      '#77766f', // 河川敷の道（アスファルトの明るめの灰色）
+  revetment:  '#8a877f', // 水際の護岸（コンクリート）
   leveeGrass: '#5a7638',
-  road:       '#55565a',
+  road:       '#4b4c4f',
   tree:       '#4f6a34',
   reeds:      '#8a8350',
   other:      '#6a7a48'
@@ -37,6 +39,17 @@ function sampleField(f, x, z) {
   const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, w = f.w;
   const a = f.y[j * w + i], b = f.y[j * w + i + 1], c = f.y[(j + 1) * w + i], d = f.y[(j + 1) * w + i + 1];
   return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
+}
+
+// 格子の値を双三次（Catmull-Rom）補間。堤防の肩などの折れ目を、1 m の格子の角を見せずになめらかに
+function sampleBicubic(f, x, z) {
+  const fx = Math.min(Math.max((x - f.x0) / f.step, 0), f.w - 1.0001);
+  const fz = Math.min(Math.max((z - f.z0) / f.step, 0), f.h - 1.0001);
+  const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, w = f.w;
+  const at = (a, b) => f.y[Math.min(f.h - 1, Math.max(0, b)) * w + Math.min(w - 1, Math.max(0, a))];
+  const cr = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
+  const row = b => cr(at(i - 1, b), at(i, b), at(i + 1, b), at(i + 2, b), tx);
+  return cr(row(j - 1), row(j), row(j + 1), row(j + 2), tz);
 }
 
 // 位置から決まる乱数（0〜1）
@@ -80,8 +93,10 @@ function gridGeometry(x0, z0, x1, z1, step, height, color, uv = null) {
  * @param {string} o.baseUrl   scene.json のあるフォルダ（末尾 /）
  * @param {number} [o.blend]   近景の縁で中景につなぐ幅（m）
  * @param {number} [o.photoMix] 近景で空中写真の色を混ぜる割合
+ * @param {number} [o.nearStep] 近景の格子の間隔（m）
+ * @param {number} [o.texSize]  地面の素材のテクスチャの大きさ（px）
  */
-export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.45 }) {
+export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photoMix = 0.3, nearStep = 0.25, texSize = 1024 }) {
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
   const [near, mid, groundImg, photoImg, midPhotoImg] = await Promise.all([
@@ -115,7 +130,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
   function heightAt(x, z) {
     const w = nearWeight(x, z);
     if (w <= 0) return midAt(x, z);
-    const yn = sampleField(near, x, z);
+    const yn = sampleBicubic(near, x, z);
     return w >= 1 ? yn : midAt(x, z) + (yn - midAt(x, z)) * w;
   }
   const inNear = (x, z) => x >= N.x0 && z >= N.z0 && x <= nx1 && z <= nz1;
@@ -132,18 +147,36 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
     return M.classes[mid.cls[j * M.w + i]] ?? 'grass';
   }
 
-  // ---- 近景：地面の種類の色と空中写真の色を混ぜた頂点色
-  const tmp = new THREE.Color(), photo = new THREE.Color();
-  const nearGeo = gridGeometry(N.x0, N.z0, nx1, nz1, N.step, heightAt, (x, z, c) => {
-    const i = Math.round(x - N.x0), j = Math.round(z - N.z0), k = j * N.w + i;
-    c.setStyle(REAL_GROUND[groundNames[groundCls[k]]] ?? REAL_GROUND.other);
-    if (photoImg) {
-      photo.setRGB(photoImg.px[k * 4] / 255, photoImg.px[k * 4 + 1] / 255, photoImg.px[k * 4 + 2] / 255, THREE.SRGBColorSpace);
-      c.lerp(photo, photoMix);
+  // ---- 近景：1 m ごとの色の平均（地面の種類の色と空中写真の色）を頂点で補間し、素材の模様を重ねる
+  const cellColor = new Float32Array(N.w * N.h * 3);
+  const layerOfCell = new Uint8Array(N.w * N.h);
+  const layerIndex = Object.fromEntries(GROUND_LAYERS.map((l, i) => [l.name, i]));
+  {
+    const c = new THREE.Color(), photo = new THREE.Color();
+    for (let j = 0; j < N.h; j++) for (let i = 0; i < N.w; i++) {
+      const k = j * N.w + i, name = groundNames[groundCls[k]];
+      c.setStyle(REAL_GROUND[name] ?? REAL_GROUND.other);
+      if (photoImg) {
+        photo.setRGB(photoImg.px[k * 4] / 255, photoImg.px[k * 4 + 1] / 255, photoImg.px[k * 4 + 2] / 255, THREE.SRGBColorSpace);
+        c.lerp(photo, photoMix);
+      }
+      c.multiplyScalar(0.94 + 0.12 * hash2(i, j)); // 1 m ごとの小さなむら
+      cellColor.set([c.r, c.g, c.b], k * 3);
+      layerOfCell[k] = layerIndex[CLASS_LAYER[name] ?? 'grass'];
     }
-    c.multiplyScalar(0.92 + 0.16 * hash2(i, j)); // 1 m ごとの小さなむら
-  });
-  const nearMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, specularIntensity: 0.25 });
+  }
+  const cellAt = (x, z, out) => {
+    const fx = Math.min(Math.max(x - N.x0, 0), N.w - 1.0001), fz = Math.min(Math.max(z - N.z0, 0), N.h - 1.0001);
+    const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j;
+    const k00 = (j * N.w + i) * 3, k10 = k00 + 3, k01 = k00 + N.w * 3, k11 = k01 + 3;
+    for (let n = 0; n < 3; n++) {
+      const a = cellColor[k00 + n], b = cellColor[k10 + n], cc = cellColor[k01 + n], d = cellColor[k11 + n];
+      out[n] = (a + (b - a) * tx) * (1 - tz) + (cc + (d - cc) * tx) * tz;
+    }
+  };
+  const rgbTmp = [0, 0, 0];
+  const nearGeo = gridGeometry(N.x0, N.z0, nx1, nz1, nearStep, heightAt, (x, z, c) => { cellAt(x, z, rgbTmp); c.setRGB(rgbTmp[0], rgbTmp[1], rgbTmp[2]); });
+  const nearMat = await createGroundMaterial({ layerOfCell, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h }, size: texSize });
   const nearMesh = new THREE.Mesh(nearGeo, nearMat);
   nearMesh.receiveShadow = true;
   nearMesh.castShadow = true;

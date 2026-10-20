@@ -41,7 +41,7 @@
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
       <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R0（基盤）：空・太陽・地形・水面と歩行だけです。草・木・橋などは次の段階で足します。</p>
+      <p>いまは R1（地形と地面）まで：空・太陽・地形・地面の素材・水面と歩行です。草・木・橋などは次の段階で足します。</p>
       <div class="btns">
         <button id="s-lunch">🧺 シートの場所から</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
@@ -106,9 +106,9 @@
     };
 
     // ============================================================================
-    // 地形と水面（R2 で反射・波の水面に置き換える）
+    // 地形（R1：25 cm の格子と PBR の地面）と水面（R2 で反射・波の水面に置き換える）
     // ============================================================================
-    const terrain = await createRealTerrain({ scene, data, baseUrl: BASE });
+    const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep: Q.nearStep, texSize: Q.texSize });
     const NB = terrain.bounds.near, MB = terrain.bounds.mid;
     const level = data.water.levelY;
     const water = new THREE.Mesh(

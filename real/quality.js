@@ -1,9 +1,9 @@
 // 写実版の画質の段階（高・中・低）。?quality= か覚えた値、なければ端末から選ぶ
-//   R0 では描く解像度と影だけ。草・木・水・遮蔽の値は R3〜R7 で足す
+//   描く解像度・影・地形の細かさ・地面の素材の大きさ。草・木・水・遮蔽の値は R2〜R7 で足す
 export const QUALITY = {
-  high:   { key: 'high',   label: '高', pixelRatio: 2,    shadowSize: 2048, shadowExtent: 70 },
-  medium: { key: 'medium', label: '中', pixelRatio: 1.5,  shadowSize: 1024, shadowExtent: 60 },
-  low:    { key: 'low',    label: '低', pixelRatio: 1,    shadowSize: 1024, shadowExtent: 45 }
+  high:   { key: 'high',   label: '高', pixelRatio: 2,    shadowSize: 2048, shadowExtent: 70, nearStep: 0.25, texSize: 1024 },
+  medium: { key: 'medium', label: '中', pixelRatio: 1.5,  shadowSize: 1024, shadowExtent: 60, nearStep: 0.5,  texSize: 1024 },
+  low:    { key: 'low',    label: '低', pixelRatio: 1,    shadowSize: 1024, shadowExtent: 45, nearStep: 1,    texSize: 512 }
 };
 const STORAGE_KEY = 'picnic-site:real-quality';
 
