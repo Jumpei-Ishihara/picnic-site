@@ -81,7 +81,7 @@
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from './engine/structures.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
-    import { createPicnicSet } from './realsite/picnic-set.js';
+    import { createPicnicSet } from './engine/picnic-set.js';
     import { createLife } from './realsite/life.js';
     import { createBanks } from './realsite/edogawa-banks.js';
     import { createAudio } from './engine/audio.js';
@@ -291,7 +291,7 @@
     // ピクニックの持ち物（企画提案書の身軽ピクニック）と、生き物・交通
     // ============================================================================
     const S = data.sheet;
-    const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP });
+    const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP, season: SEASON.key }); // 持ち物はすべての場面で共通（engine/picnic-set.js）
     pixel.hideInNormalPass.add(picnicSet.steam.points);
     const life = createLife({ season: lifeSeason(SEASON), scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH });
     const look = createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights] });
@@ -608,7 +608,7 @@
       water.update(dt, elapsed % LOOP, { sun, night: tod.night, warm: L.warm, fog: scene.fog });
       // 周期で繰り返すものには、周期で折り返した時刻を渡す（シェーダーの小数の誤差で、6 秒後にわずかにずれないように）
       const loopT = elapsed % LOOP;
-      picnicSet.update(loopT);
+      { const el_ = sunPath.sunAt(tod.hour).elevation; picnicSet.update(loopT, { night: tod.night, dusk: Math.max(0, 1 - Math.abs(el_ - 1) / 6) }); } // ランタンは夕方から灯る
       life.update(loopT, trafficClock, { sunElevation: sunPath.sunAt(tod.hour).elevation, night: tod.night, level });
       document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
       pixel.prepareShadows(); // 反射・屈折にもこのコマの影を使う

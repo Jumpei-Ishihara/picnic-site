@@ -367,7 +367,7 @@ P3 以降への申し送り
 
 ## 12. P3 の結果（2026-10-18）
 
-場面だけで使うものは `edogawa/`（今は なぎさ公園と共有の `realsite/`）に分けました（`picnic-set.js`：持ち物と湯気、`life.js`：生き物と交通）。揺れる草は共通の部品 `engine/grass.js` にしました。
+場面だけで使うものは `edogawa/`（今は なぎさ公園と共有の `realsite/`）に分けました（`picnic-set.js`：持ち物と湯気（2026-10-20 にすべての場面で共通の `engine/picnic-set.js` へ。SPEC 11 章）、`life.js`：生き物と交通）。揺れる草は共通の部品 `engine/grass.js` にしました。
 
 | 種類 | 内容 |
 |---|---|
