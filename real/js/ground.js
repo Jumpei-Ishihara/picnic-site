@@ -1,5 +1,5 @@
 // 写実版の地面の素材：地面の種類（1 m ごと）に PBR の素材（色・凹凸・粗さ）を割り当て、境目をゆらがせて混ぜる
-//   素材は assets/real/ground/（ambientCG、CC0）。テクスチャ配列（sampler2DArray）にまとめて 3 枚で渡す
+//   素材は real/assets/ground/（ambientCG、CC0。このファイルからの相対で読む）。テクスチャ配列（sampler2DArray）にまとめて 3 枚で渡す
 //   色の平均は頂点色（地面の種類の色＋空中写真の色）にそろえ、素材は細部の模様だけを足す
 //   繰り返しが目立たないよう、大きさと向きの違う 2 枚の色を重ねる
 import * as THREE from 'three';
@@ -59,7 +59,7 @@ async function loadLayerArray(urls, size, srgb) {
  * @param {number} [o.size]  テクスチャの大きさ（px）
  * @param {string} [o.baseUrl]
  */
-export async function createGroundMaterial({ layerOfCell, grid, size = 1024, baseUrl = 'assets/real/ground/' }) {
+export async function createGroundMaterial({ layerOfCell, grid, size = 1024, baseUrl = new URL('../assets/ground/', import.meta.url).href }) {
   const names = GROUND_LAYERS.map(l => l.name);
   const [color, normal, rough] = await Promise.all([
     loadLayerArray(names.map(n => `${baseUrl}${n}_color.jpg`), size, true),

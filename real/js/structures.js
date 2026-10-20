@@ -1,10 +1,10 @@
 // 写実版の遠景と構造物：鉄橋・送電線と鉄塔・家並み・高い建物・両岸の水際（護岸・船着場・ヨシの帯）・遠景の影絵
 //   形の作り方はドット絵版のもの（engine/structures.js・engine/backdrop.js・realsite/edogawa-banks.js）を使い、素材だけ PBR にする
 import * as THREE from 'three';
-import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from '../engine/structures.js';
-import { createBackdrop } from '../engine/backdrop.js';
-import { createBanks } from '../realsite/edogawa-banks.js';
-import { mulberry32 } from '../engine/pixel-kit.js';
+import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from '../../engine/structures.js';
+import { createBackdrop } from '../../engine/backdrop.js';
+import { createBanks } from '../../realsite/edogawa-banks.js';
+import { mulberry32 } from '../../engine/pixel-kit.js';
 
 // 鉄橋の塗装（ドット絵版と同じ色。実際の橋の写真から）
 const BRIDGE_COLORS = {
@@ -66,7 +66,7 @@ function foliageMassMaterial() {
  * @param {object} o
  * @param {THREE.Scene} o.scene
  * @param {object} o.data      scene.json
- * @param {object} o.terrain   real/terrain.js
+ * @param {object} o.terrain   real/js/terrain.js
  * @param {number} o.level
  * @param {object} o.collider
  * @param {object} o.season

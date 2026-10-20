@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>写実版ワールド（試作）</title>
+  <link rel="stylesheet" href="../engine/ui.css" />
+  <style>
+    /* 写実版の入口ページ：3 つの場面へのリンク */
+    html, body { overflow: auto; touch-action: auto; -webkit-user-select: auto; user-select: auto; }
+    body { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+      background: linear-gradient(#3c6aa8, #84b6ea 55%, #5fa04a 55%, #3f7d3c); }
+    main { max-width: 560px; width: 100%; padding: 22px; line-height: 1.75; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    p { margin: 4px 0 16px; color: #e2e4ea; font-size: 14px; }
+    .scenes { display: grid; gap: 10px; }
+    .scenes a { display: block; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.06); color: var(--text); text-decoration: none; }
+    .scenes a:hover { background: rgba(255, 255, 255, 0.12); }
+    .scenes strong { font-size: 16px; }
+    .scenes span { display: block; font-size: 13px; color: var(--muted); }
+    footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="box">
+    <h1>写実版ワールド（試作）</h1>
+    <p>ドット絵ワールドと同じ場所を、写実的な 3DCG で歩ける試作です。地形・川・橋・建物は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。⚙️ で季節（秋・初夏）と画質（高・中・低）を変えられます。</p>
+    <div class="scenes">
+      <a href="edogawa.html"><strong>🍲 江戸川のピクニック</strong><span>市川の江戸川河川敷。草の葉・木・水面の映り込み・総武線の鉄橋。夕日はスカイツリーの横に沈む。</span></a>
+      <a href="nagisa.html"><strong>🌊 なぎさ公園のピクニック</strong><span>江戸川区 南葛西のなぎさ公園。展望の丘の木立、魔法の文学館、ポニーランド。夕日は大観覧車と富士山のあいだに沈む。</span></a>
+      <a href="myoden.html"><strong>🚲 妙典の岸のピクニック</strong><span>市川市 妙典の堤防。3 つのアーチの水管橋と東西線の鉄橋が川に映る。</span></a>
+    </div>
+    <footer>ドット絵版：<a href="../index.html">ドット絵ワールドの入口</a><br>地面の素材：ambientCG（CC0）／ 木：ez-tree（MIT）／ 地形：国土地理院 ／ 地図データ：© OpenStreetMap contributors</footer>
+  </main>
+</body>
+</html>

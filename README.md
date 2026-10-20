@@ -9,6 +9,7 @@
 - **妙典の対岸のピクニック**（`myoden-far.html`）：妙典の真向かい、市川市 田尻の堤防。干潮・満ち潮を選べる。調査と記録は [docs/MYODEN_FAR_DESIGN.md](docs/MYODEN_FAR_DESIGN.md)。
 - すべての場面で季節（🌸 春・🌻 夏・🍁 秋・❄️ 冬）を選べる（⚙️ の「季節」）。草木の色、日の出・日の入りと太陽の高さ、空の霞、生き物が変わる。
 - すべてのピクニックの場面で、レジャーシートと持ち物は同じ（`engine/picnic-set.js`。季節で飲み物と小物が変わる）。レジャーシートと持ち物（拠点）は好きな場所へ移せる（⚙️ の「拠点」か B キー。場所はブラウザに覚える）。
+- **写実版（試作）**（`real/index.html`）：江戸川・なぎさ公園・妙典の岸を、ドット絵ではなく写実的な 3DCG で歩ける別サイト。場面データ（`scenes/`）とドット絵版の部品の一部を共有する。設計と記録は [docs/real/REAL_DESIGN.md](docs/real/REAL_DESIGN.md)。
 - **ドット街さんぽ**（`town_3d.html`）：運河と広場のある小さな街。建物に入るとサイトの各ページ（About・Works など）が開く。
 
 詳しい仕様は [docs/SPEC.md](docs/SPEC.md)、共通エンジンの使い方は [engine/README.md](engine/README.md) を見てください。
@@ -49,6 +50,7 @@ cd ~/picnic-site && node tools/export_server.js --bridge-only
 | `dev/edogawa_p1.html` | 江戸川の場面を作る途中の確認用ページ（地形・水面・実際の太陽・遠景） |
 | `scenes/nagisa/` | なぎさ公園の場面データ（`tools/geo/build_nagisa.py` で作る）と出典 |
 | `scenes/edogawa/` | 江戸川（市川）の場面データ（高さ・地面の種類・ランドマーク。`tools/geo/build_scene.py` で作る）と出典 |
+| `real/` | 写実版（試作）：入口・3 つの場面のページ、`real/js/`（写実の描画）、`real/assets/`（地面の素材と出典）。資料は `docs/real/` |
 | `legacy/` | 旧版（レイマーチング版のピクニック、最初期の 2D 版、旧版の書き出し） |
 | `.claude/launch.json` | プレビュー用サーバーの設定 |
 

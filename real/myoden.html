@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>妙典の岸のピクニック（写実版・試作）</title>
-  <link rel="stylesheet" href="engine/ui.css" />
+  <link rel="stylesheet" href="../engine/ui.css" />
   <style>
     #view { image-rendering: auto; }
     #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
@@ -50,7 +50,7 @@
         <button id="s-sunset" class="sub">🌇 夕日を見る</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
       </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜5 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="myoden.html">ドット絵版はこちら</a></small>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜5 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="../myoden.html">ドット絵版はこちら</a></small>
     </div>
   </div>
 
@@ -62,10 +62,10 @@
   </script>
   <script type="module">
     import * as THREE from 'three';
-    import { startRealScene } from './real/app.js';
-    import { createArchPipeBridge, stripeMaterial, createRailYard, createBoats } from './realsite/myoden-structures.js';
+    import { startRealScene } from './js/app.js';
+    import { createArchPipeBridge, stripeMaterial, createRailYard, createBoats } from '../realsite/myoden-structures.js';
 
-    const data0 = await (await fetch('scenes/myoden/scene.json', { cache: 'no-cache' })).json();
+    const data0 = await (await fetch('../scenes/myoden/scene.json', { cache: 'no-cache' })).json();
     // 川の向こう側か（川の中ほどの線から、川を横切る向き（北東）に）
     const ACR = data0.levee.across * Math.PI / 180, ACX = Math.sin(ACR), ACZ = -Math.cos(ACR);
     const farSide = (x, z) => {
@@ -84,7 +84,7 @@
     }
 
     startRealScene({
-      id: 'myoden', base: 'scenes/myoden/', label: '江戸川 妙典の岸', pixelPage: 'myoden.html',
+      id: 'myoden', base: '../scenes/myoden/', label: '江戸川 妙典の岸', pixelPage: '../myoden.html',
       viewKeys: ['lunch', 'nap', 'photo', 'sunset', 'bridge'],
       nearStepScale: 2, // 近景が 361 × 451 m と広いので、格子を 2 倍に（高で 50 cm）
       treeKinds: { cherry: 0.3, evergreen: 0.35 },

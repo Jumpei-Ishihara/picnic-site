@@ -1,13 +1,13 @@
 // 写実版の地形（近景＋中景）。tools/geo/build_scene.py の出力（scene.json の files）を読む
 //   近景：1 m 間隔の高さを双三次補間して細かい格子（高 25 cm）に。色の平均は地面の種類の色と空中写真の色（頂点色）、
-//         細部は地面の種類ごとの PBR の素材（real/ground.js）
+//         細部は地面の種類ごとの PBR の素材（real/js/ground.js）
 //   中景：4 m 間隔の高さ。空中写真の色（2 m ごと）を貼る。写真の外は地面の種類の色。近景の下は沈めて隠す
 //   heightAt(x, z)：近景の中は近景、外は中景。近景の縁 blend m で中景になめらかにつなぐ（engine/terrain.js と同じ）
 import * as THREE from 'three';
-import { loadHeightField } from '../engine/terrain.js';
+import { loadHeightField } from '../../engine/terrain.js';
 import { createGroundMaterial, GROUND_LAYERS, CLASS_LAYER } from './ground.js';
 
-// 地面の種類ごとの色の平均（sRGB）。素材（real/ground.js）の模様はこの色のまわりで明暗をつける
+// 地面の種類ごとの色の平均（sRGB）。素材（real/js/ground.js）の模様はこの色のまわりで明暗をつける
 export const REAL_GROUND = {
   water:      '#4e4a38', // 川底の泥
   lawn:       '#5f7a3c',
@@ -224,7 +224,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
 
   return {
     near: nearMesh, mid: midMesh, heightAt, groundAt, midClassAt,
-    // 草（real/grass.js）が地面の色にそろえるための、1 m ごとの色の平均（線形 RGB）と格子
+    // 草（real/js/grass.js）が地面の色にそろえるための、1 m ごとの色の平均（線形 RGB）と格子
     cellColor, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h },
     bounds: { near: { x0: N.x0, z0: N.z0, x1: nx1, z1: nz1 }, mid: { x0: M.x0, z0: M.z0, x1: mx1, z1: mz1 } }
   };

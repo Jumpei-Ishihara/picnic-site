@@ -1,14 +1,14 @@
 // 写実版の場面に共通の組み立て：描画・空と太陽・地形・水面・草・木・遠景と構造物・ピクニック・歩行・視点・季節・画質・音・毎フレーム
 //   場面ごとの違い（データの場所・水の流れ・並木・橋の色・その場面だけの施設）は site で渡す。
-//   ページ（edogawa-real.html など）は HTML の部品（下部バー・メニュー・スタート画面）と site を用意して startRealScene を呼ぶ
+//   ページ（real/edogawa.html など）は HTML の部品（下部バー・メニュー・スタート画面）と site を用意して startRealScene を呼ぶ
 import * as THREE from 'three';
-import { createCollider } from '../engine/collision.js';
-import { createPlayerController } from '../engine/player.js';
-import { SEASONS, seasonalSunPath, dateText, FAUNA } from '../engine/season.js';
-import { createPicnicSet } from '../engine/picnic-set.js';
-import { createBaseCamp, bindBaseCampUI } from '../engine/basecamp.js';
-import { createAudio } from '../engine/audio.js';
-import { bindButton as btn, createToast, bindTimeControls, createAutoHide } from '../engine/ui.js';
+import { createCollider } from '../../engine/collision.js';
+import { createPlayerController } from '../../engine/player.js';
+import { SEASONS, seasonalSunPath, dateText, FAUNA } from '../../engine/season.js';
+import { createPicnicSet } from '../../engine/picnic-set.js';
+import { createBaseCamp, bindBaseCampUI } from '../../engine/basecamp.js';
+import { createAudio } from '../../engine/audio.js';
+import { bindButton as btn, createToast, bindTimeControls, createAutoHide } from '../../engine/ui.js';
 import { createRealTerrain } from './terrain.js';
 import { createRealSky } from './sky.js';
 import { createRealWater } from './water.js';
@@ -16,7 +16,7 @@ import { createRealGrass } from './grass.js';
 import { createRealTrees } from './trees.js';
 import { createRealStructures, pbr } from './structures.js';
 import { getQuality, bindQualityUI, createDebugHud } from './quality.js';
-import { mulberry32 } from '../engine/pixel-kit.js';
+import { mulberry32 } from '../../engine/pixel-kit.js';
 
 // 季節：秋（10 月中旬）と初夏（6 月上旬）。初夏の草木の色は engine/season.js の「夏」を使う
 export const REAL_SEASONS = {
@@ -51,7 +51,7 @@ function riverFlow(data) {
  * @param {number} [site.nearStepScale] 近景の格子を画質の値の何倍にするか（近景の広い場面は 2）
  * @param {object} [site.treeKinds] treeKind の割合（cherry・evergreen・ginkgo）
  * @param {(data:object, MB:object) => object[]} [site.extraTrees]  データの木のほかの木（並木など）
- * @param {object} [site.structures] real/structures.js に渡す場面ごとの設定
+ * @param {object} [site.structures] real/js/structures.js に渡す場面ごとの設定
  * @param {(ctx:object) => object} [site.build]  その場面だけの施設。{ update(loopT, env), isBlocked(x, z), zoneName(x, z) } を返す
  */
 export async function startRealScene(site) {

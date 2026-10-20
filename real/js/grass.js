@@ -58,7 +58,7 @@ function halfTexture(w, h, channels, fill) {
 /**
  * @param {object} o
  * @param {THREE.Scene} o.scene
- * @param {object} o.terrain     real/terrain.js の戻り値
+ * @param {object} o.terrain     real/js/terrain.js の戻り値
  * @param {{rings: {tile:number, perM2:number, to:number, width:number}[]}} o.quality
  *        段ごとのタイルの大きさ（m）・1 m² あたりの本数・外側の半径（m）・葉の幅の倍率（内側から順に）
  */

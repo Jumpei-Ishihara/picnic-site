@@ -4,7 +4,7 @@
 //   葉は影を受けず、樹冠の内側ほど暗くする陰で代える
 import * as THREE from 'three';
 import { Tree } from 'https://cdn.jsdelivr.net/npm/@dgreenheck/ez-tree@1.1.0/build/ez-tree.es.js';
-import { treeKind, treeHash, foliageColors } from '../engine/season.js';
+import { treeKind, treeHash, foliageColors } from '../../engine/season.js';
 
 // 樹種ごとの形。ez-tree の見本「Oak Medium」をもとに枝と葉を変える（ほかの見本は葉がまばらな若木で、
 // 河川敷の公園の木らしくなかった）。seeds の数だけ形を作る。葉の色の補正（sRGB を掛ける）

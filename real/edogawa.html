@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>江戸川のピクニック（写実版・試作）</title>
-  <link rel="stylesheet" href="engine/ui.css" />
+  <link rel="stylesheet" href="../engine/ui.css" />
   <style>
     #view { image-rendering: auto; }
     #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
@@ -49,7 +49,7 @@
         <button id="s-sunset" class="sub">🌇 夕日を見る</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
       </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜4 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="edogawa.html">ドット絵版はこちら</a></small>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜4 で視点、B でシートをここに敷く ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="../edogawa.html">ドット絵版はこちら</a></small>
     </div>
   </div>
 
@@ -60,10 +60,10 @@
     } }
   </script>
   <script type="module">
-    import { startRealScene } from './real/app.js';
+    import { startRealScene } from './js/app.js';
 
     startRealScene({
-      id: 'edogawa', base: 'scenes/edogawa/', label: '江戸川河川敷緑地', pixelPage: 'edogawa.html',
+      id: 'edogawa', base: '../scenes/edogawa/', label: '江戸川河川敷緑地', pixelPage: '../edogawa.html',
       viewKeys: ['lunch', 'nap', 'sunset', 'bridge'],
       flow: [0.15, 1], depthPad: { x0: 90 },
       treeKinds: { cherry: 0.2, evergreen: 0.3 },
