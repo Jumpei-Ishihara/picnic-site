@@ -82,6 +82,7 @@
   <link rel="modulepreload" href="js/structures.js" />
   <link rel="modulepreload" href="js/quality.js" />
   <link rel="modulepreload" href="js/perf.js" />
+  <link rel="modulepreload" href="js/merge.js" />
   <link rel="modulepreload" href="../engine/pixel-kit.js" />
   <link rel="modulepreload" href="../engine/sun.js" />
   <link rel="modulepreload" href="js/ground.js" />
@@ -90,6 +91,7 @@
   <link rel="modulepreload" href="js/vendor/ez-tree/index.js" />
   <link rel="modulepreload" href="../engine/backdrop.js" />
   <link rel="modulepreload" href="../realsite/edogawa-banks.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/utils/BufferGeometryUtils.js" />
   <link rel="modulepreload" href="js/vendor/ez-tree/tree.js" />
   <link rel="modulepreload" href="js/vendor/ez-tree/enums.js" />
   <link rel="modulepreload" href="js/vendor/ez-tree/presets.js" />
@@ -191,6 +193,8 @@
         { const P = FAC.goatPen; collider.addRect(P.x - P.w / 2, P.z - P.d / 2, P.x + P.w / 2, P.z + P.d / 2, 'pen'); }
         for (const r of [PL.arena, PL.paddock, ...PL.stables.map(s => s.rect)]) collider.addRect(r[0], r[1], r[2], r[3], 'ponyland');
         return {
+          // 動く物（まとめて描かない）
+          dynamic: [ring.group, ride.group, ponyLand.group, goatPen.group, queue.group, playground.group, wheel?.group],
           floorName: '魔法の文学館 3 階 カフェ・キキ',
           // シートを敷けない所：ポニーの丸い馬場・ポニーランド・ヤギの囲いの中
           isBlocked: (x, z) => Math.hypot(x - R.x, z - R.z) < R.fenceR + 0.5

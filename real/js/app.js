@@ -17,6 +17,7 @@ import { createRealTrees } from './trees.js';
 import { createRealStructures, pbr } from './structures.js';
 import { getQuality, bindQualityUI, createDebugHud } from './quality.js';
 import { createResolutionScaler, createShadowScheduler } from './perf.js';
+import { mergeStatic } from './merge.js';
 import { mulberry32 } from '../../engine/pixel-kit.js';
 
 // 季節：秋（10 月中旬）と初夏（6 月上旬）。初夏の草木の色は engine/season.js の「夏」を使う
@@ -159,6 +160,14 @@ export async function startRealScene(site) {
   const ctx = { THREE, scene, data, terrain, level, collider, season: SEASON, sunPath, sky, rnd, NB, MB, LOOP, pbr, structures, tod: () => tod.hour };
   const local = site.build?.(ctx) ?? {};
   mark('場面の施設');
+  // 動かない物（橋・建物・施設など）を素材と 200 m の区画ごとにまとめて、描画命令を減らす
+  {
+    const keep = new Set([terrain.near, terrain.mid, water.mesh, sky.sky, sky.sun, sky.sun.target, sky.hemi, trees.group, structures.backdrop.group, ...grass.layers]);
+    const merged = mergeStatic(scene, { roots: scene.children.filter(o => !keep.has(o)), exclude: local.dynamic ?? [] });
+    if (DEBUG) console.log('まとめた形', merged);
+    window.__mergedStatic = merged;
+  }
+  mark('動かない物をまとめる');
 
   const toast = createToast(document.getElementById('toast'));
   const audio = createAudio();
