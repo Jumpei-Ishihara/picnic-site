@@ -61,7 +61,7 @@ export function createLeafKit({ loop = 6 } = {}) {
  * @param {string[][]} [o.palettes]   葉の色の組 [濃い, 明るい]
  */
 // foliage(t)：季節の葉の色 [暗, 明]。undefined はもとの色（palettes）、null は葉を落とした木（枝だけ）
-export function createForest({ scene, toon, trees, heightAt, detail, kit, seed = 5, palettes = [['#3f6a2e', '#5f8a3c'], ['#4a7232', '#6f9442'], ['#36602c', '#557f38'], ['#56743a', '#7f9a4a']], loop = 6, foliage = null }) {
+export function createForest({ scene, toon, trees, heightAt, detail, kit, seed = 5, palettes = [['#3f6a2e', '#5f8a3c'], ['#4a7232', '#6f9442'], ['#36602c', '#557f38'], ['#56743a', '#7f9a4a']], loop = 6, foliage = null, crown = 'round' }) {
   const rnd = mulberry32(seed);
   const W0 = Math.PI * 2 / loop;
   const trunkMat = toon({ color: '#5b4632' });
@@ -77,13 +77,15 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
   };
   const sway = [], colliders = [];
   // 樹冠の半径 r から、葉の塊の配置（幹の先端の真上に重心）
+  // crown：'round' は丸い樹冠、'spread' は低い所から枝を広げる傘形（ケヤキ・桜。なぎさ公園の写真）
+  const spread = crown === 'spread';
   function clustersFor(r, h) {
-    const n = 4 + Math.min(4, Math.round(r));
-    const list = [[0, h + r * 0.35, 0, r * 0.62]];
+    const n = 4 + Math.min(4, Math.round(r)) + (spread ? 2 : 0);
+    const list = [[0, h + r * (spread ? 0.45 : 0.35), 0, r * (spread ? 0.55 : 0.62)]];
     for (let i = 1; i < n; i++) {
       const a = i / (n - 1) * Math.PI * 2 + rnd() * 0.6;
-      const d = r * (0.42 + rnd() * 0.18);
-      list.push([Math.cos(a) * d, h + r * (0.05 + rnd() * 0.45), Math.sin(a) * d, r * (0.42 + rnd() * 0.14)]);
+      const d = r * (spread ? 0.62 + rnd() * 0.22 : 0.42 + rnd() * 0.18);
+      list.push([Math.cos(a) * d, h + r * (spread ? 0.1 + rnd() * 0.3 : 0.05 + rnd() * 0.45), Math.sin(a) * d, r * (spread ? 0.4 + rnd() * 0.12 : 0.42 + rnd() * 0.14)]);
     }
     let w = 0, mx = 0, mz = 0;
     for (const [x, , z, rr] of list) { const k = rr ** 3; w += k; mx += x * k; mz += z * k; }
@@ -98,7 +100,7 @@ export function createForest({ scene, toon, trees, heightAt, detail, kit, seed =
   let nNear = 0;
   for (const t of trees) {
     const r = Math.max(1.6, t.r);
-    const h = 1.6 + r * 0.9;              // 幹の高さ（樹冠の下まで）
+    const h = spread ? 1.4 + r * 0.45 : 1.6 + r * 0.9;   // 幹の高さ（樹冠の下まで）
     const trunkR = 0.12 + r * 0.05;
     const y0 = heightAt(t.x, t.z) - 0.1;
     let pal = (rnd() * palettes.length) | 0;

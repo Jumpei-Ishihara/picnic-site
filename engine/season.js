@@ -134,22 +134,24 @@ const FOLIAGE = {
     evergreen: [['#2e4c26', '#44623a'], ['#324e2a', '#486640']]
   }
 };
-const AUTUMN_CHERRY = [['#9a7a34', '#c09a48'], ['#a86a34', '#c8884a']]; // 10 月中旬の桜：黄・橙に色づき始め
+const AUTUMN_CHERRY = [['#7a6a3a', '#988650'], ['#8a5c3a', '#a8784c']]; // 10 月中旬〜下旬の桜：赤茶・橙に色づき、葉が少なくなる（なぎさ公園の写真）
+const GINKGO = { spring: [['#8aae4a', '#aac860']], summer: [['#4a7a2c', '#609038']], autumn: [['#b8aa30', '#d8c848']], winter: null }; // イチョウ（秋は黄色）
 
 export function treeHash(x, z) {
   const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
   return s - Math.floor(s);
 }
 /** 位置から樹種の種類を決める（cherry・evergreen の割合は場面ごと） */
-export function treeKind(x, z, { cherry = 0.25, evergreen = 0.35 } = {}) {
+export function treeKind(x, z, { cherry = 0.25, evergreen = 0.35, ginkgo = 0 } = {}) {
   const p = treeHash(x, z);
-  return p < cherry ? 'cherry' : p > 1 - evergreen ? 'evergreen' : 'deciduous';
+  return p < cherry ? 'cherry' : p > 1 - evergreen ? 'evergreen' : p < cherry + ginkgo ? 'ginkgo' : 'deciduous';
 }
 /**
  * 季節の葉の色 [暗, 明]。undefined はもとの色のまま、null は葉が無い
  * @param {'cherry'|'deciduous'|'evergreen'} kind
  */
 export function foliageColors(season, kind, i = 0) {
+  if (kind === 'ginkgo') return GINKGO[season.key] && GINKGO[season.key][0];
   if (season.key === 'autumn') return kind === 'cherry' ? AUTUMN_CHERRY[i % 2] : undefined;
   const f = FOLIAGE[season.key];
   const list = f[kind];

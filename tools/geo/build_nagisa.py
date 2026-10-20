@@ -37,19 +37,33 @@ RIVER_ROAD_ID = 796894975 # OSM：旧 新荒川葛西堤防線（遊歩道と公
 # 馬場（空中写真の明るい輪から：中心、走路の内側・外側の半径）。docs/NAGISA_DESIGN.md 7 章
 # なぎさポニーランド（docs/NAGISA_DESIGN.md 1.1 節）：Google マップの空中写真（2026）で測った配置。大きさは画素からの読み取り
 #   白い丸い馬場（乗馬はここを周回）、北に大きな土の馬場、その南に厩舎、東に草の放牧場、入口の門
-PONY_RING = {'x': -165.6, 'z': -46.0, 'rIn': 1.6, 'rOut': 6.0, 'fenceR': 6.7, 'centerR': 0.0}
+PONY_RING = {'x': -165.6, 'z': -46.0, 'rIn': 1.6, 'rOut': 6.0, 'fenceR': 6.7, 'centerR': 0.0, 'ponies': 0}
+# 乗馬：実際の写真（2026 年秋、公園の南の芝から北を見たもの）では、ポニーは丸い馬場の東の砂の広場を、水色のシャツの係の人に引かれて回る。
+# 広場の中心は Google マップの空中写真から。輪の大きさ（1 周 27 m）は 6 秒で 1 頭分進む並足（約 1.5 m/s）に合わせた
+PONY_RIDE = {'x': -148.5, 'z': -48.5, 'rIn': 3.2, 'rOut': 5.4, 'fenceR': 0, 'centerR': 0.0, 'ponies': 3,
+             'coat': ['#e6d8b8', '#f4ecd8'], 'handler': {'shirt': '#8ec4e0', 'hat': '#c8323a'}}
 PONY_LAND = {
     'arena': [-170.0, -91.0, -133.0, -66.0],
     'yard': [-172.0, -62.0, -141.0, -37.0],
     'paddock': [-140.0, -56.0, -121.0, -24.0], 'paddockGate': [-140.0, -40.0],
-    'stables': [{'rect': [-171.0, -65.0, -161.0, -56.0], 'roof': '#2e3034'}, {'rect': [-152.0, -65.5, -136.0, -60.0], 'roof': '#8fc4d6'}],
+    # 写真：西は白い壁の小屋（灰色の屋根）、東は白い柱に淡い緑の屋根の、壁のない日よけ（乗る順番を待つ所）
+    'stables': [{'rect': [-171.0, -65.0, -161.0, -56.0], 'roof': '#5c6064', 'wall': '#eeede6'}, {'rect': [-152.0, -65.5, -136.0, -60.0], 'roof': '#a8d8c4', 'open': True}],
+    # 砂の広場のまわりの茶色の 2 段の横木の柵（北は小屋と日よけ）。止まっているポニー：乗り台の栗毛、順番を待つぶち（写真）
+    'yardFence': True, 'mountBlock': [-147.0, -58.5],
+    'waiting': [[-146.0, -56.5, 1.6, '#8a4a2a', '#3a2418'], [-142.5, -54.0, 3.0, '#f2efe8', '#6a4030'], [-165.6, -47.5, 0.4, '#f2efe8', '#c8c4bc']],
     'gate': [-146.0, -35.0, 0.0],
     'grazing': [[-133.0, -48.0, 0.6], [-127.0, -40.0, 2.2], [-131.0, -31.0, 4.0], [-125.0, -50.0, 1.2]],
 }
-GOAT_PEN = {'x': -147, 'z': -52, 'w': 7, 'd': 5}   # ヤギのふれあいコーナー（来園者の話ではポニーランドの中。位置は推定）
+GOAT_PEN = {'x': -131, 'z': -61, 'w': 7, 'd': 5}   # ヤギのふれあいコーナー（来園者の話ではポニーランドの中。位置は推定。砂の広場は乗馬に使うので、日よけの東へ）
 SHUTTLE_STOP = {'x': -19, 'z': 8, 'r': 7, 'note': 'パノラマシャトル停留所 なぎさ公園（Google マップ）。丸い広場。前は ここをポニーの馬場と読み違えていた'}
 HILL_PERGOLA = {'x': -59.4, 'z': 32.9, 'yaw': 0.4}   # 展望の丘の 360° 写真（2020 年 10 月）：頂上の北北東に藤棚
 HILL_TABLES = [[-64.5, 43.5, 0.3]]                  # 同じ写真：南南西に木のピクニックテーブル
+# カフェ・キキのデッキ（実際の写真と Google マップの空中写真）：文学館の南東、展望の丘と同じ高さの濃い茶色の板のデッキ。
+# 丸いハイテーブル、真ん中に桜を植えた丸い芝の島、川側の縁に鎖の柵、丘の芝の側にベンチ。形は空中写真の画素からの読み取り
+CAFE_DECK = {'poly': [[-85.0, 11.0], [-66.6, 5.7], [-58.0, 21.5], [-76.0, 26.8]], 'tp': 12.6,
+             'island': {'x': -70.5, 'z': 16.5, 'r': 3.4}, 'tables': [[-78.5, 15.5], [-74.5, 21.5], [-64.5, 12.5], [-63.5, 19.0]],
+             'benches': [[-80.0, 22.5, 2.8], [-77.0, 24.0, 2.8]], 'chain': [[-66.6, 5.7], [-58.0, 21.5]]}
+ITO_YOKADO_ID = 154739216  # OSM：イトーヨーカドー（ポニーランドの北。写真では白い鳩の看板）
 # 周りの目立つ建物（OSM の id）。形を作って立てるので、ふつうの「高い建物」からは除く
 CASTLE_ID = 217727348      # シンデレラ城（高さ 51 m）
 VOLCANO_ID = 859682628     # プロメテウス火山（高さ 51 m、node）
@@ -339,7 +353,34 @@ def landmarks(osm, dem, photo=None):
     if gates:
         sp['gateBridge'] = {'path': gates[0], 'deck': 55, 'trussTop': 88, 'mainSpan': 440,
                             'note': '東京ゲートブリッジ。OSM の線。主塔のない トラス（恐竜橋）。トラスの頂部 約 88 m・桁下 約 55 m は公表値に近い推定'}
+    # イトーヨーカドー（ポニーランドの北 300 m）：OSM の平面。高さ 24 m（立体駐車場つきの 5 階ほど）と、西の端の屋上の看板（白い鳩、赤と青）は写真からの推定
+    fp_iy = fp_of(ITO_YOKADO_ID)
+    if fp_iy:
+        sw = max(fp_iy, key=lambda p: p[1] - p[0])   # 南西の角
+        sp['itoYokado'] = {'footprint': fp_iy, 'height': 24, 'groundY': round(tp2y(dem.height(*center(fp_iy))), 1),
+                           'sign': {'x': round(sw[0] + 12, 1), 'z': round(sw[1] - 8, 1), 'w': 8, 'h': 8},
+                           'note': 'イトーヨーカドー。平面は OSM。高さと看板の位置・大きさは写真（ポニーランドから北を見たもの）からの推定'}
     out['specials'] = sp
+    # 鉄塔と送電線（原点から 1.6 km 以内）：江東線（27.5 万 V）が公園の南西を通り、川の向こうにも紅白の鉄塔（写真）
+    towers = {}
+    for e in osm:
+        t = e.get('tags', {})
+        if e['type'] == 'node' and t.get('power') == 'tower':
+            x, z = ll2local(e['lat'], e['lon'])
+            if math.hypot(x, z) < 1600:
+                towers[e['id']] = (x, z)
+    for e in osm:
+        t = e.get('tags', {})
+        if t.get('power') != 'line' or not e.get('geometry'):
+            continue
+        pts = [ll2local(p['lat'], p['lon']) for p in e['geometry']]
+        near = [p for p in pts if math.hypot(*p) < 1600]
+        if len(near) < 2:
+            continue
+        kv = max(int(v) for v in str(t.get('voltage', '22000')).split(';') if v.isdigit()) // 1000
+        out['powerLines'].append({'name': t.get('name'), 'kv': kv, 'path': [[round(x, 1), round(z, 1)] for x, z in near],
+                                  'towerHeight': 70 if kv >= 275 else 55 if kv >= 154 else 45})
+    out['towers'] = [[round(x, 1), round(z, 1)] for x, z in towers.values()]
 
     # 大観覧車（ダイヤと花の大観覧車：高さ 117 m、直径 111 m、ゴンドラ 68 台）
     for e in osm:
@@ -503,6 +544,33 @@ def main():
              and math.hypot(t['x'] - R['x'], t['z'] - R['z']) > R['fenceR'] + 1 + t['r'] * 0.6
              and not (abs(t['x'] - GOAT_PEN['x']) < GOAT_PEN['w'] / 2 + t['r'] and abs(t['z'] - GOAT_PEN['z']) < GOAT_PEN['d'] / 2 + t['r'])
              and not any(inrect(t['x'], t['z'], [r_[0] - 1, r_[1] - 1, r_[2] + 1, r_[3] + 1]) for r_ in (L_['arena'], L_['yard'], L_['paddock']))]
+    # カフェ・キキのデッキ：展望の丘と同じ高さ（TP 12.6 m）に地面をならす（低い所は盛り、高い所は削る。まわり 4 m でなじませる）。
+    # 標高データは文学館（2023 年）より前の測量なので、デッキはまだ無い
+    D = CAFE_DECK
+    dpoly = D['poly']
+    def dist_poly(x, z):
+        best_ = 1e9
+        for (ax_, az_), (bx_, bz_) in zip(dpoly, dpoly[1:] + dpoly[:1]):
+            dx_, dz_ = bx_ - ax_, bz_ - az_
+            t_ = max(0, min(1, ((x - ax_) * dx_ + (z - az_) * dz_) / (dx_ * dx_ + dz_ * dz_)))
+            best_ = min(best_, math.hypot(x - ax_ - dx_ * t_, z - az_ - dz_ * t_))
+        return best_
+    xs_d = [p[0] for p in dpoly]; zs_d = [p[1] for p in dpoly]
+    for z in range(int(min(zs_d)) - 6, int(max(zs_d)) + 7):
+        for x in range(int(min(xs_d)) - 6, int(max(xs_d)) + 7):
+            i, j = x - NEAR['x0'], z - NEAR['z0']
+            if not (0 <= i < nw and 0 <= j < nh) or in_museum(x + 0.5, z + 0.5):
+                continue
+            k = j * nw + i
+            if B.point_in_poly(x + 0.5, z + 0.5, dpoly):
+                near[k] = D['tp']
+                cls[k] = G['paved']
+            else:
+                d_ = dist_poly(x + 0.5, z + 0.5)
+                if d_ < 4:
+                    near[k] = max(near[k], D['tp'] - 1.0 * d_) if near[k] < D['tp'] else min(near[k], D['tp'] + 0.35 * d_)
+    trees = [t for t in trees if not (B.point_in_poly(t['x'], t['z'], dpoly) or dist_poly(t['x'], t['z']) < 1.5 + t['r'] * 0.5)]
+    trees.append({'x': D['island']['x'], 'z': D['island']['z'], 'r': 3.2, 'kind': 'cherry'})   # 芝の島の桜（写真）
     gim = Image.new('RGB', (nw, nh))
     gp = gim.load()
     for j in range(nh):
@@ -590,6 +658,24 @@ def main():
         if len(best_run) * 10 > 150:
             river.append([round((best_run[0] + best_run[-1]) / 2, 1), z])
 
+    # 対岸（浦安）の水際のヨシの帯：実際の写真では、川の東の岸に枯れ色のヨシの帯（10〜20 m）と鋼の矢板の護岸。中景の水際 16 m を「ヨシ」に
+    def river_x(z):
+        return min(river, key=lambda p_: abs(p_[1] - z))[0] if river else 0
+    st = MID['step']
+    nreeds = 0
+    for j in range(MID['h']):
+        z = MID['z0'] + j * st
+        rx = river_x(z)
+        for i in range(MID['w']):
+            k = j * MID['w'] + i
+            x = MID['x0'] + i * st
+            if mc[k] == 3 or x <= rx or x > rx + 900:
+                continue
+            if any(dem.is_water(x - d_, z) for d_ in (8, 16)):
+                mc[k] = 4
+                nreeds += 1
+    B.write_height_png(os.path.join(OUT, 'mid_height.png'), mh, mc, MID['w'], MID['h'])
+    log(f'far-bank reeds: {nreeds} mid cells')
     (tx, tz, ttp), best = pick_sheet(near, cls, trees)
     if not best:
         raise SystemExit('no sheet spot found')
@@ -636,20 +722,17 @@ def main():
     mz_ = sum(p[1] for p in mfp) / len(mfp)
     # 建物は丘の北の斜面に建つ（足もと TP 5〜11 m）。床の基準は平面の中の地面の平均とする（丘の側から入る作りと考える）
     m_mean = sum(tp_at(x, z) for x, z in mfp) / len(mfp)
-    cafe_tp = m_mean + 8.5
+    cafe_tp = CAFE_DECK['tp']   # カフェ（3 階）は展望の丘と同じ高さで、南東のデッキに出られる（実際の写真）
     # カフェのテラス：建物の縁で、旧江戸川の側（方位 60〜150°）がいちばん遠くまで見通せる所と向き
     sight_m = Sight(near, trees, lm['nearBuildings'], dem)
     rn = min(river, key=lambda p: math.dist(p, (mx_, mz_)))
     river_b = bearing_dist(rn[0] - mx_, rn[1] - mz_)[0]
-    best_c = None
-    for k in range(len(mfp)):
-        x, z = mfp[k]
-        for b in range(60, 151, 5):
-            c = sight_m.clear(x, z, cafe_tp + 1.5, b)
-            # 川（旧江戸川の真ん中の線）の方を向き、300 m 以上見通せる所のうち、いちばん川に近い（東の）縁
-            key = (c >= 300, x, -abs(b - river_b))
-            if best_c is None or key > best_c[0]:
-                best_c = (key, x, z, b)
+    # カフェの視点：デッキの川側の縁（鎖の柵）の 2 m 内側の真ん中から、旧江戸川の方（実際の写真：ツツジの植え込みと木の向こうに川と対岸）
+    (c0x, c0z), (c1x, c1z) = CAFE_DECK['chain']
+    mx_c, mz_c = (c0x + c1x) / 2, (c0z + c1z) / 2
+    dcx, dcz = sum(p[0] for p in dpoly) / 4, sum(p[1] for p in dpoly) / 4
+    L_c = math.dist((mx_c, mz_c), (dcx, dcz))
+    best_c = (None, round(mx_c + (dcx - mx_c) / L_c * 2, 1), round(mz_c + (dcz - mz_c) / L_c * 2, 1), round(min(115, max(90, river_b))))
     (_, cafe_x, cafe_z, cafe_b) = best_c
     # カフェの正面（左右 35°・40 m 以内）で、テラスの目の高さより高くなる木は除く。
     # 文学館は 2023 年開館で空中写真より新しく、公式の案内では「旧江戸川を一望できる」カフェなので、眺めに合わせた（設計書 7 章）
@@ -668,11 +751,15 @@ def main():
     rr = next((e for e in osm if e.get('id') == RIVER_ROAD_ID and e.get('geometry')), None)
     river_road = [[round(v, 1) for v in ll2local(p['lat'], p['lon'])] for p in rr['geometry']] if rr else []
     facilities = {
+        'cafeDeck': {**CAFE_DECK, 'y': round(tp2y(CAFE_DECK['tp']), 2),
+                     'note': 'カフェ・キキのデッキ。位置と形は Google マップの空中写真、作り（濃い茶色の板・丸いハイテーブル・芝の島の桜・鎖の柵・ベンチ）は実際の写真から。大きさは推定'},
+        'ponyRide': {**PONY_RIDE, 'y': round(tp2y(tp_at(PONY_RIDE['x'], PONY_RIDE['z'])), 2), 'hours': [[10.0, 11.5], [13.5, 15.0]],
+                     'note': '乗馬の周回。実際の写真では丸い馬場の東の砂の広場を、係の人がポニーを引いて回る。輪の大きさは推定'},
         'museum': {'name': '角野栄子児童文学館（魔法の文学館）', 'osm': MUSEUM_ID, 'footprint': mfp, 'x': round(mx_, 1), 'z': round(mz_, 1),
                    'baseY': round(tp2y(m_base), 2), 'floors': 3, 'height': 13.0, 'cafeFloorY': round(tp2y(cafe_tp), 2),
                    'terrace': {'x': cafe_x, 'z': cafe_z, 'bearing': cafe_b}, 'treesClearedForView': removed,
                    'note': '設計 隈研吾建築都市設計事務所。白い外観と花びらのように広がる「フラワールーフ」。3 階がカフェ・キキ（旧江戸川を見渡す）。延床 1,613.95 m²。高さ・屋根の枚数は公表値が見つからないので推定'},
-        'ponyRing': {**PONY_RING, 'y': round(tp2y(tp_at(PONY_RING['x'], PONY_RING['z'])), 2), 'ponies': 5,
+        'ponyRing': {**PONY_RING, 'y': round(tp2y(tp_at(PONY_RING['x'], PONY_RING['z'])), 2),
                      'hours': [[10.0, 11.5], [13.5, 15.0]],
                      'note': '馬場の位置と大きさは空中写真の明るい輪から。走路の形（円）と柵は、来園者の話（ポニーは柵の中を周回）にもとづく'},
         'goatPen': {**GOAT_PEN, 'y': round(tp2y(tp_at(GOAT_PEN['x'], GOAT_PEN['z'])), 2), 'note': '位置は推定'},
@@ -689,11 +776,12 @@ def main():
         'sunset': {'x': sunset_pt[0], 'z': sunset_pt[1], 'eye': 1.6, 'bearing': round(wb + 1, 1), 'pitch': 1, 'hour': 16.85},
         'river':  {'x': px_, 'z': pz_, 'eye': 1.65, 'bearing': river_brg, 'pitch': 0, 'hour': 15.0},
         # カフェ・キキ（3 階のテラス）：床の上に立った目の高さ。y は床の高さ（地形ではない）
-        'cafe':   {'x': round(cafe_x + local_from_bearing(cafe_b, 1.6)[0], 2), 'z': round(cafe_z + local_from_bearing(cafe_b, 1.6)[1], 2),
-                   'eye': 1.5, 'bearing': cafe_b, 'pitch': -4, 'hour': 14.0, 'floorY': round(tp2y(cafe_tp), 2)},  # テラスの上（壁から 1.6 m）
+        # カフェ・キキのデッキ（展望の丘と同じ高さ）の川側の縁から、旧江戸川を見下ろす
+        'cafe':   {'x': cafe_x, 'z': cafe_z, 'eye': 1.6, 'bearing': cafe_b, 'pitch': -3, 'hour': 14.0},
         # ポニーランド：馬場の柵の南西の外から、周回するポニーを見る（乗馬の時間）
         # ポニーランド：丸い馬場の南東の外（門のそば）から、周回するポニーと奥の土の馬場・厩舎を見る（乗馬の時間）
-        'pony':   {'x': round(PONY_RING['x'] + 9.5, 1), 'z': round(PONY_RING['z'] + 8.5, 1), 'eye': 1.5, 'bearing': 312, 'pitch': -10, 'hour': 10.75},
+        # 実際の写真と同じく、広場の南の柵の外の芝から北を見る（砂の広場を回るポニー、白い小屋・淡い緑の日よけ、奥にマンションとイトーヨーカドー）
+        'pony':   {'x': round(PONY_RIDE['x'] - 5.0, 1), 'z': round(L_['yard'][3] + 3.0, 1), 'eye': 1.6, 'bearing': 15, 'pitch': -5, 'hour': 10.75},
     }
     for v in view.values():
         v['y'] = round(tp2y(tp_at(v['x'], v['z'])), 2)
@@ -704,7 +792,7 @@ def main():
                   'axes': '-z = 北、+x = 東、y = 0 が TP 3.0 m、1 単位 = 1 m'},
         'files': {
             'near': {'height': 'near_height.png', 'ground': 'ground.png', 'groundColor': 'ground_color.png', **NEAR, 'encoding': 'TP = (R*256+G)/100 - 10、y = TP - origin.tp'},
-            'mid': {'height': 'mid_height.png', **MID, 'classes': MID_CLASSES, 'encoding': 'TP = (R*256+G)/100 - 10、B = classes の番号'},
+            'mid': {'height': 'mid_height.png', **MID, 'classes': MID_CLASSES + ['reeds'], 'encoding': 'TP = (R*256+G)/100 - 10、B = classes の番号'},
         },
         'ground': [{'id': i, 'name': n, 'color': '#%02x%02x%02x' % c} for i, (n, c) in enumerate(GROUND)],
         'water': {'levelY': round(tp2y(SITE['waterTP']), 2), 'levelNote': '平均海面（TP 0 m）。東京湾の干満は ±1 m', 'river': river},

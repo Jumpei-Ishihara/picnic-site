@@ -76,6 +76,20 @@ export function createSurroundings({ toon, specials }) {
     m.position.y = CV.groundY;
     group.add(m);
   }
+  // ---- イトーヨーカドー（ポニーランドの北）：ベージュの箱に、立体駐車場の横の帯。西の端の屋上に看板（赤と青の地に白い鳩、下に赤い文字の帯）
+  const IY = specials.itoYokado;
+  if (IY) {
+    const shape = new THREE.Shape(IY.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: IY.height, bevelEnabled: false }).rotateX(-Math.PI / 2), [toon({ color: '#d8d0bc' }), toon({ color: '#ffffff', map: bandTex() })]);
+    body.position.y = IY.groundY - 0.5;
+    body.receiveShadow = true;
+    group.add(body);
+    const S = IY.sign, top = IY.groundY + IY.height;
+    add(new THREE.BoxGeometry(1.2, 6, 1.2), toon({ color: '#d0ccc0' }), S.x, top + 3, S.z);
+    const face = toon({ color: '#ffffff', map: signTex() });
+    const board = add(new THREE.BoxGeometry(S.w, S.h, 0.8), [face, face, toon({ color: '#e8e6e0' }), toon({ color: '#e8e6e0' }), face, face], S.x, top + 6 + S.h / 2, S.z);
+    board.castShadow = true;
+  }
   return { group, nightLights };
 }
 
@@ -103,4 +117,27 @@ export function gateBridgeBackdrop(gb, upstreamBearing = 0) {
     dist: Math.hypot(pts[pts.length >> 1].x, pts[pts.length >> 1].z),
     bearing: bearing(pts[pts.length >> 1].x, pts[pts.length >> 1].z, upstreamBearing)
   };
+}
+
+// 壁の横の帯（立体駐車場の開口と、ベージュの壁が 3 m ごとに交互）
+function bandTex() {
+  const c = document.createElement('canvas'); c.width = 2; c.height = 4;
+  const x = c.getContext('2d');
+  x.fillStyle = '#e4dccb'; x.fillRect(0, 0, 2, 4);
+  x.fillStyle = '#5a5c60'; x.fillRect(0, 1, 2, 1);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.05, 1 / 6);
+  return t;
+}
+// 看板：左上が赤・右下が青の地に白い鳩、下に白地に赤い文字の帯（16 × 16 ドット）
+function signTex() {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+  const x = c.getContext('2d');
+  x.fillStyle = '#d8283a'; x.fillRect(0, 0, 16, 12);
+  x.fillStyle = '#2a5ab8'; x.beginPath(); x.moveTo(16, 0); x.lineTo(16, 12); x.lineTo(4, 12); x.closePath(); x.fill();
+  x.fillStyle = '#ffffff';
+  x.beginPath(); x.moveTo(3, 4); x.lineTo(9, 7); x.lineTo(13, 3); x.lineTo(11, 8); x.lineTo(6, 10); x.closePath(); x.fill(); // 鳩
+  x.fillRect(0, 12, 16, 4);
+  x.fillStyle = '#d8283a'; for (let i = 1; i < 15; i += 2) x.fillRect(i, 13, 1, 2);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter;
+  return t;
 }

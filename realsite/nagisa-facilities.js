@@ -117,22 +117,29 @@ export function createMuseum({ toon, museum, heightAt }) {
   const petalMesh = new THREE.Mesh(petalGeo, roofMat);
   const coreMesh = new THREE.Mesh(roof.build(), roofMat);
   for (const m of [petalMesh, coreMesh]) { m.castShadow = m.receiveShadow = true; group.add(m); }
-  // カフェのテラス（川側）：床と手すり
-  const t = museum.terrace;
-  const dir = V(Math.sin(t.bearing * Math.PI / 180), 0, -Math.cos(t.bearing * Math.PI / 180)); // 場面の -z が北
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(6, 0.25, 3), white);
-  deck.position.set(t.x + dir.x * 1.2, cafeY - 0.12, t.z + dir.z * 1.2);
-  deck.rotation.y = Math.atan2(-dir.z, dir.x) + Math.PI / 2;
-  // 手すり：細い柱と上の横木（ガラスの手すりは、ドット絵では面に見えて景色をふさぐので線で）
-  const railB = new GeoBuilder();
-  const side = V(-dir.z, 0, dir.x);
-  const rc = V(t.x + dir.x * 2.6, cafeY, t.z + dir.z * 2.6);
-  for (let k = -3; k <= 3; k++) railB.beam(rc.clone().addScaledVector(side, k), rc.clone().addScaledVector(side, k).add(V(0, 1.0, 0)), 0.05, 0.05);
-  railB.beam(rc.clone().addScaledVector(side, -3).add(V(0, 1.0, 0)), rc.clone().addScaledVector(side, 3).add(V(0, 1.0, 0)), 0.06, 0.06);
-  const rail = new THREE.Mesh(railB.build(), white);
-  for (const m of [deck, rail]) { m.castShadow = m.receiveShadow = true; group.add(m); }
-  rail.position.set(0, 0, 0);
-  return { group, nightLights: [glassMat], petals: tips.length, cafeY, contains: (x, z) => pointInPoly(x, z, fp) };
+  // 丘の芝に面した壁の大きな窓：いちご色の枠と、中の赤（実際の写真。館内の色）。平面の辺のうち、外向きが南西にいちばん近い所
+  {
+    let best = null;
+    for (let i = 0; i < fp.length; i++) {
+      const [ax, az] = fp[i], [bx, bz] = fp[(i + 1) % fp.length];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 6) continue;
+      let nx = (bz - az) / len, nz = -(bx - ax) / len;
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+      if (pointInPoly(mx + nx * 0.5, mz + nz * 0.5, fp)) { nx = -nx; nz = -nz; }
+      const score = nx * -0.707 + nz * 0.707; // 南西（-x, +z）
+      if (!best || score > best.score) best = { score, mx, mz, nx, nz, len };
+    }
+    if (best) {
+      const yaw = Math.atan2(best.nx, best.nz); // 箱の薄い向き（z）を壁の外向きに
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(4.4, 3.4, 0.3).translate(0, cafeY + 0.4 + 1.7, 0), toon({ color: '#d8304a' }));
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.8, 0.32).translate(0, cafeY + 0.4 + 1.7, 0), toon({ color: '#a8203a', emissive: 0xff8fa8, emissiveIntensity: 0 }));
+      inner.material.userData.lampMax = 1.0;
+      for (const m of [frame, inner]) { m.position.set(best.mx + best.nx * 0.12, 0, best.mz + best.nz * 0.12); m.rotation.y = yaw; group.add(m); }
+      glassMat.userData.extra = inner.material;
+    }
+  }
+  return { group, nightLights: [glassMat, ...(glassMat.userData.extra ? [glassMat.userData.extra] : [])], petals: tips.length, cafeY, contains: (x, z) => pointInPoly(x, z, fp) };
 }
 
 function pointInPoly(x, z, poly) {
@@ -167,7 +174,7 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
   const angDiff = a => Math.abs(Math.atan2(Math.sin(a - gateA), Math.cos(a - gateA)));
   const fence = new GeoBuilder(), inner = new GeoBuilder();
   const P = (a, r, y) => { const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; return V(x, heightAt(x, z) + y, z); };
-  const nBars = style === 'white' ? 0 : Math.round(2 * Math.PI * fenceR / 0.22);
+  const nBars = style === 'white' || style === 'none' ? 0 : Math.round(2 * Math.PI * fenceR / 0.22);
   if (style === 'white') {
     // 白い柵：柱 2 m おき、横木 2 段（高さ 0.55 m と 1.05 m）
     const nPost = Math.max(8, Math.round(2 * Math.PI * fenceR / 2));
@@ -195,8 +202,8 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
     inner.beam(P(a, rIn - 0.1, 0.8), P(a1, rIn - 0.1, 0.8), 0.06, 0.06);
   }
   if (centerR > 0) inner.beam(V(cx, y0, cz), V(cx, y0 + 2.8, cz), 0.25, 0.25);
-  const fenceMesh = new THREE.Mesh(fence.build(), toon({ color: style === 'white' ? '#f2f2ee' : '#3f6a4a' }));
-  const parts = [fenceMesh];
+  const parts = [];
+  if (!fence.empty) parts.push(new THREE.Mesh(fence.build(), toon({ color: style === 'white' ? '#f2f2ee' : '#3f6a4a' })));
   if (nIn || centerR > 0) parts.push(new THREE.Mesh(inner.build(), toon({ color: '#8a6a4a' })));
   if (centerR > 0) {
     const roof = new THREE.Mesh(new THREE.ConeGeometry(centerR + 0.4, 0.9, 8), toon({ color: '#e0b84a' }));
@@ -210,8 +217,9 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
   const rTrack = (rIn + rOut) / 2;
   const units = [];
   for (let i = 0; i < N; i++) {
-    const pony = makeQuadruped(toon, { len: 1.35, h: 1.05, color: '#8a5a3a', mane: '#3a2a20', saddle: '#b8463f' });
-    const handler = makePerson(toon, { height: 1.65, shirt: '#2f5a3a', pants: '#3a3a44', hat: '#2f5a3a' });
+    const [coat, mane] = ring.coat ?? ['#8a5a3a', '#3a2a20'];
+    const pony = makeQuadruped(toon, { len: 1.35, h: 1.05, color: coat, mane, saddle: '#b8463f' });
+    const handler = makePerson(toon, { height: 1.65, shirt: ring.handler?.shirt ?? '#2f5a3a', pants: '#3a4a6a', hat: ring.handler?.hat ?? '#2f5a3a' });
     const rider = makePerson(toon, { height: 1.15, shirt: '#f2c94c', pants: '#3a5a8a', hat: '#f4f4f2', seated: true });
     rider.group.position.y = pony.saddleY - 0.62;
     pony.group.add(rider.group);
@@ -456,9 +464,42 @@ export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
   // 厩舎：低い建物（壁は木の色、屋根は黒と水色）
   for (const s of land.stables) {
     const [x0, z0, x1, z1] = s.rect, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, y = H(cx, cz);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 2.6, z1 - z0).translate(cx, y + 1.3, cz), toon({ color: '#a88a68' }));
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.8, 0.3, z1 - z0 + 0.8).translate(cx, y + 2.75, cz), toon({ color: s.roof }));
-    for (const m of [wall, roof]) { m.castShadow = m.receiveShadow = true; group.add(m); }
+    const parts = [];
+    if (s.open) {
+      // 壁のない日よけ：白い柱（3 m おき）と淡い緑の屋根（写真）
+      const posts = new GeoBuilder();
+      for (let x = x0; x <= x1 + 0.01; x += (x1 - x0) / Math.max(1, Math.round((x1 - x0) / 3))) for (const z of [z0, z1]) posts.beam(V(x, H(x, z), z), V(x, y + 2.8, z), 0.16, 0.16);
+      parts.push(new THREE.Mesh(posts.build(), toon({ color: '#f2f2ee' })));
+      parts.push(new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 1.2, 0.18, z1 - z0 + 1.2).translate(cx, y + 2.9, cz), toon({ color: s.roof })));
+    } else {
+      parts.push(new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 2.6, z1 - z0).translate(cx, y + 1.3, cz), toon({ color: s.wall ?? '#a88a68' })));
+      parts.push(new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.8, 0.3, z1 - z0 + 0.8).translate(cx, y + 2.75, cz), toon({ color: s.roof })));
+    }
+    for (const m of parts) { m.castShadow = m.receiveShadow = true; group.add(m); }
+  }
+  // 砂の広場のまわりの茶色の 2 段の横木の柵（北は小屋と日よけなので無し。入口の門の所は開ける）
+  if (land.yardFence) {
+    const yb = new GeoBuilder();
+    const [x0, z0, x1, z1] = land.yard;
+    const sides = [[[x1, z0], [x1, z1]], [[x1, z1], [x0, z1]], [[x0, z1], [x0, z0]]];
+    for (const [[ax, az], [bx, bz]] of sides) {
+      const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 2.4));
+      for (let i = 0; i < n; i++) {
+        const px = ax + (bx - ax) * i / n, pz = az + (bz - az) * i / n, qx = ax + (bx - ax) * (i + 1) / n, qz = az + (bz - az) * (i + 1) / n;
+        if (Math.hypot((px + qx) / 2 - land.gate[0], (pz + qz) / 2 - land.gate[1]) < 2.2) continue;
+        yb.beam(V(px, H(px, pz), pz), V(px, H(px, pz) + 1.05, pz), 0.16, 0.16);
+        for (const yy of [0.5, 0.95]) yb.beam(V(px, H(px, pz) + yy, pz), V(qx, H(qx, qz) + yy, qz), 0.13, 0.13);
+      }
+    }
+    const m = new THREE.Mesh(yb.build(), toon({ color: '#5a4230' }));
+    m.castShadow = m.receiveShadow = true; group.add(m);
+  }
+  // 乗り台（ポニーに乗るための段。緑と木の色）
+  if (land.mountBlock) {
+    const [mx, mz] = land.mountBlock, my = H(mx, mz);
+    const step1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 1.2).translate(mx, my + 0.22, mz), toon({ color: '#4a9a7a' }));
+    const step2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.2).translate(mx - 0.3, my + 0.45, mz), toon({ color: '#b89a6a' }));
+    for (const m of [step1, step2]) { m.castShadow = m.receiveShadow = true; group.add(m); }
   }
   // 入口の門：白い柱 2 本と、上に看板（白地に桃色の文字の帯）
   {
@@ -482,10 +523,21 @@ export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
     group.add(p.group);
     grazers.push({ p, ph: i * 1.7 });
   });
+  // 止まっているポニー（乗り台の栗毛、順番を待つぶち、丸い馬場の白いポニー）と、そばに立つ係の人（水色のシャツ）
+  for (const [x, z, yaw, body, mane] of land.waiting ?? []) {
+    const p = makeQuadruped(toon, { len: 1.35, h: 1.05, color: body, mane, saddle: '#b8463f' });
+    p.group.position.set(x, H(x, z), z); p.group.rotation.y = yaw;
+    const staff = makePerson(toon, { height: 1.65, shirt: '#8ec4e0', pants: '#3a4a6a', hat: '#f4f4f0' });
+    const sx = x + Math.cos(yaw) * 0.9, sz = z - Math.sin(yaw) * 0.9;
+    staff.group.position.set(sx, H(sx, sz), sz); staff.group.rotation.y = yaw;
+    group.add(p.group, staff.group);
+    grazers.push({ p, ph: x * 0.3, idle: true });
+  }
   return {
     group,
     update(t) {
       for (const g of grazers) {
+        if (g.idle) { g.p.tail.rotation.z = Math.sin(t * W0 * 2 + g.ph) * 0.2; g.p.head.position.y = g.p.saddleY + 0.28 + Math.sin(t * W0 + g.ph) * 0.03; continue; }
         g.p.head.position.y = g.p.saddleY - 0.15 + Math.sin(t * W0 + g.ph) * 0.06; // 首を下げて草を食む
         g.p.tail.rotation.z = Math.sin(t * W0 * 2 + g.ph) * 0.2;
       }
@@ -581,4 +633,62 @@ export function createHedge({ toon, line, heightAt, offset = 0, h = 0.9, w = 1.0
   const m = new THREE.Mesh(b.build(), toon({ color: '#4a6e34' }));
   m.castShadow = m.receiveShadow = true;
   return { group: m };
+}
+
+// ---------------------------------------------------------------------------
+// カフェ・キキのデッキ（展望の丘と同じ高さ）：濃い茶色の板の床、丸いハイテーブル、桜を植えた丸い芝の島、川側の鎖の柵、丘の側のベンチ
+//   実際の写真と Google マップの空中写真から。大きさは推定
+// ---------------------------------------------------------------------------
+export function createCafeDeck({ toon, deck }) {
+  const group = new THREE.Group();
+  group.name = 'cafe-deck';
+  const y = deck.y;
+  // 床：板の目（細い明暗の縞）
+  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 8;
+  const c = cv.getContext('2d');
+  for (let i = 0; i < 8; i++) { c.fillStyle = i % 4 === 3 ? '#3e2e22' : i % 2 ? '#5a4434' : '#624a38'; c.fillRect(0, i, 4, 1); }
+  const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(0.5, 0.6);
+  const shape = new THREE.Shape(deck.poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+  const isl = deck.island;
+  const hole = new THREE.Path(); hole.absarc(isl.x, -isl.z, isl.r, 0, Math.PI * 2, true); shape.holes.push(hole);
+  const floor = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.35, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y - 0.3, 0), toon({ color: '#ffffff', map: tex }));
+  floor.receiveShadow = true;
+  group.add(floor);
+  // 芝の島（縁は低い）
+  const lawn = new THREE.Mesh(new THREE.CylinderGeometry(isl.r, isl.r, 0.3, 24).translate(isl.x, y - 0.1, isl.z), toon({ color: '#6a8a3a' }));
+  lawn.receiveShadow = true; group.add(lawn);
+  const B = new GeoBuilder(), steel = new GeoBuilder(), wood = new GeoBuilder();
+  // 丸いハイテーブル（白い天板・灰色の脚と台）
+  const tops = [];
+  for (const [x, z] of deck.tables) {
+    steel.beam(V(x, y, z), V(x, y + 1.02, z), 0.08, 0.08);
+    for (const a of [0, Math.PI / 2]) steel.beam(V(x - Math.cos(a) * 0.35, y + 0.03, z - Math.sin(a) * 0.35), V(x + Math.cos(a) * 0.35, y + 0.03, z + Math.sin(a) * 0.35), 0.06, 0.06);
+    tops.push(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 16).translate(x, y + 1.05, z));
+  }
+  for (const g of tops) group.add(Object.assign(new THREE.Mesh(g, toon({ color: '#ecebe6' })), { castShadow: true }));
+  // ベンチ（木の座面・金属の脚）。[x, z, 長さ]
+  for (const [x, z, len] of deck.benches ?? []) {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.45).translate(x, y + 0.45, z), toon({ color: '#8a6a4a' }));
+    seat.castShadow = true; group.add(seat);
+    for (const sx of [-len / 2 + 0.3, len / 2 - 0.3]) steel.beam(V(x + sx, y, z), V(x + sx, y + 0.42, z), 0.06, 0.06);
+  }
+  // 川側の鎖の柵：ステンレスの柱（2 m おき、高さ 0.85 m）と、たるんだ鎖
+  const [[ax, az], [bx, bz]] = deck.chain;
+  const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 2));
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const x = ax + (bx - ax) * i / n, z = az + (bz - az) * i / n;
+    B.beam(V(x, y, z), V(x, y + 0.85, z), 0.07, 0.07);
+    if (i < n) {
+      const x2 = ax + (bx - ax) * (i + 1) / n, z2 = az + (bz - az) * (i + 1) / n;
+      for (let k = 0; k <= 4; k++) { const t = k / 4; pts.push(new THREE.Vector3(x + (x2 - x) * t, y + 0.75 - Math.sin(t * Math.PI) * 0.18, z + (z2 - z) * t)); if (k > 0 && k < 4) pts.push(pts[pts.length - 1].clone()); }
+    }
+  }
+  const chain = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x9a9ca0 }));
+  group.add(chain);
+  for (const [b, color] of [[B, '#c8cacc'], [steel, '#6a6c70'], [wood, '#8a6a4a']]) {
+    if (b.empty) continue;
+    const m = new THREE.Mesh(b.build(), toon({ color })); m.castShadow = m.receiveShadow = true; group.add(m);
+  }
+  return { group, chain, contains: (x, z) => pointInPoly(x, z, deck.poly) };
 }
