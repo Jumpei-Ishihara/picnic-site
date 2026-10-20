@@ -62,6 +62,10 @@ export async function startRealScene(site) {
   const T0 = performance.now(), marks = [];
   let tPrev = T0;
   const mark = label => { const t = performance.now(); marks.push({ 段階: label, 'ms': Math.round(t - tPrev), '累計 ms': Math.round(t - T0) }); tPrev = t; };
+  // 読み込み画面に、いま何をしているかを出す（待ち時間を短く感じるように）
+  const loadingEl = document.getElementById('loading');
+  const stage = text => { if (loadingEl) loadingEl.textContent = text; };
+  const nextFrame = () => new Promise(r => requestAnimationFrame(() => r())); // 読み込み画面の文字を描かせる
   const data = site.data ?? await (await fetch(BASE + 'scene.json')).json();
   mark('scene.json');
   const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
@@ -117,8 +121,9 @@ export async function startRealScene(site) {
   // 地形・水面・草・木
   // ============================================================================
   const nearStep = Math.min(1, Q.nearStep * (site.nearStepScale ?? 1));
+  stage('地形を読み込んでいます…');
   const terrain = await createRealTerrain({ scene, data, baseUrl: BASE, nearStep, colorSize: Q.texColor, normalSize: Q.texNormal, season: SEASON.key });
-  mark('地形と地面の素材');
+  mark('高さ・地面の種類（形は別スレッドで作り始める）');
   const NB = terrain.bounds.near, MB = terrain.bounds.mid;
   const level = data.water.levelY;
   // 水面：中景の範囲いっぱいに張る（陸の下は地形に隠れる）。水深は近景（とそのまわり）を細かく
@@ -134,6 +139,8 @@ export async function startRealScene(site) {
   const treeKinds = site.treeKinds ?? { cherry: 0.2, evergreen: 0.3 };
   const treeList = data.trees.map(t => ({ x: t.x, z: t.z, r: Math.max(2, t.r), kind: t.kind }));
   treeList.push(...(site.extraTrees?.(data, MB) ?? []));
+  stage('木を育てています…');
+  await nextFrame();
   const trees = await createRealTrees({ scene, trees: treeList, heightAt: terrain.heightAt, season: SEASON, leafScale: Q.leafScale, renderer, nearRadius: Q.treeNear, maxNear: Q.treeMax, kinds: treeKinds });
   mark('木');
 
@@ -144,6 +151,8 @@ export async function startRealScene(site) {
   collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
   collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
   for (const t of treeList) if (t.x > NB.x0 && t.x < NB.x1 && t.z > NB.z0 && t.z < NB.z1) collider.addCircle(t.x, t.z, 0.45, 'tree');
+  stage('橋と町を建てています…');
+  await nextFrame();
   const structures = createRealStructures({ scene, data, terrain, level, collider, season: SEASON, rnd, ...site.structures });
   mark('遠景・構造物');
   const S = data.sheet;
@@ -349,9 +358,18 @@ export async function startRealScene(site) {
   mark('ピクニック・UI');
   setView('lunch');
   controls.setEye(1.6, true);
-  // 最初の 1 コマを描く（シェーダーの組み立てはここで起きる）
+  // 地形の形（別スレッド）と地面の素材を待つ
+  stage('地形の形を仕上げています…');
+  await terrain.ready;
+  mark('地形の形と地面の素材を待つ');
+  if (DEBUG) console.table(Object.fromEntries(Object.entries(terrain.timings).map(([k, v]) => [k, Math.round(v)])));
+  // シェーダーを組み立てる。対応していれば並べて組み立て、そのあいだも画面は固まらない（KHR_parallel_shader_compile）
+  stage('光と影を準備しています…');
+  await nextFrame();
+  await renderer.compileAsync(scene, camera);
+  mark('シェーダーの組み立て');
   step(0);
-  mark('最初の 1 コマ（シェーダーの組み立て）');
+  mark('最初の 1 コマ');
   document.getElementById('loading').remove();
   if (DEBUG) { console.table(marks); window.__realMarks = marks; }
   renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });

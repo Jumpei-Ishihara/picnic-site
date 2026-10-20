@@ -3,8 +3,11 @@
 //         細部は地面の種類ごとの PBR の素材（real/js/ground.js）
 //   中景：4 m 間隔の高さ。空中写真の色（2 m ごと）を貼る。写真の外は地面の種類の色。近景の下は沈めて隠す
 //   heightAt(x, z)：近景の中は近景、外は中景。近景の縁 blend m で中景になめらかにつなぐ（engine/terrain.js と同じ）
+//   形（近景・中景の格子）は Web Worker で作る（real/js/terrain-worker.js）。高さ・地面の種類・色はすぐ返すので、
+//   そのあいだに木や遠景を組み立てられる。形と地面の素材がそろうと ready が解決する
 import * as THREE from 'three';
 import { createGroundMaterial, GROUND_LAYERS, CLASS_LAYER } from './ground.js';
+import { makeHeightAt, hash2, buildTerrainMeshes } from './terrain-core.js';
 
 // 地面の種類ごとの色の平均（sRGB）。素材（real/js/ground.js）の模様はこの色のまわりで明暗をつける
 export const REAL_GROUND = {
@@ -47,58 +50,31 @@ async function loadPixels(url) {
   return { w: bmp.width, h: bmp.height, px: g.getImageData(0, 0, bmp.width, bmp.height).data };
 }
 
-// 格子の値を双一次補間（範囲外は端の値）
-function sampleField(f, x, z) {
-  const fx = Math.min(Math.max((x - f.x0) / f.step, 0), f.w - 1.0001);
-  const fz = Math.min(Math.max((z - f.z0) / f.step, 0), f.h - 1.0001);
-  const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, w = f.w;
-  const a = f.y[j * w + i], b = f.y[j * w + i + 1], c = f.y[(j + 1) * w + i], d = f.y[(j + 1) * w + i + 1];
-  return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
-}
-
-// 格子の値を双三次（Catmull-Rom）補間。堤防の肩などの折れ目を、1 m の格子の角を見せずになめらかに
-function sampleBicubic(f, x, z) {
-  const fx = Math.min(Math.max((x - f.x0) / f.step, 0), f.w - 1.0001);
-  const fz = Math.min(Math.max((z - f.z0) / f.step, 0), f.h - 1.0001);
-  const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, w = f.w;
-  const at = (a, b) => f.y[Math.min(f.h - 1, Math.max(0, b)) * w + Math.min(w - 1, Math.max(0, a))];
-  const cr = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
-  const row = b => cr(at(i - 1, b), at(i, b), at(i + 1, b), at(i + 2, b), tx);
-  return cr(row(j - 1), row(j), row(j + 1), row(j + 2), tz);
-}
-
-// 位置から決まる乱数（0〜1）
-function hash2(i, j) {
-  let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0;
-  h = Math.imul(h ^ h >>> 13, 1274126177);
-  return ((h ^ h >>> 16) >>> 0) / 4294967296;
-}
-
-// 格子のメッシュ（x0..x1, z0..z1 を step 間隔）。高さと色は関数で
-function gridGeometry(x0, z0, x1, z1, step, height, color, uv = null) {
-  const nx = Math.round((x1 - x0) / step) + 1, nz = Math.round((z1 - z0) / step) + 1;
-  const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), uvs = uv ? new Float32Array(nx * nz * 2) : null;
-  const c = new THREE.Color();
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const k = j * nx + i, x = x0 + i * step, z = z0 + j * step;
-    pos.set([x, height(x, z), z], k * 3);
-    color(x, z, c);
-    col.set([c.r, c.g, c.b], k * 3);
-    if (uvs) uvs.set(uv(x, z), k * 2);
-  }
-  const idx = new Uint32Array((nx - 1) * (nz - 1) * 6);
-  let n = 0;
-  for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
-    const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1;
-    idx.set([a, d, b, b, d, e], n); n += 6;
-  }
+// 形を三角形の格子にする（Worker またはメインで作った配列から）
+function toGeometry(g) {
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  if (uvs) geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  geo.setIndex(new THREE.BufferAttribute(idx, 1));
-  geo.computeVertexNormals();
+  geo.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(g.nrm, 3));
+  if (g.col) geo.setAttribute('color', new THREE.BufferAttribute(g.col, 3));
+  if (g.uv) geo.setAttribute('uv', new THREE.BufferAttribute(g.uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(g.idx, 1));
+  geo.computeBoundingSphere();
+  geo.computeBoundingBox();
   return geo;
+}
+
+// 形を作る：Web Worker が使えればそこで（メインのスレッドはほかの組み立てを進められる）、だめならここで
+function buildMeshes(job) {
+  try {
+    const worker = new Worker(new URL('./terrain-worker.js', import.meta.url), { type: 'module' });
+    return new Promise((res, rej) => {
+      worker.onmessage = e => { res(e.data); worker.terminate(); };
+      worker.onerror = e => { worker.terminate(); e.preventDefault(); res(buildTerrainMeshes(job)); };
+      worker.postMessage(job);
+    });
+  } catch {
+    return Promise.resolve(buildTerrainMeshes(job));
+  }
 }
 
 /**
@@ -117,6 +93,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
   const looks = season === 'summer' ? { ...REAL_GROUND, ...REAL_GROUND_EARLY_SUMMER } : REAL_GROUND;
   const originTP = data.frame.origin.tp;
   const N = data.files.near, M = data.files.mid;
+  const t0 = performance.now(), timings = {};
   const [near, mid, groundImg, photoImg, midPhotoImg] = await Promise.all([
     loadHeightField(baseUrl + N.height, { ...N, originTP }),
     loadHeightField(baseUrl + M.height, { ...M, originTP }),
@@ -138,19 +115,7 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
     groundCls[k] = best;
   }
 
-  const midAt = (x, z) => sampleField(mid, x, z);
-  const nearWeight = (x, z) => {
-    const d = Math.min(x - N.x0, nx1 - x, z - N.z0, nz1 - z);
-    if (d <= 0) return 0;
-    const t = Math.min(1, d / blend);
-    return t * t * (3 - 2 * t);
-  };
-  function heightAt(x, z) {
-    const w = nearWeight(x, z);
-    if (w <= 0) return midAt(x, z);
-    const yn = sampleBicubic(near, x, z);
-    return w >= 1 ? yn : midAt(x, z) + (yn - midAt(x, z)) * w;
-  }
+  const heightAt = makeHeightAt(near, mid, blend);
   const inNear = (x, z) => x >= N.x0 && z >= N.z0 && x <= nx1 && z <= nz1;
   function groundAt(x, z) {
     if (inNear(x, z)) {
@@ -183,58 +148,45 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
       layerOfCell[k] = layerIndex[CLASS_LAYER[name] ?? 'grass'];
     }
   }
-  const cellAt = (x, z, out) => {
-    const fx = Math.min(Math.max(x - N.x0, 0), N.w - 1.0001), fz = Math.min(Math.max(z - N.z0, 0), N.h - 1.0001);
-    const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j;
-    const k00 = (j * N.w + i) * 3, k10 = k00 + 3, k01 = k00 + N.w * 3, k11 = k01 + 3;
-    for (let n = 0; n < 3; n++) {
-      const a = cellColor[k00 + n], b = cellColor[k10 + n], cc = cellColor[k01 + n], d = cellColor[k11 + n];
-      out[n] = (a + (b - a) * tx) * (1 - tz) + (cc + (d - cc) * tx) * tz;
-    }
-  };
-  const rgbTmp = [0, 0, 0];
-  const nearGeo = gridGeometry(N.x0, N.z0, nx1, nz1, nearStep, heightAt, (x, z, c) => { cellAt(x, z, rgbTmp); c.setRGB(rgbTmp[0], rgbTmp[1], rgbTmp[2]); });
-  const nearMat = await createGroundMaterial({ layerOfCell, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h }, colorSize, normalSize });
-  const nearMesh = new THREE.Mesh(nearGeo, nearMat);
+  timings.images = performance.now() - t0;
+
+  // ---- 近景・中景のメッシュ：形はあとで入れる（Worker で作る）。歩く・タップの対象として先に置いておく
+  const nearMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ visible: false }));
   nearMesh.receiveShadow = true;
   nearMesh.castShadow = true;
   nearMesh.name = 'terrain-near';
-  scene.add(nearMesh);
-
-  // ---- 中景：空中写真の色のテクスチャ（写真の外は地面の種類の色）。近景の下は 1.5 m 沈める
-  const cw = midPhotoImg ? midPhotoImg.w : M.w, ch = midPhotoImg ? midPhotoImg.h : M.h;
-  const cstep = midPhotoImg ? M.color.step : M.step;
-  const cv = new OffscreenCanvas(cw, ch), g = cv.getContext('2d');
-  const img = g.createImageData(cw, ch);
-  const midRGB = Object.fromEntries(Object.entries(REAL_MID).map(([k, v]) => { const n = parseInt(v.slice(1), 16); return [k, [n >> 16, (n >> 8) & 255, n & 255]]; }));
-  for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const k = j * cw + i, x = M.x0 + i * cstep, z = M.z0 + j * cstep;
-    const base = midRGB[midClassAt(x, z)] ?? midRGB.grass;
-    let rgb = base;
-    if (midPhotoImg && midPhotoImg.px[k * 4 + 3] > 0) {
-      const p = [midPhotoImg.px[k * 4], midPhotoImg.px[k * 4 + 1], midPhotoImg.px[k * 4 + 2]];
-      // 写真は明るさが強いので、少し種類の色に寄せる（町は屋根の白さが強いので、さらに寄せる）
-      const w = midClassAt(x, z) === 'town' ? 0.45 : 0.65;
-      rgb = base.map((v, n) => Math.round(v * (1 - w) + p[n] * w));
-    }
-    img.data.set([rgb[0], rgb[1], rgb[2], 255], k * 4);
-  }
-  g.putImageData(img, 0, 0);
-  const midTex = new THREE.CanvasTexture(cv);
-  midTex.colorSpace = THREE.SRGBColorSpace;
-  midTex.anisotropy = 8;
-  const cx1 = M.x0 + (cw - 1) * cstep, cz1 = M.z0 + (ch - 1) * cstep;
-  const midGeo = gridGeometry(M.x0, M.z0, mx1, mz1, M.step,
-    (x, z) => (x > N.x0 + 2 && x < nx1 - 2 && z > N.z0 + 2 && z < nz1 - 2) ? heightAt(x, z) - 1.5 : heightAt(x, z),
-    (x, z, c) => c.setRGB(1, 1, 1),
-    (x, z) => [(x - M.x0) / (cx1 - M.x0), 1 - (z - M.z0) / (cz1 - M.z0)]);
-  const midMat = new THREE.MeshPhysicalMaterial({ map: midTex, roughness: 1, metalness: 0, specularIntensity: 0.25 });
-  const midMesh = new THREE.Mesh(midGeo, midMat);
+  const midMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ visible: false }));
   midMesh.receiveShadow = true;
   midMesh.name = 'terrain-mid';
-  scene.add(midMesh);
+  scene.add(nearMesh, midMesh);
 
+  // 中景の種類ごとの色と、空中写真を混ぜる割合（写真は明るさが強いので種類の色に寄せる。町は屋根の白さが強いのでさらに）
+  const classRGB = M.classes.map(c => { const n = parseInt((REAL_MID[c] ?? REAL_MID.grass).slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; });
+  const classWeight = M.classes.map(c => c === 'town' ? 0.45 : 0.65);
+  const job = {
+    near, mid, N, M, blend, nearStep, cellColor,
+    midTex: { photo: midPhotoImg?.px ?? null, pw: midPhotoImg?.w, ph: midPhotoImg?.h, pstep: M.color?.step, classRGB, classWeight }
+  };
+  const tw = performance.now();
+  const ready = Promise.all([
+    buildMeshes(job).then(r => { timings.meshes = performance.now() - tw; return r; }),
+    createGroundMaterial({ layerOfCell, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h }, colorSize, normalSize }).then(m => { timings.groundMaterial = performance.now() - tw; return m; })
+  ]).then(([r, nearMat]) => {
+    nearMesh.geometry = toGeometry(r.nearGeo);
+    nearMesh.material = nearMat;
+    const midTex = new THREE.DataTexture(r.tex.pixels, r.tex.w, r.tex.h, THREE.RGBAFormat);
+    midTex.flipY = false;
+    midTex.colorSpace = THREE.SRGBColorSpace;
+    midTex.magFilter = THREE.LinearFilter;
+    midTex.minFilter = THREE.LinearMipmapLinearFilter;
+    midTex.generateMipmaps = true;
+    midTex.anisotropy = 8;
+    midTex.needsUpdate = true;
+    midMesh.geometry = toGeometry(r.midGeo);
+    midMesh.material = new THREE.MeshPhysicalMaterial({ map: midTex, roughness: 1, metalness: 0, specularIntensity: 0.25 });
+  });
   return {
+    timings, ready,
     near: nearMesh, mid: midMesh, heightAt, groundAt, midClassAt,
     // 草（real/js/grass.js）が地面の色にそろえるための、1 m ごとの色の平均（線形 RGB）と格子
     cellColor, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h },
