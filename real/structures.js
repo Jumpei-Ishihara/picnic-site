@@ -70,19 +70,28 @@ function foliageMassMaterial() {
  * @param {number} o.level
  * @param {object} o.collider
  * @param {object} o.season
+ * 場面ごとの設定（どれも省略できる）：
+ * @param {object} [o.bridgeColors]   橋の id → 塗装の色
+ * @param {(pbr:Function) => THREE.Material} [o.towerMaterial]  送電鉄塔の素材（紅白の鉄塔など）
+ * @param {object} [o.houses]         家並みの createHouses への上書き（maxDist・thinFrom など）と isTownExtra(x, z)
+ * @param {object[]} [o.extraHouses]  ほかの家並み（工場・倉庫の地区など）の createHouses の設定。wallMaterial・roofMaterial は省略できる
+ * @param {(b:object, mats:object) => THREE.Material[]} [o.buildingMaterials]  高い建物ごとの [屋根, 壁]
+ * @param {object[]} [o.backdropExtra] 遠景の影絵に足すもの
+ * @param {number} [o.houseMax]       家並みを置く最も遠い距離（m）
  */
-export function createRealStructures({ scene, data, terrain, level, collider, season }) {
+export function createRealStructures({ scene, data, terrain, level, collider, season, bridgeColors = BRIDGE_COLORS, towerMaterial = null, houses: houseOpts = {}, extraHouses = [], buildingMaterials = null, backdropExtra = [] }) {
   const rnd = mulberry32(31);
   const NB = terrain.bounds.near, MB = terrain.bounds.mid;
   const group = new THREE.Group();
   group.name = 'structures';
   scene.add(group);
+  const L = data.landmarks;
 
   // ---- 鉄橋・道路橋
   const concrete = pbr({ color: '#b4b0a6', roughness: 0.9 });
   const deck = pbr({ color: '#7e7d79', roughness: 0.9 });
-  for (const b of data.landmarks.bridges) {
-    const steel = pbr({ color: BRIDGE_COLORS[b.id] ?? '#9a9a9a', roughness: 0.55, metalness: 0.35 });
+  for (const b of L.bridges ?? []) {
+    const steel = pbr({ color: bridgeColors[b.id] ?? '#9a9a9a', roughness: 0.55, metalness: 0.35 });
     const g = createBridge({
       path: b.path, kind: b.kind, deckY: b.deckY, width: b.width,
       heightAt: terrain.heightAt, isWater: (x, z) => terrain.midClassAt(x, z) === 'water',
@@ -95,54 +104,96 @@ export function createRealStructures({ scene, data, terrain, level, collider, se
 
   // ---- 送電線と鉄塔
   const power = createPowerLines({
-    lines: data.landmarks.powerLines, towers: data.landmarks.towers, heightAt: terrain.heightAt,
-    material: pbr({ color: '#9a9ea4', roughness: 0.5, metalness: 0.5 }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x55585e })
+    lines: L.powerLines ?? [], towers: L.towers ?? [], heightAt: terrain.heightAt,
+    material: towerMaterial ? towerMaterial(pbr) : pbr({ color: '#9a9ea4', roughness: 0.5, metalness: 0.5 }), wireMaterial: new THREE.LineBasicMaterial({ color: 0x55585e })
   });
   group.add(power.group);
 
   // ---- 家並み（堤防の外の町。歩ける近景の中には置かない）
   const houseWin = windowTextures({ cols: 2, rows: 2, lit: 0, rnd });
   smoothTex(houseWin.map);
+  const houseWall = pbr({ map: houseWin.map, roughness: 0.9 });
+  const { isTownExtra = () => true, ...houseRest } = houseOpts;
   const houses = createHouses({
-    avoid: railCorridor(data.landmarks.railways, 16),
-    isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10),
+    avoid: railCorridor(L.railways ?? [], 16),
+    isTown: (x, z) => terrain.midClassAt(x, z) === 'town' && !(x > NB.x0 - 10 && x < NB.x1 + 10 && z > NB.z0 - 10 && z < NB.z1 + 10) && isTownExtra(x, z),
     heightAt: terrain.heightAt, bounds: MB, rnd, clearance: 24,
-    wallMaterial: pbr({ map: houseWin.map, roughness: 0.9 }), roofMaterial: pbr({ roughness: 0.8 }), minDist: 90, maxDist: 1450,
+    wallMaterial: houseWall, roofMaterial: pbr({ roughness: 0.8 }), minDist: 90, maxDist: 1450,
     wallColors: ['#d8d2c4', '#c9c2b2', '#e4e0d6', '#b8b2a8', '#cfc6b0', '#a9a49c'],
-    roofColors: ['#5a5f6a', '#6d4a3e', '#4a5a6a', '#7a7a7a', '#8a5a4a']
+    roofColors: ['#5a5f6a', '#6d4a3e', '#4a5a6a', '#7a7a7a', '#8a5a4a'],
+    ...houseRest
   });
   group.add(houses.group);
+  for (const h of extraHouses) {
+    const more = createHouses({ avoid: railCorridor(L.railways ?? [], 16), heightAt: terrain.heightAt, bounds: MB, rnd, wallMaterial: houseWall, roofMaterial: pbr({ roughness: 0.8 }), ...h });
+    group.add(more.group);
+  }
 
   // ---- 8 階以上の建物（OSM の形を押し出す。壁の模様は 2 階分 × 2 窓 = 7 m × 6.2 m）
   {
     const win = windowTextures({ cols: 2, rows: 2, lit: 0, rnd, glass: '#4f6074' });
     smoothTex(win.map);
     win.map.repeat.set(1 / 7, 1 / 6.2);
-    const wall = pbr({ color: '#d6d2c8', map: win.map, roughness: 0.6, metalness: 0.05 });
-    const roof = pbr({ color: '#9a978f' });
-    for (const b of data.landmarks.buildings) {
+    const mats = { wall: pbr({ color: '#d6d2c8', map: win.map, roughness: 0.6, metalness: 0.05 }), roof: pbr({ color: '#9a978f' }), plain: pbr({ color: '#e2e2de' }) };
+    for (const b of L.buildings ?? []) {
       const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
       const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(geo, [roof, wall]);
+      const m = new THREE.Mesh(geo, buildingMaterials?.(b, mats) ?? [mats.roof, mats.wall]);
       m.position.y = terrain.heightAt(b.x, b.z) - 0.5;
       m.castShadow = m.receiveShadow = true;
       group.add(m);
     }
   }
+  // ---- 近景のまわりの建物（倉庫・家・公園の管理棟など。高さ 25 m 未満）。屋根は空中写真の色。中には入れない
+  for (const b of L.nearBuildings ?? []) {
+    const shape = new THREE.Shape(b.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false }).rotateX(-Math.PI / 2);
+    const roofColor = b.roof ?? (b.kind === 'warehouse' || b.kind === 'industrial' ? '#8fa6a8' : '#8a8076');
+    const m = new THREE.Mesh(geo, [pbr({ color: roofColor }), houseWall]);
+    m.position.y = Math.min(...b.footprint.map(([x, z]) => terrain.heightAt(x, z))) - 0.3;
+    m.castShadow = m.receiveShadow = true;
+    group.add(m);
+    const xs = b.footprint.map(p => p[0]), zs = b.footprint.map(p => p[1]);
+    collider?.addRect(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), 'building');
+  }
+  // ---- 野球場の土の内野（円盤）。広い範囲は内野を何面か並べる
+  {
+    const dirt = pbr({ color: '#b89a70', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    for (const p of L.pitches ?? []) {
+      if (p.sport && p.sport !== 'baseball') continue;
+      const n = Math.max(1, Math.round(p.area / 9000));
+      const r = Math.min(22, 0.3 * Math.sqrt(p.area / n));
+      const xs = p.polygon.map(q => q[0]), zs = p.polygon.map(q => q[1]);
+      const alongX = Math.max(...xs) - Math.min(...xs) > Math.max(...zs) - Math.min(...zs);
+      for (let k = 0; k < n; k++) {
+        const t = n === 1 ? 0.5 : (k + 0.5) / n;
+        const x = alongX ? Math.min(...xs) + (Math.max(...xs) - Math.min(...xs)) * t : p.x;
+        const z = alongX ? p.z : Math.min(...zs) + (Math.max(...zs) - Math.min(...zs)) * t;
+        if (x > NB.x0 && x < NB.x1 && z > NB.z0 && z < NB.z1) continue; // 近景の中は地面の素材（砂利）で描く
+        const m = new THREE.Mesh(new THREE.CircleGeometry(r, 24).rotateX(-Math.PI / 2), dirt);
+        m.position.set(x, terrain.heightAt(x, z) + 0.15, z);
+        m.receiveShadow = true;
+        group.add(m);
+      }
+    }
+  }
 
-  // ---- 両岸の水際：対岸のヨシ・低木・柳の帯、市川側の護岸と船着場（手すりは当たり判定にも）
-  const banks = createBanks({ toon: pbr, data, terrain, level, collider, season });
-  banks.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  // 対岸のヨシ原・低木・柳の塊（多面体）に、葉の茂みのようなむらと凹凸を付ける
-  const veg = banks.group.getObjectByName('bank-vegetation');
-  if (veg) veg.material = foliageMassMaterial();
-  group.add(banks.group);
+  // ---- 両岸の水際：対岸のヨシ・低木・柳の帯、護岸と船着場（手すりは当たり判定にも）。データに水際の帯がある場面だけ
+  let banks = null;
+  if (data.banks) {
+    banks = createBanks({ toon: pbr, data, terrain, level, collider, season });
+    banks.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    // 対岸のヨシ原・低木・柳の塊（多面体）に、葉の茂みのようなむらと凹凸を付ける
+    const veg = banks.group.getObjectByName('bank-vegetation');
+    if (veg) veg.material = foliageMassMaterial();
+    group.add(banks.group);
+  }
 
   // ---- 遠景の影絵（スカイツリー・富士山など。方位と見かけの大きさを合わせる）
-  const backdrop = createBackdrop({ scene, items: data.landmarks.backdrop, upstreamBearing: data.frame.upstreamBearing, radius: 3600 });
+  const backdrop = createBackdrop({ scene, items: [...(L.backdrop ?? []), ...backdropExtra], upstreamBearing: data.frame.upstreamBearing, radius: 3600 });
 
   return {
-    group, power, houses, banks, backdrop,
+    group, power, houses, banks, backdrop, houseWall,
     /** 毎フレーム：影絵の色（空の地平・天頂の色、太陽の向き、夜） */
     update({ horizon, top, sunDir, night }, cameraPos) { backdrop.update({ horizon, top, sunDir, night }, cameraPos); }
   };
