@@ -195,7 +195,9 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
     let rgb = base;
     if (midPhotoImg && midPhotoImg.px[k * 4 + 3] > 0) {
       const p = [midPhotoImg.px[k * 4], midPhotoImg.px[k * 4 + 1], midPhotoImg.px[k * 4 + 2]];
-      rgb = base.map((v, n) => Math.round(v * 0.35 + p[n] * 0.65)); // 写真は明るさが強いので、少し種類の色に寄せる
+      // 写真は明るさが強いので、少し種類の色に寄せる（町は屋根の白さが強いので、さらに寄せる）
+      const w = midClassAt(x, z) === 'town' ? 0.45 : 0.65;
+      rgb = base.map((v, n) => Math.round(v * (1 - w) + p[n] * w));
     }
     img.data.set([rgb[0], rgb[1], rgb[2], 255], k * 4);
   }

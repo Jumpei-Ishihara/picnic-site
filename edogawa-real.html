@@ -40,8 +40,8 @@
   <div id="start">
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
-      <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R4（木）まで：空・太陽・地形・地面の素材・水面・草・木と歩行です。橋・建物などは次の段階で足します。</p>
+      <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川・鉄橋・送電線は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
+      <p>いまは R5（遠景・構造物）まで：空・太陽・地形・地面・水面・草・木・鉄橋・送電線・町並みと歩行です。ピクニックの持ち物は次の段階で足します。</p>
       <div class="btns">
         <button id="s-lunch">🧺 シートの場所から</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
@@ -67,6 +67,7 @@
     import { createRealWater } from './real/water.js';
     import { createRealGrass } from './real/grass.js';
     import { createRealTrees } from './real/trees.js';
+    import { createRealStructures } from './real/structures.js';
     import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
 
     const BASE = 'scenes/edogawa/';
@@ -148,6 +149,9 @@
     collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
     collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
     for (const t of treeList) if (t.x > NB.x0 && t.x < NB.x1 && t.z > NB.z0 && t.z < NB.z1) collider.addCircle(t.x, t.z, 0.45, 'tree');
+    // 遠景・構造物（R5）：鉄橋・送電線・家並み・高い建物・両岸の水際・遠景の影絵
+    const structures = createRealStructures({ scene, data, terrain, level, collider, season: SEASON });
+    const skyTop = new THREE.Color(), skyHor = new THREE.Color();
     const toast = createToast(document.getElementById('toast'));
     let started = false;
     const controls = createPlayerController({
@@ -245,6 +249,9 @@
       water.update(elapsed, { sun: sky.sun, skyColor });
       grass.update(elapsed, camera);
       trees.update(elapsed, sky.state.day);
+      skyHor.copy(sky.uniforms.uHorizon.value).multiplyScalar(sky.uniforms.uScale.value);
+      skyTop.copy(sky.uniforms.uZenith.value).multiplyScalar(sky.uniforms.uScale.value);
+      structures.update({ horizon: skyHor, top: skyTop, sunDir: sky.state.sunDir, night: sky.state.night }, camera.position);
       renderer.render(scene, camera);
       hud?.update();
     }
@@ -253,7 +260,7 @@
     document.getElementById('loading').remove();
     renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
-    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, controls, player, tod, setView, setHour, begin, sunPath };
+    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, trees, treeList, structures, controls, player, tod, setView, setHour, begin, sunPath };
   </script>
 </body>
 </html>

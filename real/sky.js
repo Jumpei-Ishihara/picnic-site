@@ -138,11 +138,12 @@ export function createRealSky({ renderer, scene, sunPath, shadowSize = 2048, sha
     hemi.intensity = 0.04 + 0.1 * day;
     // 霞の色は地平の色（太陽の反対側と太陽側の間）に合わせて、遠くが空に溶けるように
     scene.fog.color.copy(k.horizon).lerp(k.warm, 0.25 * golden).multiplyScalar(uniforms.uScale.value);
+    // 夕方は空の光が地平の暖色に偏り、逆光の物は暗い影になる。環境光を弱める
+    scene.environmentIntensity = 0.7 * (0.45 + 0.55 * smooth(4, 25, el));
     if (Math.abs(h - envHour) > 0.04) {
       envRT?.dispose();
       envRT = pmrem.fromScene(envScene, 0, 1, 200);
       scene.environment = envRT.texture;
-      scene.environmentIntensity = 0.7;
       envHour = h;
     }
   }
