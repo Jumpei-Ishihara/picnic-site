@@ -216,6 +216,8 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
 
   return {
     near: nearMesh, mid: midMesh, heightAt, groundAt, midClassAt,
+    // 草（real/grass.js）が地面の色にそろえるための、1 m ごとの色の平均（線形 RGB）と格子
+    cellColor, grid: { x0: N.x0, z0: N.z0, w: N.w, h: N.h },
     bounds: { near: { x0: N.x0, z0: N.z0, x1: nx1, z1: nz1 }, mid: { x0: M.x0, z0: M.z0, x1: mx1, z1: mz1 } }
   };
 }

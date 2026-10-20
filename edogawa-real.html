@@ -41,7 +41,7 @@
     <div class="card box">
       <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
       <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
-      <p>いまは R2（水）まで：空・太陽・地形・地面の素材・水面と歩行です。草・木・橋などは次の段階で足します。</p>
+      <p>いまは R3（草）まで：空・太陽・地形・地面の素材・水面・草と歩行です。木・橋などは次の段階で足します。</p>
       <div class="btns">
         <button id="s-lunch">🧺 シートの場所から</button>
         <button id="s-walk" class="sub">🚶 自由に歩く</button>
@@ -65,6 +65,7 @@
     import { createRealTerrain } from './real/terrain.js';
     import { createRealSky } from './real/sky.js';
     import { createRealWater } from './real/water.js';
+    import { createRealGrass } from './real/grass.js';
     import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
 
     const BASE = 'scenes/edogawa/';
@@ -119,6 +120,9 @@
       scene, level, bounds: MB, heightAt: terrain.heightAt, depthBox: { x0: NB.x0 - 90, z0: NB.z0, x1: NB.x1, z1: NB.z1 },
       reflScale: Q.reflScale, flow: [0.15, 1]
     });
+
+    // 草（R3）：人のまわり 30 m は密に、その先は粗く
+    const grass = createRealGrass({ scene, terrain, quality: Q.grass });
 
     // ============================================================================
     // 歩く
@@ -221,6 +225,7 @@
       elapsed += dt;
       skyColor.copy(sky.uniforms.uHorizon.value).lerp(sky.uniforms.uZenith.value, 0.4).multiplyScalar(sky.uniforms.uScale.value);
       water.update(elapsed, { sun: sky.sun, skyColor });
+      grass.update(elapsed, camera);
       renderer.render(scene, camera);
       hud?.update();
     }
@@ -229,7 +234,7 @@
     document.getElementById('loading').remove();
     renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
 
-    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, controls, player, tod, setView, setHour, begin, sunPath };
+    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, grass, controls, player, tod, setView, setHour, begin, sunPath };
   </script>
 </body>
 </html>
