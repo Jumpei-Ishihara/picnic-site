@@ -1,0 +1,53 @@
+// 写実版の画質の段階（高・中・低）。?quality= か覚えた値、なければ端末から選ぶ
+//   R0 では描く解像度と影だけ。草・木・水・遮蔽の値は R3〜R7 で足す
+export const QUALITY = {
+  high:   { key: 'high',   label: '高', pixelRatio: 2,    shadowSize: 2048, shadowExtent: 70 },
+  medium: { key: 'medium', label: '中', pixelRatio: 1.5,  shadowSize: 1024, shadowExtent: 60 },
+  low:    { key: 'low',    label: '低', pixelRatio: 1,    shadowSize: 1024, shadowExtent: 45 }
+};
+const STORAGE_KEY = 'picnic-site:real-quality';
+
+export function getQuality() {
+  let key = null;
+  try { key = new URLSearchParams(location.search).get('quality'); } catch { key = null; }
+  if (!QUALITY[key]) { try { key = localStorage.getItem(STORAGE_KEY); } catch { key = null; } }
+  if (QUALITY[key]) return QUALITY[key];
+  if (matchMedia('(pointer: coarse)').matches) return QUALITY.low;
+  return devicePixelRatio >= 2 ? QUALITY.high : QUALITY.medium;
+}
+
+/** ⚙️ の「画質」の行。押すと覚えて読み直す */
+export function bindQualityUI(row, current) {
+  for (const q of Object.values(QUALITY)) {
+    const b = document.createElement('button');
+    b.textContent = q.label;
+    b.title = `画質を「${q.label}」にする（読み直します）`;
+    b.classList.toggle('on', q.key === current.key);
+    b.addEventListener('click', () => {
+      if (q.key === current.key) return;
+      try { localStorage.setItem(STORAGE_KEY, q.key); } catch { /* URL で渡す */ }
+      const u = new URL(location.href);
+      u.searchParams.set('quality', q.key);
+      location.replace(u.toString());
+    });
+    row.append(b);
+  }
+}
+
+/** ?debug のときの表示：fps・描画命令の数・三角形の数 */
+export function createDebugHud(renderer) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:8px;top:8px;z-index:50;font:11px/1.4 ui-monospace,monospace;color:#fff;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none';
+  document.body.append(el);
+  let frames = 0, t0 = performance.now(), fps = 0;
+  return {
+    update() {
+      frames++;
+      const now = performance.now();
+      if (now - t0 > 500) { fps = frames * 1000 / (now - t0); frames = 0; t0 = now; }
+      const r = renderer.info.render;
+      el.textContent = `${fps.toFixed(0)} fps\ncalls ${r.calls}\ntris ${(r.triangles / 1e3).toFixed(0)}k\n${renderer.domElement.width}×${renderer.domElement.height}`;
+    },
+    get fps() { return fps; }
+  };
+}

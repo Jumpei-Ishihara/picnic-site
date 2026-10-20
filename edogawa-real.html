@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>江戸川のピクニック（写実版・試作）</title>
+  <link rel="stylesheet" href="engine/ui.css" />
+  <style>
+    #view { image-rendering: auto; }
+    #credit { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    #start small a, #credit a { color: var(--accent); }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font-size: 14px; background: #1b1a33; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="loading">江戸川の河川敷を読み込み中…</div>
+
+  <div id="hud-tl" class="box chip fade"><div id="loc">📍 江戸川河川敷緑地（写実版・試作）</div></div>
+  <div id="toast" class="box hidden"></div>
+  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く ・ 1〜4: 視点 ・ Esc: メニューを閉じる</div>
+  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
+
+  <div id="bar" class="box dock fade">
+    <button id="v-lunch" title="シートの場所：座って川と鉄橋を眺める（1）" aria-label="シートの場所">🧺</button>
+    <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
+    <button id="v-sunset" title="夕日：水際で夕日を見る（3）" aria-label="夕日">🌇</button>
+    <button id="v-bridge" title="鉄橋：堤防の上から上流を見る（4）" aria-label="鉄橋">🌉</button>
+    <button id="o-more" title="時刻・表示の設定" aria-label="設定">⚙️</button>
+  </div>
+
+  <div id="menu" class="box hidden">
+    <div class="row"><span>時刻</span><label id="time-label">12:00</label><input id="time" type="range" min="4.5" max="20" step="0.05" value="12" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
+    <div class="row" id="season-row"><span>季節</span></div>
+    <div class="row" id="quality-row"><span>画質</span></div>
+    <div class="row"><span>表示</span><button id="o-help">❔ 操作説明</button><button id="o-pixel" title="同じ場所のドット絵版を開く">🎮 ドット絵版へ</button></div>
+    <div id="credit">2026年10月18日の太陽の位置で描いています。<br>地形：国土地理院 基盤地図情報 数値標高モデル（DEM5A）を加工して作成 ／ 地面の種類・地面の色：国土地理院 シームレス空中写真をもとに作成 ／ 地図データ：© OpenStreetMap contributors</div>
+  </div>
+
+  <div id="start">
+    <div class="card box">
+      <h1>🍲 江戸川のピクニック（写実版・試作）</h1>
+      <p>市川の江戸川河川敷を、ドット絵ではなく写実的な 3DCG で歩けるようにする試作です。地形・川は、国土地理院の標高・空中写真と OpenStreetMap から実際の場所どおりに置いています。太陽は 2026年10月18日の位置です。</p>
+      <p>いまは R0（基盤）：空・太陽・地形・水面と歩行だけです。草・木・橋などは次の段階で足します。</p>
+      <div class="btns">
+        <button id="s-lunch">🧺 シートの場所から</button>
+        <button id="s-walk" class="sub">🚶 自由に歩く</button>
+      </div>
+      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く、1〜4 で視点 ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ <a href="edogawa.html">ドット絵版はこちら</a></small>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { createCollider } from './engine/collision.js';
+    import { createPlayerController } from './engine/player.js';
+    import { getSeason, seasonalSunPath, bindSeasonUI, dateText } from './engine/season.js';
+    import { bindButton as btn, createToast, bindTimeControls, createAutoHide } from './engine/ui.js';
+    import { createRealTerrain } from './real/terrain.js';
+    import { createRealSky } from './real/sky.js';
+    import { getQuality, bindQualityUI, createDebugHud } from './real/quality.js';
+
+    const BASE = 'scenes/edogawa/';
+    const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+    const UB = data.frame.upstreamBearing;
+    const SEASON = getSeason('autumn');
+    const Q = getQuality();
+    const DEBUG = new URLSearchParams(location.search).has('debug');
+
+    // ============================================================================
+    // 描画
+    // ============================================================================
+    const canvas = document.getElementById('view');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pixelRatio));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 6000);
+    camera.rotation.order = 'YXZ';
+    function resize() {
+      renderer.setSize(innerWidth, innerHeight, false);
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    // ============================================================================
+    // 空・太陽
+    // ============================================================================
+    const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON);
+    const sky = createRealSky({ renderer, scene, sunPath, shadowSize: Q.shadowSize, shadowExtent: Q.shadowExtent, hour: 12 });
+    // engine/ui.js の時刻の操作は tod（hour・auto・update）を使う。それに合わせた小さな時計
+    const tod = {
+      hour: 12, auto: false, hoursPerSecond: 1 / 15,
+      update(dt) { if (this.auto) { this.hour += dt * this.hoursPerSecond; if (this.hour > 20) this.hour = 4.5; } }
+    };
+
+    // ============================================================================
+    // 地形と水面（R2 で反射・波の水面に置き換える）
+    // ============================================================================
+    const terrain = await createRealTerrain({ scene, data, baseUrl: BASE });
+    const NB = terrain.bounds.near, MB = terrain.bounds.mid;
+    const level = data.water.levelY;
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(MB.x1 - MB.x0, MB.z1 - MB.z0).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x4a5444, roughness: 0.12, metalness: 0 })
+    );
+    water.position.set((MB.x0 + MB.x1) / 2, level, (MB.z0 + MB.z1) / 2);
+    water.receiveShadow = true;
+    water.name = 'water';
+    scene.add(water);
+
+    // ============================================================================
+    // 歩く
+    // ============================================================================
+    const collider = createCollider({ cell: 2 });
+    collider.setBounds(NB.x0 + 2, NB.z0 + 2, NB.x1 - 2, NB.z1 - 2);
+    collider.addDynamic((x, z) => terrain.heightAt(x, z) < level + 0.15); // 水には入らない
+    const toast = createToast(document.getElementById('toast'));
+    let started = false;
+    const controls = createPlayerController({
+      canvas, camera, scene, collider,
+      start: { x: 0, z: 0, yaw: sunPath.yawOfBearing(285), pitch: 0 },
+      eye: 1.6, isTouch: IS_TOUCH, heightAt: terrain.heightAt, walkSpeed: 3.2, runSpeed: 7, maxTapDistance: 140,
+      joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
+      tapTargets: [terrain.near],
+      isInputEnabled: () => started,
+      onStuck: () => toast.show('ここから先へは進めないみたい')
+    });
+    const player = controls.player;
+
+    // ============================================================================
+    // 視点・UI
+    // ============================================================================
+    const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
+    function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
+    function lieDown() {
+      controls.cancelWalk();
+      const lying = controls.eye < 0.5;
+      const v = data.viewpoints.nap;
+      player.pitch = lying ? 0 : v.pitch * Math.PI / 180;
+      controls.setEye(lying ? 1.6 : v.eye, true);
+      controls.settle();
+      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === 'nap' && !lying);
+    }
+    function setView(name) {
+      if (name === 'nap') { lieDown(); return; }
+      let v = data.viewpoints[name];
+      if (name === 'sunset' && SEASON.key !== 'autumn') { const hh = sunPath.sunset - 0.2; v = { ...v, hour: hh, bearing: sunPath.sunAt(hh).azimuth }; }
+      if (name !== 'lunch') setHour(v.hour);
+      controls.cancelWalk();
+      if (controls.mode !== 'walk') controls.setMode('walk');
+      player.x = v.x; player.z = v.z;
+      player.yaw = sunPath.yawOfBearing(v.bearing);
+      player.pitch = v.pitch * Math.PI / 180;
+      controls.setEye(v.eye, true);
+      controls.settle();
+      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
+    }
+    for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
+    bindSeasonUI(document.getElementById('season-row'), SEASON);
+    bindQualityUI(document.getElementById('quality-row'), Q);
+    for (const el of document.querySelectorAll('#start p, #credit')) el.innerHTML = el.innerHTML.replace('2026年10月18日', `${dateText(SEASON)}（${SEASON.label}）`);
+
+    const menuEl = document.getElementById('menu');
+    const autoHide = createAutoHide({ isPinned: () => !started || !menuEl.classList.contains('hidden') });
+    const placeAboveDock = el => { el.style.bottom = `${innerHeight - document.getElementById('bar').getBoundingClientRect().top + 8}px`; };
+    btn('o-more', el => {
+      const open = menuEl.classList.toggle('hidden') === false;
+      el.classList.toggle('on', open);
+      if (open) { placeAboveDock(menuEl); autoHide.show(); }
+    });
+    btn('o-help', () => document.getElementById('help').classList.toggle('hidden'));
+    btn('o-pixel', () => { location.href = 'edogawa.html' + location.search; });
+    addEventListener('keydown', e => {
+      if (!started) return;
+      const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'bridge' }[e.code];
+      if (v) setView(v);
+      if (e.code === 'Escape') { menuEl.classList.add('hidden'); document.getElementById('o-more').classList.remove('on'); }
+      if (/^(Key[WASD]|Arrow)/.test(e.code) && controls.eye < 1.5) controls.setEye(1.6);
+    });
+
+    function begin(view) {
+      started = true;
+      document.getElementById('start').remove();
+      if (view) setView(view);
+      else { setView('lunch'); controls.setEye(1.6); }
+      controls.setMode('walk');
+      if (!IS_TOUCH) document.getElementById('help').classList.remove('hidden');
+      autoHide.show();
+    }
+    btn('s-lunch', () => begin('lunch'));
+    btn('s-walk', () => begin(null));
+
+    // ============================================================================
+    // 毎フレーム
+    // ============================================================================
+    const hud = DEBUG ? createDebugHud(renderer) : null;
+    let last = performance.now();
+    function step(dt) {
+      if (!started) player.yaw += dt * 0.03;
+      tod.update(dt);
+      timeUI.update();
+      toast.update(dt);
+      controls.update(dt);
+      if (controls.walking && controls.eye < 1.5) controls.setEye(1.6);
+      camera.updateMatrixWorld();
+      if (tod.hour !== sky.hour) sky.apply(tod.hour);
+      sky.follow(camera.position);
+      renderer.render(scene, camera);
+      hud?.update();
+    }
+    setView('lunch');
+    controls.setEye(1.6, true);
+    document.getElementById('loading').remove();
+    renderer.setAnimationLoop(now => { step(Math.min(0.05, (now - last) / 1000)); last = now; });
+
+    if (DEBUG) window.__real = { THREE, data, renderer, scene, camera, sky, terrain, water, controls, player, tod, setView, setHour, begin, sunPath };
+  </script>
+</body>
+</html>
