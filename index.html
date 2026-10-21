@@ -3,39 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>ドット絵ワールド</title>
+  <title>ピクニック・ワールド</title>
+  <meta name="description" content="江戸川・なぎさ公園・妙典の川辺を、ドット絵と写実的な 3DCG で歩けるピクニックの場面集" />
   <link rel="stylesheet" href="engine/ui.css" />
   <style>
-    /* 入口ページ：2つの場面へのリンク */
+    /* 総合トップ：場所ごとに、ドット絵版と写実版の入口を並べる */
     html, body { overflow: auto; touch-action: auto; -webkit-user-select: auto; user-select: auto; }
-    body { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
-      background: linear-gradient(#3c6aa8, #84b6ea 55%, #5fa04a 55%, #3f7d3c); }
-    main { max-width: 560px; width: 100%; padding: 22px; line-height: 1.75; }
-    h1 { margin: 0 0 4px; font-size: 22px; }
-    p { margin: 4px 0 16px; color: #e2e4ea; font-size: 14px; }
-    .scenes { display: grid; gap: 10px; }
-    .scenes a { display: block; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.06); color: var(--text); text-decoration: none; }
-    .scenes a:hover { background: rgba(255, 255, 255, 0.12); }
-    .scenes strong { font-size: 16px; }
-    .scenes span { display: block; font-size: 13px; color: var(--muted); }
-    footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    body { height: auto; min-height: 100%; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px 40px;
+      background: linear-gradient(#3c6aa8, #84b6ea 42%, #e9c48a 52%, #5fa04a 52.2%, #3f7d3c); background-attachment: fixed; }
+    main { max-width: 760px; width: 100%; padding: 24px; line-height: 1.75; }
+    h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: 0.02em; }
+    .lead { margin: 4px 0 18px; color: #e2e4ea; font-size: 14px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+    .legend b { color: var(--text); font-weight: 600; }
+    h2 { margin: 22px 0 10px; font-size: 15px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+    .places { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+    .place { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06);
+      display: flex; flex-direction: column; }
+    .place strong { font-size: 16px; }
+    .place p { margin: 2px 0 12px; font-size: 13px; color: var(--muted); flex: 1; }
+    .go { display: flex; gap: 8px; }
+    .go a { flex: 1; text-align: center; padding: 8px 10px; border-radius: 7px; font-size: 14px; text-decoration: none;
+      color: var(--text); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.08); }
+    .go a:hover { background: rgba(255, 255, 255, 0.16); }
+    .go a.real { background: rgba(120, 180, 255, 0.18); border-color: rgba(140, 190, 255, 0.45); }
+    .go a.real:hover { background: rgba(120, 180, 255, 0.3); }
+    .go span { flex: 1; text-align: center; padding: 8px 10px; font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 7px; }
+    footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
     footer a { color: var(--accent); }
+    @media (max-width: 420px) { main { padding: 18px; } .places { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <main class="box">
-    <h1>ドット絵ワールド</h1>
-    <p>歩けるドット絵の場面です。歩き回ったり、座って景色を眺めたりできます。</p>
-    <div class="scenes">
-      <a href="edogawa.html"><strong>🍲 江戸川のピクニック</strong><span>市川の江戸川河川敷を、国土地理院の標高と地図データから再現。スープと昼寝の身軽ピクニック。10月の太陽の位置で、スカイツリーの横に夕日が沈む。PNG・ループ動画の書き出しつき。</span></a>
-      <a href="nagisa.html"><strong>🌊 なぎさ公園のピクニック</strong><span>江戸川区 南葛西の なぎさ公園を同じ作り方で再現。展望の丘の芝生と木漏れ日、旧江戸川の河口、魔法の文学館のカフェ、柵の中を周回するポニー。夕日は葛西臨海公園の大観覧車のすぐ横に沈む。</span></a>
-      <a href="myoden.html"><strong>🚲 妙典の岸のピクニック</strong><span>江戸川の「逆側」、市川市 妙典の堤防。Google マップの 360° 写真と同じ場所から下流を眺め、東西線の鉄橋・水管橋・妙典橋のある川辺でピクニック。</span></a>
-      <a href="myoden-far.html"><strong>🦀 妙典の対岸のピクニック</strong><span>妙典の真向かい、市川市 田尻のコンクリートの堤防。水管橋のアーチと東西線の鉄橋を眺め、干潮には干潟に杭と小舟が並ぶ。夕日は川の向こうの妙典に沈む。</span></a>
-      <a href="picnic.html"><strong>🧺 川辺のピクニック</strong><span>木陰のシート、きらめく川、夕日と蛍。PNG・ループ動画の書き出しつき。</span></a>
-      <a href="town_3d.html"><strong>🏘️ ドット街さんぽ</strong><span>運河と広場の小さな街。お店に入るとサイトの各ページが開きます。</span></a>
+    <h1>🧺 ピクニック・ワールド</h1>
+    <p class="lead">江戸川のまわりの実際の川辺を、国土地理院の標高・空中写真と OpenStreetMap から再現した、歩けるピクニックの場面集です。同じ場所を「ドット絵」と「写実的な 3DCG」の 2 つの描き方で歩けます。</p>
+    <div class="legend">
+      <div><b>🎨 ドット絵版</b>：軽くて、スマホでも動く。PNG・ループ動画の書き出しつき</div>
+      <div><b>📷 写実版（試作）</b>：草・木・水面の映り込み。⚙️ で季節と画質を変えられる。パソコン向け</div>
     </div>
-    <footer>写実版（試作）：<a href="real/index.html">写実的な 3DCG で歩く江戸川・なぎさ公園・妙典</a><br>旧版：<a href="legacy/picnic_3d.html">レイマーチング版のピクニック</a> ・ <a href="legacy/pixelart_2d.html">2D 版</a></footer>
+
+    <h2>場所をえらぶ</h2>
+    <div class="places">
+      <div class="place">
+        <strong>🍲 江戸川のピクニック</strong>
+        <p>市川の江戸川河川敷。総武線の鉄橋を眺めながら、スープと昼寝の身軽ピクニック。10 月の夕日はスカイツリーの横に沈む。</p>
+        <div class="go"><a href="edogawa.html">🎨 ドット絵</a><a class="real" href="real/edogawa.html">📷 写実</a></div>
+      </div>
+      <div class="place">
+        <strong>🌊 なぎさ公園のピクニック</strong>
+        <p>江戸川区 南葛西。展望の丘の木立、旧江戸川の河口、魔法の文学館のカフェ、柵の中を周回するポニー。夕日は大観覧車の横に沈む。</p>
+        <div class="go"><a href="nagisa.html">🎨 ドット絵</a><a class="real" href="real/nagisa.html">📷 写実</a></div>
+      </div>
+      <div class="place">
+        <strong>🚲 妙典の岸のピクニック</strong>
+        <p>江戸川の「逆側」、市川市 妙典の堤防。3 つのアーチの水管橋と東西線の鉄橋・妙典橋が川に映る。</p>
+        <div class="go"><a href="myoden.html">🎨 ドット絵</a><a class="real" href="real/myoden.html">📷 写実</a></div>
+      </div>
+      <div class="place">
+        <strong>🦀 妙典の対岸のピクニック</strong>
+        <p>妙典の真向かい、市川市 田尻のコンクリートの堤防。干潮には干潟に杭と小舟が並び、夕日は川の向こうの妙典に沈む。</p>
+        <div class="go"><a href="myoden-far.html">🎨 ドット絵</a><span>写実版は準備中</span></div>
+      </div>
+    </div>
+
+    <h2>ほかの場面（ドット絵）</h2>
+    <div class="places">
+      <div class="place">
+        <strong>🧺 川辺のピクニック</strong>
+        <p>木陰のシート、きらめく川、夕日と蛍。最初に作った架空の川辺。</p>
+        <div class="go"><a href="picnic.html">🎨 ドット絵</a></div>
+      </div>
+      <div class="place">
+        <strong>🏘️ ドット街さんぽ</strong>
+        <p>運河と広場の小さな街。お店に入るとサイトの各ページが開きます。</p>
+        <div class="go"><a href="town_3d.html">🎨 ドット絵</a></div>
+      </div>
+    </div>
+
+    <footer>
+      写実版だけの一覧：<a href="real/index.html">写実版ワールド</a> ／ 旧版：<a href="legacy/picnic_3d.html">レイマーチング版のピクニック</a> ・ <a href="legacy/pixelart_2d.html">2D 版</a><br>
+      地形：国土地理院 ／ 地図データ：© OpenStreetMap contributors ／ 写実版の地面の素材：ambientCG（CC0）・木：ez-tree（MIT）
+    </footer>
   </main>
 </body>
 </html>
