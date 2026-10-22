@@ -1,0 +1,170 @@
+[
+  {
+    "file": "edogawa-picnic_1200_20261022-202350-2dd88b70-4122-45fb-a2b2-71560b42396f.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "edogawa-picnic_1200_20261022-202400_6s-17aa7c2e-d080-4697-86e4-745ad801421b.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.004788"
+      }
+    }
+  },
+  {
+    "file": "edogawa-picnic_1200_20261022-202449_12s-6c5863d6-fc6e-446f-ae15-c81760760468.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "12.000000"
+      }
+    }
+  },
+  {
+    "file": "edogawa-picnic_1200_20261022-202536_6s-272252a3-5afc-4048-aa9e-7c674705d5b1.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "0.288136"
+      }
+    }
+  },
+  {
+    "file": "myoden-bank_1200_20261022-202727-6e5cd045-c8c3-45c3-93d8-a9c514c61da9.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "myoden-bank_1200_20261022-202727_6s-517f7c10-2c08-449f-8444-232acfa7d8db.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.008333"
+      }
+    }
+  },
+  {
+    "file": "myoden-far_1200_20261022-202751-d0f4ed64-65aa-4665-bde6-4b735d711b90.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "myoden-far_1200_20261022-202752_6s-8049d7fe-ed3d-47a7-ba08-a6bd0556214b.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.000000"
+      }
+    }
+  },
+  {
+    "file": "nagisa-park_1200_20261022-202548-57d9c262-ea86-49fe-b5cd-fdf10f781d11.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "nagisa-park_1200_20261022-202612_6s-9fdccdc1-9c83-40e6-bf2b-3c4006ec40ec.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.000000"
+      }
+    }
+  },
+  {
+    "file": "riverside-picnic-3d-day-f23b9aa9-b55f-4bd0-8eca-18eb0f2680dd.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "riverside-picnic-day-a2719d25-6bd0-4f8b-ac85-c851b3439e44.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "riverside-picnic_1530_20261022-202840-2bde29f0-9b29-454e-9a3f-2be1f0f28fdf.png",
+    "png": true,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "file": "riverside-picnic_1530_20261022-202840_6s-1197aea9-7837-4ba5-bdd7-e38a88d2e306.mp4",
+    "ok": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.016667"
+      }
+    }
+  }
+]

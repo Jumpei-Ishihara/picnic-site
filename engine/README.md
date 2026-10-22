@@ -11,6 +11,8 @@ cd ~/picnic-site && python3 -m http.server 8790
 
 `three` は各 HTML の importmap で読み込みます（現在 `three@0.160.0`）。
 
+2026-10-22の安全性・復旧・性能改修は [詳細設計・検証記録](../docs/REFACTOR_DESIGN.md) を参照してください。`capture.busy` は準備・録画・保存中を表し、`capture.recording` は録画中だけです。結果リンクは共通の `export-ui.js` が所有し、置換時に `dispose()` でBlobのURLを解放します。
+
 ## モジュール
 
 | ファイル | 役割 | 主な関数 |
@@ -32,6 +34,10 @@ cd ~/picnic-site && python3 -m http.server 8790
 | `water.js` | ドット絵の水面（旧版の作り方：細かく強い波、波で歪む反射、屈折で見せる川底、深さで変わる水の色、川底の光、岸の泡、きらめきの筋、波紋）。広い川向けに `shape`（水際の形）・`depthBounds`・`clarity`（濁り）・`waveFade`（遠くの波で反射を乱さない） | `createPixelWater` |
 | `player.js` | 歩行操作（キーボード、ドラッグ見回し、スマホのスティック、タップした場所へ経路を探して歩く、おまかせ散策、歩行の揺れ、起伏・座る目線） | `createPlayerController` |
 | `audio.js` | 合成音（足音・水音・風・遠くの電車の響き・鳥・トビ・秋の虫・猫・チャイム） | `createAudio`（`setBed('wind' / 'rumble')` `cricket` `kite`） |
+| `bridge-client.js` | Originを限定したローカルブリッジの認証・POST、毎回のヘルス確認、元形式を保ったアップロード | `createBridgeClient` |
+| `worker-task.js` | Workerの生成・送信・実行・期限切れの代替処理と終了 | `runWorkerTask` |
+| `legacy-export.js` | 旧2D・旧3Dの確定保存名・ブラウザ保存要求・結果不明の表示、古い応答の排除 | `updateLegacyExportStatus` |
+| `export-ui.js` | 5場面共通の書き出しUI、失敗時復旧、結果リンクの寿命管理 | `createExportUI` |
 | `capture.js` | PNG とループ動画の書き出し（320×180 を 4 倍して 1280×720）。~/Downloads へはブリッジ経由、無ければブラウザのダウンロード | `createCapture` |
 | `ui.js` + `ui.css` | 下部バー、通知、時刻スライダー、パネル、スタート画面、スティックの見た目 | `bindButton` `createToast` `bindTimeControls` `fmtTime` |
 
@@ -137,10 +143,10 @@ backdrop.update({ horizon: sky.uniforms.uHor.value, top: sky.uniforms.uTop.value
 `picnic.html` の 📷 書き出し（P: PNG / R: 6秒ループ録画）がこれを使っています。
 
 ```bash
-node tools/export_server.js --bridge-only
+node tools/export_server.js
 ```
 
-- ブリッジ（`tools/export_server.js`）が動いていれば、書き出したファイルを ~/Downloads に直接保存します。`.mp4` は ffmpeg で H.264 に変換されます。`--bridge-only` を付けると、起動時に旧版の PNG・動画を作りません。
+- 許可Origin（既定は localhost:8790 / 127.0.0.1:8790）でブリッジ（`tools/export_server.js`）が動いていれば、書き出したファイルを ~/Downloads に直接保存します。`.mp4` は ffmpeg で H.264 に変換されます。通常起動は待機のみで、旧版の明示生成には `--generate-legacy` を使います。
 - ブリッジが無ければ、ブラウザのダウンロードとして保存します（形式はブラウザ次第で mp4 または webm）。
 - 録画中は `capture.elapsed()` を場面の時計にしてください（0 秒から始まるので、周期の倍数の長さなら最初と最後がつながります）。描画のたびに `capture.frame()` を呼びます。カメラは `controls.settle()` で静止させます。
 - 書き出し中は描画解像度を 320×180 に固定し、画面には比率を保って表示します。

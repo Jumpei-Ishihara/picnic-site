@@ -1,108 +1,109 @@
-// 書き出し：PNG とループ動画。~/Downloads への保存は tools/export_server.js（ブリッジ）経由、
-// ブリッジが動いていなければブラウザのダウンロードに保存する。
-//
-// ブリッジの起動（プロジェクトのフォルダで）：node tools/export_server.js --bridge-only
+// PNG / native-format recording. The bridge optionally converts video to H.264.
+import { bridgeClient } from './bridge-client.js';
 
-const BRIDGE = 'http://127.0.0.1:18923';
-
-/**
- * @param {object} o
- * @param {HTMLCanvasElement} o.canvas  ドット絵レンダラーの描画先
- * @param {ReturnType<import('./pixel-renderer.js').createPixelRenderer>} o.pixel
- * @param {() => void} o.renderOnce     1フレーム描く（時間は進めない）
- * @param {{width:number, height:number}} [o.source]  書き出し時の描画解像度
- * @param {number} [o.scale]            拡大率（整数。320×180 × 4 = 1280×720）
- */
 export function createCapture({ canvas, pixel, renderOnce, source = { width: 320, height: 180 }, scale = 4, bitrate = 12_000_000 }) {
   const out = document.createElement('canvas');
-  out.width = source.width * scale;
-  out.height = source.height * scale;
+  out.width = source.width * scale; out.height = source.height * scale;
   const ctx = out.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
-
-  // 描画の直後（同じタスク内）に呼ぶ：ニアレストで整数倍に拡大して写す
   const copyFrame = () => ctx.drawImage(canvas, 0, 0, out.width, out.height);
+  let state = 'idle', rec = null;
 
-  let rec = null; // { recorder, chunks, mime, start, duration, onProgress, resolve }
-
-  async function bridgeAvailable() {
-    try {
-      const r = await fetch(`${BRIDGE}/health`, { signal: AbortSignal.timeout(700) });
-      return r.ok ? (await r.json()).dir || '~/Downloads' : null;
-    } catch (e) { return null; }
-  }
-
-  // ブリッジがあれば ~/Downloads に直接、なければブラウザのダウンロードとして保存
+  async function bridgeAvailable() { return await bridgeClient.available() ? '~/Downloads' : null; }
   async function save(blob, filename) {
+    if (!(blob instanceof Blob) || !blob.size) throw Error('保存する画像・動画を作れませんでした');
     const url = URL.createObjectURL(blob);
-    if (await bridgeAvailable()) {
-      try {
-        const r = await fetch(`${BRIDGE}/save-blob?filename=${encodeURIComponent(filename)}`, { method: 'POST', body: blob });
-        const j = await r.json();
-        if (j.ok) return { where: 'downloads', path: j.path, filename: j.filename, url };
-      } catch (e) { /* ブラウザ保存へ */ }
-    }
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    return { where: 'browser', filename, url };
+    let disposed = false;
+    const dispose = () => { if (!disposed) { URL.revokeObjectURL(url); disposed = true; } };
+    try {
+      const result = await bridgeClient.upload(blob, filename);
+      if (result.ok) return { where: 'downloads', filename: result.filename, downloadFilename: filename, mime: result.mime, sourceMime: blob.type, url, dispose };
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      return { where: 'browser', filename, url, dispose, warning: result.uncertain ? result.error : null };
+    } catch (error) { dispose(); throw error; }
   }
 
-  // 解像度を固定して1フレーム描き、PNG にする
   async function png(filename) {
-    pixel.setFixedSize(source);
-    renderOnce();
-    copyFrame();
-    const blob = await new Promise(res => out.toBlob(res, 'image/png'));
-    pixel.setFixedSize(null);
-    renderOnce();
-    return save(blob, `${filename}.png`);
+    if (state !== 'idle') throw Error('書き出し処理中です');
+    state = 'preparing';
+    try {
+      let blob;
+      try {
+        pixel.setFixedSize(source); renderOnce(); copyFrame();
+        blob = await new Promise((resolve, reject) => out.toBlob(b => b ? resolve(b) : reject(Error('PNGを作れませんでした')), 'image/png'));
+      } finally { pixel.setFixedSize(null); renderOnce(); }
+      state = 'saving';
+      return await save(blob, `${filename}.png`);
+    } finally { state = 'idle'; }
   }
 
-  const pickMime = () => ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']
-    .find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || 'video/webm';
-
-  /**
-   * 録画を始める。場面側は録画中、毎フレームの描画後に frame() を呼び、
-   * 経過時間 elapsed() を時計として使う（0 から始まるので、周期の倍数の長さならループがつながる）。
-   * @returns {Promise<object>} 保存結果
-   */
   function startVideo({ duration, filename, onProgress = () => {} }) {
-    if (rec) return Promise.reject(new Error('recording'));
-    pixel.setFixedSize(source);
-    const mime = pickMime();
-    const stream = out.captureStream(60);
-    const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
-    const chunks = [];
-    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-    return new Promise(resolve => {
-      rec = { recorder, chunks, mime, start: performance.now(), duration, onProgress, resolve, filename };
-      recorder.onstop = async () => {
-        const r = rec;
+    if (state !== 'idle') return Promise.reject(Error('書き出し処理中です'));
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 60) return Promise.reject(Error('録画時間が範囲外です'));
+    state = 'preparing';
+    return new Promise((resolve, reject) => {
+      const r = { recorder: null, stream: null, chunks: [], start: 0, duration, onProgress, resolve, reject, finished: false, fixed: false, bytes: 0 };
+      function cleanup() {
         rec = null;
-        pixel.setFixedSize(null);
-        const blob = new Blob(r.chunks, { type: r.mime });
-        // ブリッジは .mp4 を受け取ると ffmpeg で H.264 に変換する。ブラウザ保存では実際の形式の拡張子にする
-        const ext = ((await bridgeAvailable()) || r.mime.startsWith('video/mp4')) ? 'mp4' : 'webm';
-        r.resolve(await save(blob, `${r.filename}.${ext}`));
+        for (const track of r.stream?.getTracks() ?? []) { try { track.stop(); } catch { /* already stopped */ } }
+        if (r.fixed) { r.fixed = false; pixel.setFixedSize(null); }
+      }
+      r.fail = error => {
+        if (r.finished) return;
+        r.finished = true;
+        try { if (r.recorder?.state === 'recording') r.recorder.stop(); } catch { /* failed encoder */ }
+        try { cleanup(); } catch { /* still release the busy state */ }
+        r.chunks.length = 0; state = 'idle'; reject(error instanceof Error ? error : Error('録画に失敗しました'));
       };
-      recorder.start(100);
+      try {
+        if (!globalThis.MediaRecorder || typeof out.captureStream !== 'function') throw Error('このブラウザでは動画を書き出せません');
+        const mime = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+        if (!mime) throw Error('対応する動画形式がありません');
+        r.fixed = true; pixel.setFixedSize(source);
+        r.stream = out.captureStream(60);
+        r.recorder = new MediaRecorder(r.stream, { mimeType: mime, videoBitsPerSecond: bitrate });
+        r.recorder.ondataavailable = e => {
+          if (r.finished || !e.data?.size) return;
+          r.bytes += e.data.size;
+          if (r.bytes > 64 * 1024 ** 2) { r.fail(Error('録画サイズが上限を超えました')); return; }
+          r.chunks.push(e.data);
+        };
+        r.recorder.onerror = () => r.fail(Error('録画中にエラーが発生しました'));
+        r.recorder.onstop = async () => {
+          if (r.finished) return;
+          r.finished = true; state = 'saving';
+          try {
+            cleanup();
+            const nativeMime = (r.recorder.mimeType || mime).split(';')[0];
+            const blob = new Blob(r.chunks, { type: nativeMime });
+            resolve(await save(blob, `${filename}.${nativeMime === 'video/mp4' ? 'mp4' : 'webm'}`));
+          } catch (error) { reject(error); }
+          finally { r.chunks.length = 0; state = 'idle'; }
+        };
+        rec = r; r.start = performance.now(); r.recorder.start(100);
+        // A synchronous error event may already have completed the operation.
+        if (!r.finished) state = 'recording';
+      } catch (error) { r.fail(error); }
     });
   }
 
   return {
     png, startVideo, bridgeAvailable, save,
-    get recording() { return !!rec; },
-    // 録画の時計（秒）。録画していなければ null
-    elapsed() { return rec ? (performance.now() - rec.start) / 1000 : null; },
-    // 録画中、描画のたびに呼ぶ
+    get state() { return state; },
+    get busy() { return state !== 'idle'; },
+    get recording() { return state === 'recording'; },
+    elapsed() { return rec && state === 'recording' ? (performance.now() - rec.start) / 1000 : null; },
     frame() {
-      if (!rec) return;
-      copyFrame();
-      const t = (performance.now() - rec.start) / 1000;
-      rec.onProgress(Math.min(t, rec.duration), rec.duration);
-      if (t >= rec.duration && rec.recorder.state === 'recording') rec.recorder.stop();
+      const r = rec;
+      if (!r || state !== 'recording') return;
+      try {
+        copyFrame(); const t = (performance.now() - r.start) / 1000;
+        r.onProgress(Math.min(t, r.duration), r.duration);
+        if (t >= r.duration && r.recorder.state === 'recording') r.recorder.stop();
+      } catch (error) { r.fail(error); }
     },
-    stopVideo() { if (rec && rec.recorder.state === 'recording') rec.recorder.stop(); }
+    stopVideo() { const r = rec; if (r?.recorder?.state === 'recording') { try { r.recorder.stop(); } catch (e) { r.fail(e); } } }
   };
 }

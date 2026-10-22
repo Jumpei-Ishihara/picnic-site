@@ -1,0 +1,340 @@
+[
+  {
+    "page": "edogawa.html",
+    "season": "spring",
+    "selected": "🌸 春",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "edogawa.html",
+    "season": "summer",
+    "selected": "🌻 夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "edogawa.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "edogawa.html",
+    "season": "winter",
+    "selected": "❄️ 冬",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "nagisa.html",
+    "season": "spring",
+    "selected": "🌸 春",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "nagisa.html",
+    "season": "summer",
+    "selected": "🌻 夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "nagisa.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "nagisa.html",
+    "season": "winter",
+    "selected": "❄️ 冬",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden.html",
+    "season": "spring",
+    "selected": "🌸 春",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden.html",
+    "season": "summer",
+    "selected": "🌻 夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden.html",
+    "season": "winter",
+    "selected": "❄️ 冬",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden-far.html",
+    "season": "spring",
+    "selected": "🌸 春",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge",
+      "v-town"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden-far.html",
+    "season": "summer",
+    "selected": "🌻 夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge",
+      "v-town"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden-far.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge",
+      "v-town"
+    ],
+    "errors": []
+  },
+  {
+    "page": "myoden-far.html",
+    "season": "winter",
+    "selected": "❄️ 冬",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge",
+      "v-town"
+    ],
+    "errors": []
+  },
+  {
+    "page": "picnic.html",
+    "season": "spring",
+    "selected": "🌸 春",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "picnic.html",
+    "season": "summer",
+    "selected": "🌻 夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "picnic.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "picnic.html",
+    "season": "winter",
+    "selected": "❄️ 冬",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/edogawa.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/edogawa.html",
+    "season": "summer",
+    "selected": "🌿 初夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/nagisa.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/nagisa.html",
+    "season": "summer",
+    "selected": "🌿 初夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-sunset",
+      "v-river",
+      "v-cafe",
+      "v-pony"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/myoden.html",
+    "season": "autumn",
+    "selected": "🍁 秋",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  },
+  {
+    "page": "real/myoden.html",
+    "season": "summer",
+    "selected": "🌿 初夏",
+    "views": [
+      "v-lunch",
+      "v-nap",
+      "v-photo",
+      "v-sunset",
+      "v-bridge"
+    ],
+    "errors": []
+  }
+]

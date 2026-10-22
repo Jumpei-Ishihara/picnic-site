@@ -1,0 +1,277 @@
+{
+  "durationRequested": 60,
+  "httpStatus": 200,
+  "elapsedSeconds": 29.836079542,
+  "filename": "riverside-picnic-day-60s-d55a8e3a-8377-42f4-bed7-ece8140401d4.mp4",
+  "bytes": 32435599,
+  "stream": {
+    "index": 0,
+    "codec_name": "h264",
+    "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+    "profile": "High",
+    "codec_type": "video",
+    "codec_tag_string": "avc1",
+    "codec_tag": "0x31637661",
+    "mime_codec_string": "avc1.640020",
+    "width": 1280,
+    "height": 720,
+    "coded_width": 1280,
+    "coded_height": 720,
+    "has_b_frames": 2,
+    "pix_fmt": "yuv420p",
+    "level": 32,
+    "chroma_location": "left",
+    "field_order": "progressive",
+    "is_avc": "true",
+    "nal_length_size": "4",
+    "id": "0x1",
+    "r_frame_rate": "60/1",
+    "avg_frame_rate": "60/1",
+    "time_base": "1/15360",
+    "start_pts": 0,
+    "start_time": "0.000000",
+    "duration_ts": 921600,
+    "duration": "60.000000",
+    "bit_rate": "4320272",
+    "bits_per_raw_sample": "8",
+    "nb_frames": "3600",
+    "extradata_size": 45,
+    "disposition": {
+      "default": 1,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0,
+      "non_diegetic": 0,
+      "captions": 0,
+      "descriptions": 0,
+      "metadata": 0,
+      "dependent": 0,
+      "still_image": 0,
+      "multilayer": 0
+    },
+    "tags": {
+      "language": "und",
+      "handler_name": "VideoHandler",
+      "encoder": "Lavc62.28.102 libx264"
+    }
+  },
+  "duration": "60.000000",
+  "peakProcessTreeRssKiB": 539536,
+  "maxHealthMs": 6.379875000000538,
+  "samples": [
+    {
+      "seconds": 1.040101417,
+      "rssKiB": 491104,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 4.425666999999976
+    },
+    {
+      "seconds": 2.029928333,
+      "rssKiB": 524944,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.0221670000000813
+    },
+    {
+      "seconds": 3.031189958,
+      "rssKiB": 539536,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.9390410000000884
+    },
+    {
+      "seconds": 4.032190958,
+      "rssKiB": 461680,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 2.8900000000003274
+    },
+    {
+      "seconds": 5.029226208,
+      "rssKiB": 488384,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.0334579999998823
+    },
+    {
+      "seconds": 6.026570708,
+      "rssKiB": 486192,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.9714999999996508
+    },
+    {
+      "seconds": 7.02488025,
+      "rssKiB": 482576,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.8634170000004815
+    },
+    {
+      "seconds": 8.05949775,
+      "rssKiB": 482704,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 2.9726250000003347
+    },
+    {
+      "seconds": 9.030870375,
+      "rssKiB": 482592,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.9904160000005504
+    },
+    {
+      "seconds": 10.034304417,
+      "rssKiB": 481408,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.9773750000003929
+    },
+    {
+      "seconds": 11.040952625,
+      "rssKiB": 464944,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.728291999999783
+    },
+    {
+      "seconds": 12.046126832999999,
+      "rssKiB": 478576,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.96875
+    },
+    {
+      "seconds": 13.032624541999999,
+      "rssKiB": 492704,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.8012500000004366
+    },
+    {
+      "seconds": 14.045788374999999,
+      "rssKiB": 460816,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 6.379875000000538
+    },
+    {
+      "seconds": 15.035582666999998,
+      "rssKiB": 462864,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.1529590000009193
+    },
+    {
+      "seconds": 16.039065583,
+      "rssKiB": 481264,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.0787909999999101
+    },
+    {
+      "seconds": 17.034547542,
+      "rssKiB": 494608,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.131042000000889
+    },
+    {
+      "seconds": 18.03437125,
+      "rssKiB": 503696,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.6596250000002328
+    },
+    {
+      "seconds": 19.03625025,
+      "rssKiB": 490656,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.048957999999402
+    },
+    {
+      "seconds": 20.040761666999998,
+      "rssKiB": 503328,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.8273330000010901
+    },
+    {
+      "seconds": 21.039017,
+      "rssKiB": 485904,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.3369590000002063
+    },
+    {
+      "seconds": 22.039399208,
+      "rssKiB": 488640,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 2.522499999999127
+    },
+    {
+      "seconds": 23.048874082999998,
+      "rssKiB": 515504,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.9837919999990845
+    },
+    {
+      "seconds": 24.039624749999998,
+      "rssKiB": 520320,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.7007500000036089
+    },
+    {
+      "seconds": 25.040219458,
+      "rssKiB": 479552,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.869250000003376
+    },
+    {
+      "seconds": 26.04267475,
+      "rssKiB": 482272,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.7927079999972193
+    },
+    {
+      "seconds": 27.055429832999998,
+      "rssKiB": 473584,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 1.520875000001979
+    },
+    {
+      "seconds": 28.048588625,
+      "rssKiB": 449120,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 2.7390420000010636
+    },
+    {
+      "seconds": 29.043910083,
+      "rssKiB": 449296,
+      "processes": 3,
+      "healthStatus": 200,
+      "healthMs": 0.69037500000195
+    }
+  ],
+  "remainingEntries": [
+    "riverside-picnic-day-60s-d55a8e3a-8377-42f4-bed7-ece8140401d4.mp4"
+  ]
+}

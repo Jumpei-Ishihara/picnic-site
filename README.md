@@ -14,6 +14,8 @@
 
 詳しい仕様は [docs/SPEC.md](docs/SPEC.md)、共通エンジンの使い方は [engine/README.md](engine/README.md) を見てください。
 
+ソースレビューに基づく改善箇所・修正理由・実装方針・検証方法は [docs/REFACTOR_PLAN.md](docs/REFACTOR_PLAN.md) にまとめています。詳細設計と実装・検証結果は [docs/REFACTOR_DESIGN.md](docs/REFACTOR_DESIGN.md) を参照してください（2026-10-22）。
+
 Web で見る（GitHub Pages）：https://jumpei-ishihara.github.io/picnic-site/ （公開後）
 
 ## 起動
@@ -29,8 +31,14 @@ cd ~/picnic-site && python3 -m http.server 8790
 書き出したファイルを ~/Downloads に直接保存したいときは、別のターミナルで次を起動しておきます（起動していなければブラウザのダウンロードとして保存されます）。
 
 ```bash
-cd ~/picnic-site && node tools/export_server.js --bridge-only
+cd ~/picnic-site && node tools/export_server.js
 ```
+
+保存ブリッジはローカルの `http://localhost:8790` と `http://127.0.0.1:8790` からだけ利用できます。別のローカルポート等を許可する場合は、`EXPORT_ALLOWED_ORIGINS` に完全なOriginをカンマ区切りで設定してください。公開サイトは既定ではブラウザのダウンロードを使います。
+
+通常起動ではファイルを生成しません。旧版の画像・6秒動画を明示的に生成する場合は `node tools/export_server.js --generate-legacy` を使います。`--bridge-only` は通常起動と同じ互換オプションです。保存は同名ファイルを上書きせず、末尾にUUIDを付けます。書き出し失敗時はブラウザ保存へ切り替わり、通信後の結果が不明な場合は保存先の確認を案内します。
+
+検証：`node --test tests/bridge.test.cjs tests/engine.test.mjs tests/scene.test.mjs tests/legacy.test.mjs`（ローカルHTTP待ち受けを使います。実動画の検証にはffmpeg・ffprobeが必要です）。
 
 ## フォルダ
 

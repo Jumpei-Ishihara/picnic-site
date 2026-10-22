@@ -10,8 +10,8 @@ const STORAGE_KEY = 'picnic-site:real-quality';
 export function getQuality() {
   let key = null;
   try { key = new URLSearchParams(location.search).get('quality'); } catch { key = null; }
-  if (!QUALITY[key]) { try { key = localStorage.getItem(STORAGE_KEY); } catch { key = null; } }
-  if (QUALITY[key]) return QUALITY[key];
+  if (!Object.hasOwn(QUALITY, key)) { try { key = localStorage.getItem(STORAGE_KEY); } catch { key = null; } }
+  if (Object.hasOwn(QUALITY, key)) return QUALITY[key];
   if (matchMedia('(pointer: coarse)').matches) return QUALITY.low;
   return devicePixelRatio >= 2 ? QUALITY.high : QUALITY.medium;
 }

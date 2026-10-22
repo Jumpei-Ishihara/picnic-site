@@ -1,0 +1,25 @@
+{
+  "url": "https://jumpei-ishihara.github.io/picnic-site/edogawa.html",
+  "deployedVersionOnly": true,
+  "files": [
+    {
+      "filename": "edogawa-picnic_1200_20261022-235151.png",
+      "exists": true,
+      "bytes": 111432,
+      "width": 1280,
+      "height": 720,
+      "codec": "png",
+      "duration": null
+    },
+    {
+      "filename": "edogawa-picnic_1200_20261022-235153_6s.mp4",
+      "exists": true,
+      "bytes": 1250155,
+      "width": 1280,
+      "height": 720,
+      "codec": "h264",
+      "duration": "6.017733",
+      "downloadMethod": "result Blob link via downloadMedia"
+    }
+  ]
+}

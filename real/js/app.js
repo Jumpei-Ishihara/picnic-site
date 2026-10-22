@@ -29,8 +29,8 @@ const SEASON_KEY = 'picnic-site:real-season';
 function getRealSeason() {
   let k = null;
   try { k = new URLSearchParams(location.search).get('season'); } catch { k = null; }
-  if (!REAL_SEASONS[k]) { try { k = localStorage.getItem(SEASON_KEY); } catch { k = null; } }
-  return REAL_SEASONS[k] ?? REAL_SEASONS.autumn;
+  if (!Object.hasOwn(REAL_SEASONS, k)) { try { k = localStorage.getItem(SEASON_KEY); } catch { k = null; } }
+  return Object.hasOwn(REAL_SEASONS, k) ? REAL_SEASONS[k] : REAL_SEASONS.autumn;
 }
 
 // 水の流れの向き：data.water.river（川の中ほどの線、上流から下流）の始めから終わりへ。無ければ +z
@@ -198,6 +198,7 @@ export async function startRealScene(site) {
     onStep: (x, z) => audio.footstep(FOOT[terrain.groundAt(x, z)] ?? 'grass')
   });
   const player = controls.player;
+  let postureTravel = 0;
 
   // ============================================================================
   // ピクニック：シートと持ち物（すべてのピクニックの場面で共通の engine/picnic-set.js）、拠点の移動
@@ -223,6 +224,7 @@ export async function startRealScene(site) {
   const markView = name => { for (const k of VIEWS) document.getElementById('v-' + k).classList.toggle('on', k === name); };
   // 😴 寝っ転がる：その場で寝そべって空を見上げる。もう一度押すと起きる。歩き出しても起きる
   function lieDown() {
+    postureTravel = 0;
     controls.cancelWalk();
     if (controls.mode !== 'walk') controls.setMode('walk');
     const lying = controls.eye < 0.5;
@@ -233,6 +235,7 @@ export async function startRealScene(site) {
     markView(lying ? null : 'nap');
   }
   function setView(name) {
+    postureTravel = 0;
     if (name === 'nap') { lieDown(); return; }
     let v = data.viewpoints[name];
     // 夕日の視点：季節ごとの日の入りの少し前に、日の沈む方位を向く（秋はもとの構図）
@@ -286,7 +289,7 @@ export async function startRealScene(site) {
     const m = /^Digit([1-9])$/.exec(e.code);
     if (m && site.viewKeys[m[1] - 1] && data.viewpoints[site.viewKeys[m[1] - 1]]) setView(site.viewKeys[m[1] - 1]);
     if (e.code === 'Escape') { menuEl.classList.add('hidden'); document.getElementById('o-more').classList.remove('on'); }
-    if (/^(Key[WASD]|Arrow)/.test(e.code) && controls.eye < 1.5) controls.setEye(1.6);
+
   });
 
   function begin(view) {
@@ -338,7 +341,7 @@ export async function startRealScene(site) {
   // ============================================================================
   // 毎フレーム
   // ============================================================================
-  const hud = DEBUG ? createDebugHud(renderer, () => `res ×${resScaler.scale.toFixed(2)}` + (resScaler.gpuMs !== null ? `  gpu ${resScaler.gpuMs.toFixed(1)} ms` : '')) : null;
+  const hud = DEBUG ? createDebugHud(renderer, () => `grass placements ${grass.stats.placements} / uploads ${grass.stats.uploads}\nres ×${resScaler.scale.toFixed(2)}` + (resScaler.gpuMs !== null ? `  gpu ${resScaler.gpuMs.toFixed(1)} ms` : '')) : null;
   let last = performance.now(), elapsed = 0;
   const skyColor = new THREE.Color(), skyTop = new THREE.Color(), skyHor = new THREE.Color();
   function step(dt) {
@@ -347,7 +350,10 @@ export async function startRealScene(site) {
     timeUI.update();
     toast.update(dt);
     controls.update(dt);
-    if (controls.walking && controls.eye < 1.5) controls.setEye(1.6);
+    if (controls.eye < 1.5) {
+      postureTravel += controls.movedDistance;
+      if (controls.walking || postureTravel > 0.15) { controls.setEye(1.6); player.pitch = 0; markView(null); postureTravel = 0; }
+    } else postureTravel = 0;
     if (floorOverride && Math.hypot(player.x - floorOverride.x, player.z - floorOverride.z) > 3) floorOverride = null;
     camera.updateMatrixWorld();
     if (tod.hour !== sky.hour) sky.apply(tod.hour);

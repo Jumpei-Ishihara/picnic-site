@@ -1,0 +1,58 @@
+[
+  {
+    "filename": "edogawa-picnic_1200_20261022-231324_12s-b52459ca-7017-4ec4-a82c-8541067c0f53.mp4",
+    "bytes": 611389,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "12.012000"
+  },
+  {
+    "filename": "edogawa-picnic_1200_20261022-231355-d5490e0c-8998-464b-845b-c2dd378d1204.png",
+    "bytes": 83567,
+    "codec": "png",
+    "width": 1280,
+    "height": 720,
+    "duration": null
+  },
+  {
+    "filename": "edogawa-picnic_1200_20261022-231535_6s-bce2ce54-1ccb-4a44-9dfa-81b4e6ba54e0.mp4",
+    "bytes": 583758,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "6.000000"
+  },
+  {
+    "filename": "myoden-bank_1200_20261022-231504_12s-953a1a3f-4f5e-405b-b1c5-d4aa6a46586a.mp4",
+    "bytes": 746296,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "12.012000"
+  },
+  {
+    "filename": "myoden-far_1200_20261022-231614_12s-9002da58-c7c9-4a57-9297-493fa70f8b15.mp4",
+    "bytes": 874968,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "12.016667"
+  },
+  {
+    "filename": "nagisa-park_1200_20261022-231437_12s-2a0fb914-0a21-4dc1-96ca-d74f343c6cd8.mp4",
+    "bytes": 763347,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "12.016667"
+  },
+  {
+    "filename": "riverside-picnic_1530_20261022-231724_12s-ed05f401-0f5c-44de-9d0b-0b0ae74a0f0a.mp4",
+    "bytes": 3128207,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "12.000000"
+  }
+]

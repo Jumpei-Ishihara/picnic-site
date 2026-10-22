@@ -53,3 +53,19 @@ export function createAutoHide({ idleMs = 2500, isPinned = () => false } = {}) {
   show();
   return { show, hide };
 }
+
+// Initial loading failures must not leave an endless loading screen.
+export function showStartupError(error) {
+  console.error('Scene startup failed:', error);
+  const loading = document.getElementById('loading');
+  if (!loading) return;
+  document.getElementById('start')?.classList.add('hidden');
+  loading.classList.remove('hidden');
+  loading.style.zIndex = '1000';
+  loading.setAttribute('role', 'alert');
+  loading.textContent = '読み込みに失敗しました。ページを再読み込みしてください。';
+  const retry = document.createElement('button');
+  retry.textContent = '再読み込み';
+  retry.addEventListener('click', () => location.reload());
+  loading.append(retry);
+}

@@ -172,16 +172,23 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
   });
 
   const m4 = new THREE.Matrix4(), frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), box = new THREE.Box3();
-  let lastKey = '';
+  const lastWorld = new Float64Array(16), lastProjection = new Float64Array(16);
+  const tileHeights = new Map();
+  const stats = { placements: 0, uploads: 0 };
+  let invalid = true;
+  const same = (a, b) => a.every((value, i) => value === b[i]);
   function update(t, camera) {
     uniforms.uTime.value = t;
+    const world = camera.matrixWorld.elements, projection = camera.projectionMatrix.elements;
+    if (!invalid && same(world, lastWorld) && same(projection, lastProjection)) return;
+    invalid = false; lastWorld.set(world); lastProjection.set(projection); stats.placements++;
     pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(pv);
     const cx = camera.position.x, cz = camera.position.z;
     for (const L of layers) {
       const s = L.tile;
       const i0 = Math.floor((cx - L.to) / s), i1 = Math.floor((cx + L.to) / s), j0 = Math.floor((cz - L.to) / s), j1 = Math.floor((cz + L.to) / s);
-      let n = 0;
+      const tiles = [];
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
         const x = i * s, z = j * s;
         if (x + s < NB.x0 || z + s < NB.z0 || x > NB.x1 || z > NB.z1) continue; // 草は近景の中だけ
@@ -191,19 +198,25 @@ export function createRealGrass({ scene, terrain, quality, rnd = Math.random }) 
         if (dmin > L.to) continue;
         const dmax = Math.hypot(Math.max(Math.abs(x - cx), Math.abs(x + s - cx)), Math.max(Math.abs(z - cz), Math.abs(z + s - cz)));
         if (dmax < L.from) continue;
-        const y = terrain.heightAt(x + s / 2, z + s / 2);
+        const key = `${s}:${i},${j}`;
+        if (!tileHeights.has(key)) tileHeights.set(key, terrain.heightAt(x + s / 2, z + s / 2));
+        const y = tileHeights.get(key);
         box.min.set(x, y - 3, z); box.max.set(x + s, y + 3, z + s);
         if (!frustum.intersectsBox(box)) continue;
-        m4.makeTranslation(x, 0, z);
-        L.mesh.setMatrixAt(n++, m4);
+        tiles.push([x, z]);
       }
-      L.mesh.count = n;
-      L.mesh.instanceMatrix.needsUpdate = true;
+      if (L.lastTiles && tiles.length === L.lastTiles.length && tiles.every((v, i) => v[0] === L.lastTiles[i][0] && v[1] === L.lastTiles[i][1])) continue;
+      for (let i = 0; i < tiles.length; i++) {
+        m4.makeTranslation(tiles[i][0], 0, tiles[i][1]); L.mesh.setMatrixAt(i, m4);
+      }
+      L.lastTiles = tiles; L.mesh.count = tiles.length;
+      L.mesh.instanceMatrix.needsUpdate = true; stats.uploads++;
     }
   }
 
   return {
-    layers: layers.map(l => l.mesh), uniforms, update,
+    layers: layers.map(l => l.mesh), uniforms, update, stats,
+    invalidate() { invalid = true; tileHeights.clear(); for (const L of layers) L.lastTiles = null; },
     /** シートの下の草を消す（中心・半幅・向き） */
     hideRect(x, z, hw, hd, yaw = 0) { uniforms.uHide.value.set(x, z, hw, hd); uniforms.uHideYaw.value = yaw; },
     get blades() { return layers.reduce((a, L) => a + L.mesh.count * L.tile * L.tile * L.perM2, 0); }

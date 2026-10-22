@@ -1,0 +1,18 @@
+{
+  "pixel": [
+    {
+      "level": "error",
+      "message": "Scene startup failed: Error: validation: fallback failed\n    at bakeGroundPixels (http://127.0.0.1:28792/worker-double-error/engine/terrain-bake.js:21:134)\n    at runWorkerTask (http://127.0.0.1:28792/worker-double-error/engine/worker-task.js:13:89)\n    at async Promise.all (index 0)",
+      "timestamp": "2026-10-22T14:22:09.252Z",
+      "url": "http://127.0.0.1:28792/worker-double-error/engine/ui.js"
+    }
+  ],
+  "real": [
+    {
+      "level": "error",
+      "message": "Scene startup failed: Error: validation: real fallback failed\n    at buildTerrainMeshes (http://127.0.0.1:28792/worker-double-error/real/js/terrain-core.js:120:101)\n    at runWorkerTask (http://127.0.0.1:28792/worker-double-error/engine/worker-task.js:13:89)\n    at async Promise.all (index 0)",
+      "timestamp": "2026-10-22T14:22:10.238Z",
+      "url": "http://127.0.0.1:28792/worker-double-error/engine/ui.js"
+    }
+  ]
+}

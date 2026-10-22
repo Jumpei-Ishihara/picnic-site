@@ -85,6 +85,7 @@
     import { createPixelWater } from './engine/water.js';
     import { bindButton as btn, createToast, bindTimeControls, fmtTime, createAutoHide } from './engine/ui.js';
     import { createCapture } from './engine/capture.js';
+    import { createExportUI } from './engine/export-ui.js';
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { getSeason, dayArc, SKY, bindSeasonUI, treeKind } from './engine/season.js';
     import { createPicnicSet, SHEET, SIT_BACK, EYE_SIT as SHEET_EYE } from './engine/picnic-set.js';
@@ -608,8 +609,8 @@
       heightAt: groundAt,
       joyEl: document.getElementById('joy'), joyKnobEl: document.getElementById('joy-knob'),
       tapTargets: TAP_TARGETS,
-      isInputEnabled: () => started && !capture.recording,
-      isFrozen: () => capture.recording,
+      isInputEnabled: () => started && !capture.busy,
+      isFrozen: () => capture.busy,
       onPointerDown: () => audio.init(),
       resolveTap(hit) {
         let o = hit.object;
@@ -716,7 +717,7 @@
     let near = null;
     function updatePrompt() {
       let t = null;
-      if (controls.mode === 'walk' && started && exportEl.classList.contains('hidden') && !capture.recording) {
+      if (controls.mode === 'walk' && started && exportEl.classList.contains('hidden') && !capture.busy) {
         if (!sitting && base.covers(player.x, player.z, 0.8)) t = 'sit';
       }
       if (t === near) return;
@@ -733,10 +734,15 @@
 
     window.addEventListener('keydown', e => {
       if (e.repeat || !started) return;
+      if (capture.busy) {
+        if (e.code === 'Space') e.preventDefault();
+        if (e.code === 'KeyR' && capture.recording) capture.stopVideo();
+        return;
+      }
       if (e.code === 'KeyE') interact();
       if (e.code === 'KeyC' && controls.mode === 'walk') { setSitting(!sitting); sitPos = { x: player.x, z: player.z }; }
       const view = { Digit1: sitOnBlanket, Digit2: lieDown, Digit3: sunsetView, Digit4: goBridge }[e.code];
-      if (view && !capture.recording) view();
+      if (view && !capture.busy) view();
       if (e.code === 'KeyF') skipStone();
       if (e.code === 'KeyP') exportPNG();
       if (e.code === 'KeyR') recordLoop(1);
@@ -792,7 +798,7 @@
     btn('v-bridge', goBridge);
     btn('a-stone', skipStone);
     bindSeasonUI(document.getElementById('season-row'), SEASON);
-    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording, onPlaced: () => setSitting(false) });
+    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.busy, onPlaced: () => setSitting(false) });
     btn('t-day', () => setHour(15.5));
     btn('t-dusk', () => setHour(18.3));
     btn('t-night', () => setHour(21.5));
@@ -935,47 +941,20 @@
       const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
       return `riverside-picnic_${fmtTime(tod.hour).replace(':', '')}_${stamp}`;
     }
-    function showResult(res) {
-      const where = res.where === 'downloads' ? `~/Downloads に保存しました` : 'ブラウザのダウンロードに保存しました';
-      toast.show(`✅ ${where}`, 3);
-      xNote.innerHTML = '';
-      xNote.append(`✅ ${res.filename} — ${where} `);
-      const a = document.createElement('a');
-      a.href = res.url; a.download = res.filename; a.textContent = 'もう一度保存';
-      xNote.append(a);
-    }
-    async function refreshBridge() {
-      const dir = await capture.bridgeAvailable();
-      xBridge.textContent = dir ? '🟢 ~/Downloads に直接保存' : '⚪ ブラウザのダウンロードに保存';
-      xBridge.title = dir ? dir : 'ターミナルで node tools/export_server.js --bridge-only を起動すると ~/Downloads に直接保存します';
-    }
-    async function exportPNG() {
-      if (capture.recording) return;
-      controls.marker.visible = false;
-      showResult(await capture.png(fileBase()));
-    }
-    async function recordLoop(cycles) {
-      if (capture.recording) { capture.stopVideo(); return; }
-      // ループがつながるように：時間の自動進行を止め、波紋を消し、歩きと散策を止める
-      if (tod.auto) document.getElementById('t-auto').click();
-      water.clearRipples();
-      controls.cancelWalk();
-      controls.settle();
-      if (controls.mode === 'stroll' && !controls.paused) controls.togglePause();
-      const duration = LOOP * cycles;
-      exportEl.classList.add('hidden');
-      recEl.classList.remove('hidden');
-      for (const id of ['bar', 'help', 'hud-tl', 'menu']) document.getElementById(id).classList.add('rec-hide');
-      const res = await capture.startVideo({
-        duration, filename: `${fileBase()}_${duration}s`,
-        onProgress: (t, d) => { recTime.textContent = `${t.toFixed(1)} / ${d.toFixed(1)} 秒`; }
-      });
-      recEl.classList.add('hidden');
-      for (const id of ['bar', 'help', 'hud-tl', 'menu']) document.getElementById(id).classList.remove('rec-hide');
-      exportEl.classList.remove('hidden');
-      placeExportPanel();
-      showResult(res);
-    }
+    const exportUI = createExportUI({
+      capture, controls, tod, toast, note: xNote, bridgeLabel: xBridge,
+      panel: exportEl, recordingPanel: recEl, recordingTime: recTime, fileBase, loop: LOOP,
+      placePanel: () => placeAboveDock(exportEl),
+      beforeRecord() {
+        const wasPaused = controls.paused;
+        water.clearRipples(); controls.cancelWalk(); controls.settle();
+        if (controls.mode === 'stroll' && !controls.paused) controls.togglePause();
+        return () => { if (controls.mode === 'stroll' && controls.paused !== wasPaused) controls.togglePause(); };
+      }
+    });
+    const refreshBridge = exportUI.refreshBridge;
+    const exportPNG = exportUI.png;
+    const recordLoop = exportUI.record;
     const placeExportPanel = () => placeAboveDock(exportEl);
     window.addEventListener('resize', () => { for (const el of [exportEl, menuEl]) if (!el.classList.contains('hidden')) placeAboveDock(el); });
     btn('a-export', el => { if (togglePanel(exportEl)) { el.classList.add('on'); refreshBridge(); } });

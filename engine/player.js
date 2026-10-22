@@ -42,7 +42,7 @@ export function createPlayerController(o) {
   const joy = { id: null, x0: 0, y0: 0, dx: 0, dy: 0, moved: false, t0: 0 };
   let lookPointer = null, lastLX = 0, lastLY = 0, tapStart = null;
   let autoWalk = null; // { x, z, stuckT, ...resolveTap が返した情報 }
-  let elapsed = 0;
+  let elapsed = 0, movedDistance = 0;
   let eyeNow = eye, eyeTarget = eye; // 目の高さ（座る・立つでなめらかに変わる）
   const tmpV = new THREE.Vector3(), tanV = new THREE.Vector3();
 
@@ -84,6 +84,7 @@ export function createPlayerController(o) {
     capture(e.pointerId);
   });
   canvas.addEventListener('pointermove', e => {
+    if (!isInputEnabled()) return;
     if (e.pointerId === joy.id) {
       let dx = e.clientX - joy.x0, dy = e.clientY - joy.y0;
       const len = Math.hypot(dx, dy);
@@ -120,6 +121,7 @@ export function createPlayerController(o) {
   canvas.addEventListener('pointercancel', endPointer);
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
+    if (!isInputEnabled() || isFrozen()) return;
     if (mode === 'stroll' && route) strollU = (strollU + e.deltaY * 0.004 / routeLen + 1) % 1;
   }, { passive: false });
 
@@ -191,6 +193,7 @@ export function createPlayerController(o) {
 
   // 毎フレーム：移動・視点・歩行の揺れ。カメラの向き（yaw）を返す。
   function update(dt) {
+    movedDistance = 0;
     elapsed += dt;
     let moved = 0;
     if (mode === 'walk') {
@@ -269,6 +272,7 @@ export function createPlayerController(o) {
       camera.rotation.set(-0.02 + strollLookPitch, strollYaw + strollLookYaw + sway, 0);
     }
 
+    movedDistance = moved;
     // 歩行の上下揺れと足音
     if (moved > 0.0005) {
       player.bob += moved * 2.3;
@@ -296,6 +300,7 @@ export function createPlayerController(o) {
     get mode() { return mode; },
     get paused() { return strollPaused; },
     get walking() { return !!autoWalk; },
+    get movedDistance() { return movedDistance; },
     cancelWalk() { autoWalk = null; marker.visible = false; }
   };
 }

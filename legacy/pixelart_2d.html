@@ -1354,19 +1354,10 @@
       exportCtx.drawImage(canvas, 0, 0, W * 4, H * 4);
     }
 
-    const bridgeFrame = document.createElement('iframe');
-    bridgeFrame.style.display = 'none';
-    document.body.appendChild(bridgeFrame);
-
-    function callLocalDownloadsBridge(endpoint, params) {
-      const qs = new URLSearchParams(params).toString();
-      const url = `http://127.0.0.1:18923/${endpoint}?${qs}&_ts=${Date.now()}`;
-      fetch(url, { mode: 'cors' }).catch(() => {
-        fetch(url, { mode: 'no-cors' }).catch(() => {});
-      });
-      try {
-        bridgeFrame.src = url;
-      } catch (e) {}
+    const bridgeModule = import('../engine/legacy-export.js').catch(() => null);
+    async function callLocalDownloadsBridge(endpoint, params) {
+      try { const { bridgeClient } = await bridgeModule; return await bridgeClient.generate(endpoint.replace('save-', ''), params); }
+      catch { return { ok: false, unavailable: true }; }
     }
 
     function triggerDirectDownload(url, filename) {
@@ -1383,7 +1374,7 @@
       } catch (e) {}
     }
 
-    function showExportDrawer(type, blob, filename) {
+    function showExportDrawer(type, blob, filename, result) {
       if (lastExportUrl) URL.revokeObjectURL(lastExportUrl);
       lastExportBlob = blob;
       lastExportUrl = URL.createObjectURL(blob);
@@ -1400,17 +1391,18 @@
       link.href = lastExportUrl;
       link.download = filename;
 
+      const resultUrl = lastExportUrl;
+      title.textContent = `${filename} — ブラウザに保存を要求しました`;
+      hint.textContent = 'ブラウザのダウンロード状況を確認してください。';
+      bridgeModule.then(module => module?.updateLegacyExportStatus({ title, hint, filename, result, isCurrent: () => lastExportUrl === resultUrl }));
+
       if (type === 'png') {
-        title.textContent = `✅ ~/Downloads/${filename} に保存しました (${W * 4}×${H * 4} px)`;
-        hint.textContent = 'ダウンロードフォルダ（~/Downloads）へ直接保存しました。再保存する場合は「⬇️ ファイルを保存」をクリックしてください。';
         copyBtn.classList.remove('hidden');
         vidPreview.classList.add('hidden');
         vidPreview.pause();
         imgPreview.src = lastExportUrl;
         imgPreview.classList.remove('hidden');
       } else {
-        title.textContent = `✅ ~/Downloads/${filename} にループ動画を保存しました`;
-        hint.textContent = 'ダウンロードフォルダ（~/Downloads）へ直接保存しました。下のプレーヤーでループ再生を確認できます。';
         copyBtn.classList.add('hidden');
         imgPreview.classList.add('hidden');
         vidPreview.src = lastExportUrl;
@@ -1445,7 +1437,7 @@
       syncExportCanvas();
       const filename = `riverside-picnic-${currentMode}.png`;
 
-      callLocalDownloadsBridge('save-png', {
+      const result = callLocalDownloadsBridge('save-png', {
         mode: currentMode,
         t: time.toFixed(2),
         light: lightIntensity,
@@ -1458,7 +1450,7 @@
 
       exportCanvas.toBlob((blob) => {
         if (!blob) return;
-        showExportDrawer('png', blob, filename);
+        showExportDrawer('png', blob, filename, result);
       }, 'image/png');
     }
 
@@ -1503,7 +1495,7 @@
       const durVal = parseFloat(durationInput.value);
       recordTargetDuration = (!isNaN(durVal) && durVal >= 0.5) ? Math.min(60, durVal) : LOOP_PERIOD;
 
-      callLocalDownloadsBridge('save-video', {
+      const result = callLocalDownloadsBridge('save-video', {
         mode: currentMode,
         duration: recordTargetDuration,
         light: lightIntensity,
@@ -1535,8 +1527,8 @@
       mediaRecorder.onstop = () => {
         const blob = new Blob(recordedChunks, { type: format.mime });
         const durStr = Number.isInteger(recordTargetDuration) ? `${recordTargetDuration}s` : `${recordTargetDuration.toFixed(1)}s`;
-        const filename = `riverside-picnic-${currentMode}-${durStr}.mp4`;
-        showExportDrawer('video', blob, filename);
+        const filename = `riverside-picnic-${currentMode}-${durStr}.${format.ext}`;
+        showExportDrawer('video', blob, filename, result);
         triggerDirectDownload(lastExportUrl, `riverside-picnic-${currentMode}-${durStr}.${format.ext}`);
       };
 

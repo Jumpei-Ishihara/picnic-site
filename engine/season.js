@@ -16,8 +16,8 @@ const STORAGE_KEY = 'picnic-site:season';
 export function getSeason(defaultKey = 'autumn') {
   let key = null;
   try { key = new URLSearchParams(location.search).get('season'); } catch { key = null; }
-  if (!SEASONS[key]) { try { key = localStorage.getItem(STORAGE_KEY); } catch { key = null; } }
-  return SEASONS[key] ?? SEASONS[defaultKey];
+  if (!Object.hasOwn(SEASONS, key)) { try { key = localStorage.getItem(STORAGE_KEY); } catch { key = null; } }
+  return Object.hasOwn(SEASONS, key) ? SEASONS[key] : (Object.hasOwn(SEASONS, defaultKey) ? SEASONS[defaultKey] : SEASONS.autumn);
 }
 
 export function dateText(season) {

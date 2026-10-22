@@ -8,9 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const http = require('http');
 const zlib = require('zlib');
-const { spawnSync, spawn } = require('child_process');
 
 const W = 320;
 const H = 180;
@@ -929,191 +927,18 @@ function encodePNG(width, height, rgb24Buf) {
   ]);
 }
 
-function savePNGToDir(targetDir, mode = 'day', timeSec = 1.2, light = 1.0, wave = 1.0, caustics = 1.0) {
-  renderFrame(timeSec, mode, light, wave, caustics);
-  const rgb24 = getUpscaledRGB24();
-  const pngBuf = encodePNG(OUT_W, OUT_H, rgb24);
-  const filename = `riverside-picnic-${mode}.png`;
-  const fullPath = path.join(targetDir, filename);
-  fs.writeFileSync(fullPath, pngBuf);
-  return { filename, fullPath, buffer: pngBuf };
+// The renderer is also used by the isolated export job process.
+module.exports = { renderFrame, getUpscaledRGB24, encodePNG, OUT_W, OUT_H };
+
+if (require.main === module) {
+  const { createExportServer, generateLegacy } = require('./export-bridge.cjs');
+  const origins = ['http://localhost:8790', 'http://127.0.0.1:8790', ...(process.env.EXPORT_ALLOWED_ORIGINS || '').split(',').filter(Boolean)];
+  if (process.argv.includes('--generate-legacy')) {
+    generateLegacy(DOWNLOADS_DIR, FFMPEG_BIN).catch(error => { console.error('Legacy generation failed:', error.message); process.exitCode = 1; });
+  } else createExportServer({ directory: DOWNLOADS_DIR, origins, ffmpegBin: FFMPEG_BIN }).then(server => {
+    server.listen(18923, '127.0.0.1', () => console.log('Export bridge protocol 2: http://127.0.0.1:18923'));
+    // Closing response sockets aborts their jobs; pending cleanup keeps the process alive.
+    const stop = () => { server.close(); server.closeAllConnections(); };
+    process.once('SIGINT', stop); process.once('SIGTERM', stop);
+  }).catch(error => { console.error('Cannot start export bridge:', error.message); process.exitCode = 1; });
 }
-
-function saveVideoToDir(targetDir, mode = 'day', durationSec = 6.0, light = 1.0, wave = 1.0, caustics = 1.0) {
-  const fps = 60;
-  const totalFrames = Math.max(30, Math.round(durationSec * fps));
-  const durStr = Number.isInteger(durationSec) ? `${durationSec}s` : `${durationSec.toFixed(1)}s`;
-  const filename = `riverside-picnic-${mode}-${durStr}.mp4`;
-  const fullPath = path.join(targetDir, filename);
-
-  const ff = spawnSync(FFMPEG_BIN, [
-    '-y',
-    '-f', 'rawvideo',
-    '-vcodec', 'rawvideo',
-    '-s', `${OUT_W}x${OUT_H}`,
-    '-pix_fmt', 'rgb24',
-    '-r', String(fps),
-    '-i', '-',
-    '-c:v', 'libx264',
-    '-pix_fmt', 'yuv420p',
-    '-preset', 'fast',
-    '-crf', '16',
-    '-movflags', '+faststart',
-    fullPath
-  ], {
-    input: (() => {
-      const allFrames = Buffer.allocUnsafe(OUT_W * OUT_H * 3 * totalFrames);
-      let offset = 0;
-      for (let f = 0; f < totalFrames; f++) {
-        const t = f / fps;
-        renderFrame(t, mode, light, wave, caustics);
-        const rgb24 = getUpscaledRGB24();
-        rgb24.copy(allFrames, offset);
-        offset += rgb24.length;
-      }
-      return allFrames;
-    })(),
-    maxBuffer: 1024 * 1024 * 512
-  });
-
-  if (ff.error) throw ff.error;
-  return { filename, fullPath };
-}
-
-// CLI / Daemon Entrypoint
-if (process.argv.includes('--test-scratch')) {
-  const scratchOut = path.join(__dirname, '..', 'legacy', 'exports');
-  fs.mkdirSync(scratchOut, { recursive: true });
-  const pngRes = savePNGToDir(scratchOut, 'day', 1.2);
-  const vidRes = saveVideoToDir(scratchOut, 'day', 6.0);
-  console.log('Scratch test complete:', pngRes.fullPath, vidRes.fullPath);
-  process.exit(0);
-}
-
-// Generate initial PNGs and 6.0s loop MP4 directly into ~/Downloads on start!
-// --bridge-only: skip this and just run the save bridge (used by picnic.html / town_3d.html exports)
-if (!process.argv.includes('--bridge-only')) try {
-  fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
-  const pDay = savePNGToDir(DOWNLOADS_DIR, 'day', 1.2);
-  const vDay = saveVideoToDir(DOWNLOADS_DIR, 'day', 6.0);
-  console.log(`Initial files saved to ${DOWNLOADS_DIR}:`);
-  console.log(` - ${pDay.fullPath}`);
-  console.log(` - ${vDay.fullPath}`);
-} catch (err) {
-  console.error('Initial save warning:', err.message);
-}
-
-// Start Local Bridge Server on 127.0.0.1:18923 so any click in the UI saves straight to ~/Downloads
-const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  const urlObj = new URL(req.url, 'http://127.0.0.1:18923');
-
-  // Lets the page check that the bridge is running before it uploads
-  if (urlObj.pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, dir: DOWNLOADS_DIR }));
-    return;
-  }
-
-  if (urlObj.pathname === '/save-png') {
-    const mode = urlObj.searchParams.get('mode') || 'day';
-    const t = parseFloat(urlObj.searchParams.get('t') || '1.2');
-    const light = parseFloat(urlObj.searchParams.get('light') || '1.0');
-    const wave = parseFloat(urlObj.searchParams.get('wave') || '1.0');
-    const caustics = parseFloat(urlObj.searchParams.get('caustics') || '1.0');
-    try {
-      const out = savePNGToDir(DOWNLOADS_DIR, mode, t, light, wave, caustics);
-      console.log('Saved PNG to Downloads:', out.fullPath);
-      res.writeHead(200, {
-        'Content-Type': 'application/json'
-      });
-      res.end(JSON.stringify({ ok: true, path: out.fullPath, filename: out.filename }));
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
-    return;
-  }
-
-  if (urlObj.pathname === '/save-video') {
-    const mode = urlObj.searchParams.get('mode') || 'day';
-    const duration = Math.min(60, Math.max(1, parseFloat(urlObj.searchParams.get('duration') || '6.0')));
-    const light = parseFloat(urlObj.searchParams.get('light') || '1.0');
-    const wave = parseFloat(urlObj.searchParams.get('wave') || '1.0');
-    const caustics = parseFloat(urlObj.searchParams.get('caustics') || '1.0');
-    try {
-      const out = saveVideoToDir(DOWNLOADS_DIR, mode, duration, light, wave, caustics);
-      console.log('Saved MP4 Video to Downloads:', out.fullPath);
-      res.writeHead(200, {
-        'Content-Type': 'application/json'
-      });
-      res.end(JSON.stringify({ ok: true, path: out.fullPath, filename: out.filename }));
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
-    return;
-  }
-
-  if (urlObj.pathname === '/save-blob' && req.method === 'POST') {
-    const rawName = urlObj.searchParams.get('filename') || `riverside-picnic-3d-${Date.now()}.png`;
-    const safeName = path.basename(rawName);
-    const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
-    req.on('end', () => {
-      try {
-        const buffer = Buffer.concat(chunks);
-        const fullPath = path.join(DOWNLOADS_DIR, safeName);
-
-        // If target is .mp4 and browser sent WebM/MP4 stream, transcode/remux with ffmpeg for universal QuickTime/macOS compatibility
-        if (safeName.endsWith('.mp4') && buffer.length > 0) {
-          const tmpInput = path.join('/tmp', `upload-${Date.now()}.webm`);
-          fs.writeFileSync(tmpInput, buffer);
-          const ff = spawnSync(FFMPEG_BIN, [
-            '-y',
-            '-i', tmpInput,
-            '-vf', 'scale=1280:720:flags=neighbor',
-            '-c:v', 'libx264',
-            '-pix_fmt', 'yuv420p',
-            '-preset', 'fast',
-            '-crf', '16',
-            '-movflags', '+faststart',
-            fullPath
-          ]);
-          try { fs.unlinkSync(tmpInput); } catch (e) {}
-          if (ff.status !== 0) {
-            // Fallback: write raw buffer if already mp4
-            fs.writeFileSync(fullPath, buffer);
-          }
-        } else {
-          fs.writeFileSync(fullPath, buffer);
-        }
-
-        console.log('Saved 3D export to Downloads:', fullPath);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, path: fullPath, filename: safeName }));
-      } catch (e) {
-        console.error('Error saving blob:', e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: e.message }));
-      }
-    });
-    return;
-  }
-
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Riverside Picnic Export Bridge Active');
-});
-
-server.listen(18923, '127.0.0.1', () => {
-  console.log('Export bridge listening on http://127.0.0.1:18923 -> saving to ' + DOWNLOADS_DIR);
-});

@@ -67,13 +67,13 @@
   <link rel="modulepreload" href="../realsite/myoden-structures.js" />
   <link rel="modulepreload" href="../realsite/nagisa-surroundings.js" />
   <link rel="modulepreload" href="../engine/structures.js" />
+  <link rel="modulepreload" href="../engine/ui.js" />
   <link rel="modulepreload" href="../engine/collision.js" />
   <link rel="modulepreload" href="../engine/player.js" />
   <link rel="modulepreload" href="../engine/season.js" />
   <link rel="modulepreload" href="../engine/picnic-set.js" />
   <link rel="modulepreload" href="../engine/basecamp.js" />
   <link rel="modulepreload" href="../engine/audio.js" />
-  <link rel="modulepreload" href="../engine/ui.js" />
   <link rel="modulepreload" href="js/terrain.js" />
   <link rel="modulepreload" href="js/sky.js" />
   <link rel="modulepreload" href="js/water.js" />
@@ -85,6 +85,7 @@
   <link rel="modulepreload" href="js/merge.js" />
   <link rel="modulepreload" href="../engine/pixel-kit.js" />
   <link rel="modulepreload" href="../engine/sun.js" />
+  <link rel="modulepreload" href="../engine/worker-task.js" />
   <link rel="modulepreload" href="js/ground.js" />
   <link rel="modulepreload" href="js/terrain-core.js" />
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/objects/Reflector.js" />
@@ -114,8 +115,8 @@
     // 地面の素材の予告：画質の決め方は real/js/quality.js の getQuality と同じ
     (() => { const F = {"high":["grass_color_1024.webp","worn_color_1024.webp","gravel_color_1024.webp","asphalt_color_1024.webp","concrete_color_1024.webp","grass_normal_1024.webp","worn_normal_1024.webp","gravel_normal_1024.webp","asphalt_normal_1024.webp","concrete_normal_1024.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"],"medium":["grass_color_1024.webp","worn_color_1024.webp","gravel_color_1024.webp","asphalt_color_1024.webp","concrete_color_1024.webp","grass_normal_512.webp","worn_normal_512.webp","gravel_normal_512.webp","asphalt_normal_512.webp","concrete_normal_512.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"],"low":["grass_color_512.webp","worn_color_512.webp","gravel_color_512.webp","asphalt_color_512.webp","concrete_color_512.webp","grass_normal_512.webp","worn_normal_512.webp","gravel_normal_512.webp","asphalt_normal_512.webp","concrete_normal_512.webp","grass_rough_512.webp","worn_rough_512.webp","gravel_rough_512.webp","asphalt_rough_512.webp","concrete_rough_512.webp","means.json"]};
       let q = null; try { q = new URLSearchParams(location.search).get('quality'); } catch { q = null; }
-      if (!F[q]) { try { q = localStorage.getItem('picnic-site:real-quality'); } catch { q = null; } }
-      if (!F[q]) q = matchMedia('(pointer: coarse)').matches ? 'low' : devicePixelRatio >= 2 ? 'high' : 'medium';
+      if (!Object.hasOwn(F, q)) { try { q = localStorage.getItem('picnic-site:real-quality'); } catch { q = null; } }
+      if (!Object.hasOwn(F, q)) q = matchMedia('(pointer: coarse)').matches ? 'low' : devicePixelRatio >= 2 ? 'high' : 'medium';
       for (const f of F[q]) { const l = document.createElement('link'); l.rel = 'preload'; l.as = 'fetch'; l.crossOrigin = ''; l.href = 'assets/ground/' + f; document.head.append(l); }
     })();
   </script>
@@ -127,6 +128,8 @@
     import { stripeMaterial } from '../realsite/myoden-structures.js';
     import { createSurroundings, gateBridgeBackdrop } from '../realsite/nagisa-surroundings.js';
     import { createFerrisWheel } from '../engine/structures.js';
+    import { showStartupError } from '../engine/ui.js';
+    try {
 
     const data0 = await (await fetch('../scenes/nagisa/scene.json')).json();
     const SP = data0.landmarks.specials;
@@ -134,7 +137,7 @@
     const ITO = SP.itoYokado?.footprint;
     const inIto = (x, z) => { if (!ITO) return false; let r = false; for (let i = 0, j = ITO.length - 1; i < ITO.length; j = i++) { const [xi, zi] = ITO[i], [xj, zj] = ITO[j]; if ((zi > z) !== (zj > z) && x < xi + (z - zi) * (xj - xi) / (zj - zi)) r = !r; } return r; };
 
-    startRealScene({
+    await startRealScene({
       data: data0, id: 'nagisa', base: '../scenes/nagisa/', label: 'なぎさ公園', pixelPage: '../nagisa.html',
       viewKeys: ['lunch', 'nap', 'sunset', 'river', 'cafe', 'pony'],
       nearStepScale: 2, // 近景が 361 × 371 m と広いので、格子を 2 倍に（高で 50 cm）
@@ -228,6 +231,8 @@
         };
       }
     });
+
+    } catch (error) { showStartupError(error); }
   </script>
 </body>
 </html>

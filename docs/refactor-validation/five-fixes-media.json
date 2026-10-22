@@ -1,0 +1,42 @@
+[
+  {
+    "filename": "riverside-picnic-3d-day-0.5s-b6dd42db-50c9-4e42-b7cf-b68dd2e92b57.mp4",
+    "bytes": 936355,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "0.516667"
+  },
+  {
+    "filename": "riverside-picnic-3d-day-c038ebbe-9ed5-44db-9c3a-4cfb5128c12e.png",
+    "bytes": 196130,
+    "codec": "png",
+    "width": 1280,
+    "height": 720,
+    "duration": null
+  },
+  {
+    "filename": "riverside-picnic-day-0.5s-64dd52c7-f40f-4214-9096-150d1f602ab1.mp4",
+    "bytes": 316280,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "0.500000"
+  },
+  {
+    "filename": "riverside-picnic-day-210f12be-cbfa-4756-ab1e-a518ee34aab1.png",
+    "bytes": 89073,
+    "codec": "png",
+    "width": 1280,
+    "height": 720,
+    "duration": null
+  },
+  {
+    "filename": "riverside-picnic_1530_20261022-230459_12s-3a544656-7bae-477a-96b5-503709744151.mp4",
+    "bytes": 714596,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "duration": "0.533333"
+  }
+]

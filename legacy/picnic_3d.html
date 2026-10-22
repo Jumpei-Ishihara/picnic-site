@@ -135,7 +135,7 @@
     <!-- Inline Export Result / Notification Drawer -->
     <div id="export-drawer" class="hidden bg-[var(--content)] border border-[var(--border)] rounded-lg p-2 space-y-1.5">
       <div class="flex items-center justify-between">
-        <span id="export-title" class="text-xs font-semibold text-[var(--foreground)]">✅ ~/Downloads に保存しました</span>
+        <span id="export-title" class="text-xs font-semibold text-[var(--foreground)]">保存結果</span>
         <div class="flex items-center gap-1.5">
           <a id="export-download-link" href="#" download="riverside-picnic-3d.png" class="px-2 py-0.5 rounded text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90">
             ⬇️ 再保存
@@ -146,7 +146,7 @@
         </div>
       </div>
       <p id="export-hint" class="text-xs text-[var(--muted-foreground)]">
-        `~/Downloads` に直接書き出しました。
+        ブラウザのダウンロード状況を確認してください。
       </p>
     </div>
 
@@ -1671,11 +1671,13 @@
       exportCtx.drawImage(fxCanvas, 0, 0, 1280, 720);
     }
 
-    function sendBlobToDownloadsBridge(blob, filename) {
-      fetch(`http://127.0.0.1:18923/save-blob?filename=${encodeURIComponent(filename)}`, {
-        method: 'POST',
-        body: blob
-      }).catch(() => {});
+    const bridgeModule = import('../engine/legacy-export.js').catch(() => null);
+    async function sendBlobToDownloadsBridge(blob, filename) {
+      try {
+        const { bridgeClient } = await bridgeModule;
+        const nativeName = filename.replace(/\.(mp4|webm)$/, blob.type.startsWith('video/mp4') ? '.mp4' : '.webm');
+        return await bridgeClient.upload(blob, nativeName);
+      } catch { return { ok: false, unavailable: true }; }
     }
 
     function triggerDirectDownload(url, filename) {
@@ -1690,14 +1692,18 @@
       } catch (e) {}
     }
 
-    function showExportNotification(filename, blob) {
+    function showExportNotification(filename, blob, result) {
       if (lastExportUrl) URL.revokeObjectURL(lastExportUrl);
       lastExportUrl = URL.createObjectURL(blob);
       const drawer = document.getElementById('export-drawer');
       const title = document.getElementById('export-title');
       const link = document.getElementById('export-download-link');
       drawer.classList.remove('hidden');
-      title.textContent = `✅ ~/Downloads/${filename} に保存しました`;
+      const hint = document.getElementById('export-hint');
+      const resultUrl = lastExportUrl;
+      title.textContent = `${filename} — ブラウザに保存を要求しました`;
+      hint.textContent = 'ブラウザのダウンロード状況を確認してください。';
+      bridgeModule.then(module => module?.updateLegacyExportStatus({ title, hint, filename, result, isCurrent: () => lastExportUrl === resultUrl }));
       link.href = lastExportUrl;
       link.download = filename;
     }
@@ -1711,8 +1717,8 @@
 
       exportCanvas.toBlob(blob => {
         if (!blob) return;
-        sendBlobToDownloadsBridge(blob, filename);
-        showExportNotification(filename, blob);
+        const result = sendBlobToDownloadsBridge(blob, filename);
+        showExportNotification(filename, blob, result);
       }, 'image/png');
     }
 
@@ -1752,9 +1758,10 @@
         const blob = new Blob(recordedChunks, { type: mime });
         const modeNames = ['day', 'sunset', 'night'];
         const durStr = Number.isInteger(recordTargetDuration) ? `${recordTargetDuration}s` : `${recordTargetDuration.toFixed(1)}s`;
-        const filename = `riverside-picnic-3d-${modeNames[timeOfDay]}-${durStr}.mp4`;
-        sendBlobToDownloadsBridge(blob, filename);
-        showExportNotification(filename, blob);
+        const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+        const filename = `riverside-picnic-3d-${modeNames[timeOfDay]}-${durStr}.${ext}`;
+        const result = sendBlobToDownloadsBridge(blob, filename);
+        showExportNotification(filename, blob, result);
         triggerDirectDownload(lastExportUrl, filename);
       };
 

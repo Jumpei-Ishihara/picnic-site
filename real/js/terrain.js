@@ -6,6 +6,7 @@
 //   形（近景・中景の格子）は Web Worker で作る（real/js/terrain-worker.js）。高さ・地面の種類・色はすぐ返すので、
 //   そのあいだに木や遠景を組み立てられる。形と地面の素材がそろうと ready が解決する
 import * as THREE from 'three';
+import { runWorkerTask } from '../../engine/worker-task.js';
 import { createGroundMaterial, GROUND_LAYERS, CLASS_LAYER } from './ground.js';
 import { makeHeightAt, hash2, buildTerrainMeshes } from './terrain-core.js';
 
@@ -65,16 +66,7 @@ function toGeometry(g) {
 
 // 形を作る：Web Worker が使えればそこで（メインのスレッドはほかの組み立てを進められる）、だめならここで
 function buildMeshes(job) {
-  try {
-    const worker = new Worker(new URL('./terrain-worker.js', import.meta.url), { type: 'module' });
-    return new Promise((res, rej) => {
-      worker.onmessage = e => { res(e.data); worker.terminate(); };
-      worker.onerror = e => { worker.terminate(); e.preventDefault(); res(buildTerrainMeshes(job)); };
-      worker.postMessage(job);
-    });
-  } catch {
-    return Promise.resolve(buildTerrainMeshes(job));
-  }
+  return runWorkerTask({ url: new URL('./terrain-worker.js', import.meta.url), job, fallback: buildTerrainMeshes });
 }
 
 /**
@@ -185,6 +177,9 @@ export async function createRealTerrain({ scene, data, baseUrl, blend = 6, photo
     midMesh.geometry = toGeometry(r.midGeo);
     midMesh.material = new THREE.MeshPhysicalMaterial({ map: midTex, roughness: 1, metalness: 0, specularIntensity: 0.25 });
   });
+  // Scene assembly awaits ready after other asynchronous resources. Keep early
+  // failures handled, but preserve rejection for the later startup-error handler.
+  ready.catch(() => {});
   return {
     timings, ready,
     near: nearMesh, mid: midMesh, heightAt, groundAt, midClassAt,

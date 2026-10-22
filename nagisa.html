@@ -91,7 +91,10 @@
     import { createAudio } from './engine/audio.js';
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { createCapture } from './engine/capture.js';
+    import { createExportUI } from './engine/export-ui.js';
     import { bindButton as btn, createToast, bindTimeControls, createAutoHide, fmtTime } from './engine/ui.js';
+    import { showStartupError } from './engine/ui.js';
+    try {
 
     const BASE = 'scenes/nagisa/';
     const data = await (await fetch(BASE + 'scene.json', { cache: 'no-cache' })).json();
@@ -397,13 +400,14 @@
         }
         return { x: hit.point.x, z: hit.point.z };
       },
-      isInputEnabled: () => started && !capture.recording,
-      isFrozen: () => capture.recording,
+      isInputEnabled: () => started && !capture.busy,
+      isFrozen: () => capture.busy,
       onStuck: () => toast.show('ここから先へは進めないみたい'),
       onPointerDown: () => audio.init(),
       onStep: (x, z) => audio.footstep(FOOT[terrain.groundAt(x, z)] ?? 'grass')
     });
     const player = controls.player;
+    let postureTravel = 0;
     let started = false;
 
     // 拠点：シートと持ち物を好きな場所へ移せる（🍲・😴 の視点もシートについていく）
@@ -474,8 +478,10 @@
     // ============================================================================
     const timeUI = bindTimeControls({ tod, input: document.getElementById('time'), label: document.getElementById('time-label'), autoButton: document.getElementById('t-auto') });
     function setHour(h) { tod.hour = h; document.getElementById('time').value = h; }
+    const markView = name => { for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k)?.classList.toggle('on', k === name); };
     // 😴 寝っ転がる：その場で寝そべって空を見上げる（場所・向き・時刻はそのまま）。寝ているときにもう一度押すと起きる。歩き出しても起きる
     function lieDown() {
+      postureTravel = 0;
       controls.cancelWalk();
       if (controls.mode !== 'walk') controls.setMode('walk');
       const lying = controls.eye < 0.5;
@@ -483,9 +489,10 @@
       player.pitch = lying ? 0 : v.pitch * Math.PI / 180;
       controls.setEye(lying ? 1.55 : v.eye, true);
       controls.settle();
-      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === 'nap' && !lying);
+      markView(lying ? null : 'nap');
     }
     function setView(name) {
+      postureTravel = 0;
       let v = data.viewpoints[name];
       if (name === 'nap') { lieDown(); return; }
       // 夕日の視点：季節ごとの日の入りの少し前に、日の沈む方位を向く（秋はもとの構図）
@@ -501,20 +508,20 @@
       floorOverride = v.floorY !== undefined ? { y: v.floorY, x: v.x, z: v.z } : null;
       controls.setEye(v.eye, true);
       controls.settle();
-      for (const k of Object.keys(data.viewpoints)) document.getElementById('v-' + k).classList.toggle('on', k === name);
+      markView(name);
     }
     for (const k of Object.keys(data.viewpoints)) btn('v-' + k, () => setView(k));
     bindSeasonUI(document.getElementById('season-row'), SEASON);
     for (const el of document.querySelectorAll('#start p, #credit')) el.innerHTML = el.innerHTML.replace('2026年10月18日', `${dateText(SEASON)}（${SEASON.label}）`);
-    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.recording });
+    bindBaseCampUI({ base, toast, bind: btn, player: () => ({ x: player.x, z: player.z, yaw: player.yaw }), isEnabled: () => started && !capture.busy });
     addEventListener('keydown', e => {
       const v = { Digit1: 'lunch', Digit2: 'nap', Digit3: 'sunset', Digit4: 'river', Digit5: 'cafe', Digit6: 'pony' }[e.code];
-      if (!started || capture.recording) return;
+      if (!started || capture.busy) return;
       if (v) setView(v);
       if (e.code === 'Escape') closePanels();
       if (e.code === 'KeyP') exportPNG();
       if (e.code === 'KeyR') recordLoop(1);
-      if (/^(Key[WASD]|Arrow)/.test(e.code) && controls.eye < 1.5) controls.setEye(1.55);
+
     });
 
     const menuEl = document.getElementById('menu');
@@ -591,48 +598,19 @@
       const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
       return `nagisa-park_${fmtTime(tod.hour).replace(':', '')}_${stamp}`;
     }
-    function showResult(res) {
-      const where = res.where === 'downloads' ? '~/Downloads に保存しました' : 'ブラウザのダウンロードに保存しました';
-      toast.show(`✅ ${where}`, 3);
-      xNote.textContent = `✅ ${res.filename} — ${where} `;
-      const a = document.createElement('a');
-      a.href = res.url; a.download = res.filename; a.textContent = 'もう一度保存';
-      xNote.append(a);
-    }
-    async function refreshBridge() {
-      const dir = await capture.bridgeAvailable();
-      xBridge.textContent = dir ? '🟢 ~/Downloads に直接保存' : '⚪ ブラウザのダウンロードに保存';
-      xBridge.title = dir ? dir : 'ターミナルで node tools/export_server.js --bridge-only を起動すると ~/Downloads に直接保存します';
-    }
-    async function exportPNG() {
-      if (capture.recording) return;
-      controls.marker.visible = false;
-      showResult(await capture.png(fileBase()));
-    }
-    // ループ動画：時間の自動進行・歩き・交通（電車・車・船は 6 秒で繰り返さない）を止めて、録画開始からの時間で描く
-    async function recordLoop(cycles) {
-      if (capture.recording) { capture.stopVideo(); return; }
-      if (tod.auto) document.getElementById('t-auto').click();
-      controls.cancelWalk();
-      controls.settle();
-      water.clearRipples(); // 波紋は 6 秒で繰り返さないので消してから録る
-      life.traffic.enabled = false;
-      const duration = LOOP * cycles;
-      exportEl.classList.add('hidden');
-      recEl.classList.remove('hidden');
-      const hideIds = ['bar', 'help', 'hud-tl', 'menu', 'toast'];
-      for (const id of hideIds) document.getElementById(id).classList.add('rec-hide');
-      const res = await capture.startVideo({
-        duration, filename: `${fileBase()}_${duration}s`,
-        onProgress: (t, d) => { recTime.textContent = `${t.toFixed(1)} / ${d.toFixed(1)} 秒`; }
-      });
-      life.traffic.enabled = true;
-      recEl.classList.add('hidden');
-      for (const id of hideIds) document.getElementById(id).classList.remove('rec-hide');
-      exportEl.classList.remove('hidden');
-      placeAboveDock(exportEl);
-      showResult(res);
-    }
+    const exportUI = createExportUI({
+      capture, controls, tod, toast, note: xNote, bridgeLabel: xBridge,
+      panel: exportEl, recordingPanel: recEl, recordingTime: recTime, fileBase, loop: LOOP,
+      placePanel: () => placeAboveDock(exportEl),
+      beforeRecord() {
+        const wasTraffic = life.traffic.enabled;
+        controls.cancelWalk(); controls.settle(); water.clearRipples(); life.traffic.enabled = false;
+        return () => { life.traffic.enabled = wasTraffic; };
+      }
+    });
+    const refreshBridge = exportUI.refreshBridge;
+    const exportPNG = exportUI.png;
+    const recordLoop = exportUI.record;
     btn('a-export', () => { if (togglePanel(exportEl, 'a-export')) refreshBridge(); });
     btn('x-close', closePanels);
     btn('x-png', exportPNG);
@@ -653,7 +631,10 @@
       toast.update(dt);
       controls.update(dt);
       // 歩き出したら立ち上がる
-      if (controls.walking && controls.eye < 1.5) controls.setEye(1.55);
+      if (controls.eye < 1.5) {
+        postureTravel += controls.movedDistance;
+        if (controls.walking || postureTravel > 0.15) { controls.setEye(1.55); player.pitch = 0; markView(null); postureTravel = 0; }
+      } else postureTravel = 0;
       // カメラの行列をすぐ更新する（太陽の光の筋の画面上の位置を、このコマのカメラで計算するため）
       camera.updateMatrixWorld();
       // 影の中心をカメラに合わせてから光を置く（逆だと、視点を移した直後の 1 コマだけ影がずれる）
@@ -707,6 +688,8 @@
     if (location.hash === '#debug') {
       window.__nagisa = { THREE, data, surroundings, playground, museum, cafeDeck, ride, ring, ponyLand, goatPen, queue, ridingNow, forest, wheel, leafKit, distToWater, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, step, setView, setHour, zoneName };
     }
+
+    } catch (error) { showStartupError(error); }
   </script>
 </body>
 </html>

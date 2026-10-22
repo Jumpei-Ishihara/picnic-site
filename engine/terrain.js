@@ -3,6 +3,7 @@
 //   中景：4 m 間隔の高さを間引いて粗いメッシュに。地面の種類ごとの頂点色。近景の下は沈めて隠す
 //   heightAt(x, z)：近景の中は近景、外は中景。近景の縁 blend m で中景になめらかにつなぐ
 import * as THREE from 'three';
+import { runWorkerTask } from './worker-task.js';
 import { makeCanvas, pixelTex } from './pixel-kit.js';
 import { hash2, valueNoise, bakeGroundPixels } from './terrain-bake.js';
 
@@ -264,20 +265,14 @@ function bakeGroundTexture(job) {
   const [cv, g] = makeCanvas(W, H);
   const tex = pixelTex(cv);
   const put = ({ data, rows }) => g.putImageData(new ImageData(data, W, rows[1] - rows[0]), 0, rows[0]);
-  let ready;
-  try {
-    const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
-    const parts = Array.from({ length: n }, (_, i) => [Math.floor(H * i / n), Math.floor(H * (i + 1) / n)]);
-    ready = Promise.all(parts.map(rows => new Promise(res => {
-      const worker = new Worker(new URL('./terrain-bake-worker.js', import.meta.url), { type: 'module' });
-      worker.onmessage = e => { put(e.data); worker.terminate(); res(); };
-      worker.onerror = e => { e.preventDefault(); worker.terminate(); put(bakeGroundPixels({ ...job, rows })); res(); };
-      worker.postMessage({ ...job, rows });
-    }))).then(() => { tex.needsUpdate = true; });
-  } catch {
-    put(bakeGroundPixels(job));
-    tex.needsUpdate = true;
-    ready = Promise.resolve();
-  }
+  const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+  const parts = Array.from({ length: n }, (_, i) => [Math.floor(H * i / n), Math.floor(H * (i + 1) / n)]);
+  const ready = Promise.all(parts.map(rows => runWorkerTask({
+    url: new URL('./terrain-bake-worker.js', import.meta.url), job: { ...job, rows },
+    fallback: bakeGroundPixels, apply: put
+  }))).then(() => { tex.needsUpdate = true; });
+  // Scene assembly awaits ready later. Observe early rejection now while keeping
+  // the original promise rejected for that consumer and its startup-error UI.
+  ready.catch(() => {});
   return { tex, ready };
 }
