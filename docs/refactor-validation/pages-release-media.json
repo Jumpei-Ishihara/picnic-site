@@ -1,0 +1,112 @@
+[
+  {
+    "scene": "edogawa",
+    "kind": "png",
+    "filename": "edogawa-picnic_1200_20261023-002755.png",
+    "bytes": 111993,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "nagisa.html",
+    "kind": "png",
+    "filename": "nagisa-park_1839_20261023-002839.png",
+    "bytes": 134053,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "myoden.html",
+    "kind": "png",
+    "filename": "myoden-bank_1636_20261023-002843.png",
+    "bytes": 118472,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "edogawa",
+    "kind": "video12",
+    "filename": "edogawa-picnic_1200_20261023-002812_12s.mp4",
+    "bytes": 2312568,
+    "width": 1280,
+    "height": 720,
+    "codec": "h264",
+    "duration": "12.017000"
+  },
+  {
+    "scene": "myoden-far.html",
+    "kind": "png",
+    "filename": "myoden-far_1651_20261023-002855.png",
+    "bytes": 128412,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "picnic.html",
+    "kind": "png",
+    "filename": "riverside-picnic_1821_20261023-002856.png",
+    "bytes": 142516,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "legacy/pixelart_2d",
+    "kind": "png",
+    "filename": "riverside-picnic-day (1).png",
+    "bytes": 127836,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "picnic",
+    "kind": "video6",
+    "filename": "riverside-picnic_1821_20261023-002857_6s.mp4",
+    "bytes": 13526533,
+    "width": 1280,
+    "height": 720,
+    "codec": "h264",
+    "duration": "6.016000"
+  },
+  {
+    "scene": "legacy/pixelart_2d",
+    "kind": "video0.5",
+    "filename": "riverside-picnic-day-0.5s.mp4",
+    "bytes": 815704,
+    "width": 1280,
+    "height": 720,
+    "codec": "h264",
+    "duration": "0.514433"
+  },
+  {
+    "scene": "legacy/picnic_3d",
+    "kind": "png",
+    "filename": "riverside-picnic-3d-day.png",
+    "bytes": 199914,
+    "width": 1280,
+    "height": 720,
+    "codec": "png",
+    "duration": null
+  },
+  {
+    "scene": "legacy/picnic_3d",
+    "kind": "video0.5",
+    "filename": "riverside-picnic-3d-day-0.5s.mp4",
+    "bytes": 1857738,
+    "width": 1280,
+    "height": 720,
+    "codec": "h264",
+    "duration": "0.513967"
+  }
+]

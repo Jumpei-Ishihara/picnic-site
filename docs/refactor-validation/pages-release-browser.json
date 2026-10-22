@@ -1,0 +1,150 @@
+{
+  "sourceCommit": "1fe99073f848ec442c583342e08f212215f02c2f",
+  "checkedAt": "2026-10-22T15:30:04.165Z",
+  "checks": [
+    {
+      "scene": "real/nagisa",
+      "quality": "low",
+      "season": "summer",
+      "started": true,
+      "view": "sunset"
+    },
+    {
+      "scene": "nagisa.html",
+      "season": "summer",
+      "started": true,
+      "png": true,
+      "logs": []
+    },
+    {
+      "scene": "myoden.html",
+      "season": "winter",
+      "started": true,
+      "png": true,
+      "logs": []
+    },
+    {
+      "scene": "edogawa",
+      "started": true,
+      "png": true,
+      "video12": true,
+      "restored": true
+    },
+    {
+      "scene": "myoden-far.html",
+      "season": "autumn",
+      "started": true,
+      "png": true,
+      "logs": []
+    },
+    {
+      "scene": "picnic.html",
+      "season": "spring",
+      "started": true,
+      "png": true,
+      "logs": []
+    },
+    {
+      "scene": "picnic",
+      "video6": true,
+      "restored": true
+    },
+    {
+      "scene": "real/edogawa",
+      "season": "autumn",
+      "quality": "low",
+      "started": true,
+      "view": "sunset",
+      "logs": []
+    },
+    {
+      "scene": "real/myoden",
+      "season": "summer",
+      "quality": "low",
+      "started": true,
+      "view": "sunset",
+      "logs": []
+    },
+    {
+      "scene": "legacy/pixelart_2d",
+      "title": "riverside-picnic-day-0.5s.mp4 — ブラウザに保存を要求しました",
+      "png": true,
+      "video": true
+    },
+    {
+      "scene": "legacy/picnic_3d",
+      "title": "riverside-picnic-3d-day-0.5s.mp4 — ブラウザに保存を要求しました",
+      "png": true,
+      "video": true
+    }
+  ],
+  "media": [
+    {
+      "scene": "edogawa",
+      "kind": "png",
+      "filename": "edogawa-picnic_1200_20261023-002755.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "nagisa.html",
+      "kind": "png",
+      "filename": "nagisa-park_1839_20261023-002839.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "myoden.html",
+      "kind": "png",
+      "filename": "myoden-bank_1636_20261023-002843.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "edogawa",
+      "kind": "video12",
+      "filename": "edogawa-picnic_1200_20261023-002812_12s.mp4",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "myoden-far.html",
+      "kind": "png",
+      "filename": "myoden-far_1651_20261023-002855.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "picnic.html",
+      "kind": "png",
+      "filename": "riverside-picnic_1821_20261023-002856.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "legacy/pixelart_2d",
+      "kind": "png",
+      "filename": "riverside-picnic-day (1).png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "picnic",
+      "kind": "video6",
+      "filename": "riverside-picnic_1821_20261023-002857_6s.mp4",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "legacy/pixelart_2d",
+      "kind": "video0.5",
+      "filename": "riverside-picnic-day-0.5s.mp4",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "legacy/picnic_3d",
+      "kind": "png",
+      "filename": "riverside-picnic-3d-day.png",
+      "retrieval": "result Blob link via downloadMedia"
+    },
+    {
+      "scene": "legacy/picnic_3d",
+      "kind": "video0.5",
+      "filename": "riverside-picnic-3d-day-0.5s.mp4",
+      "retrieval": "result Blob link via downloadMedia"
+    }
+  ],
+  "logs": []
+}
