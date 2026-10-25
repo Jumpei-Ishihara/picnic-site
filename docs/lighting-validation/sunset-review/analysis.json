@@ -1,0 +1,191 @@
+{
+  "baseline": "0394ced9cdfd66ce16fc600acdacf211c8f11851",
+  "browser": "Chrome/155.0.8059.85",
+  "date": "2026-10-24T03:51:51.607Z",
+  "cases": [
+    {
+      "variant": "original",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.835178956251694,
+      "volumetric": 0.7412817389715848,
+      "volMax": 60,
+      "soft": 0,
+      "halo": {
+        "meanDisplayLuma": 0.5314107608815236,
+        "brightFraction": 0.4024786072587784,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.835178956251694,
+      "errors": []
+    },
+    {
+      "variant": "trial",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.051285447497842016,
+      "volumetric": 0.06667108174719463,
+      "volMax": 28,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.4082854181058708,
+        "brightFraction": 0.29890823251696663,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.017949906624244703,
+      "errors": []
+    },
+    {
+      "variant": "restore-rays",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.835178956251694,
+      "volumetric": 0.06667108174719463,
+      "volMax": 28,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.4959372997992414,
+        "brightFraction": 0.40115078194157566,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.835178956251694,
+      "errors": []
+    },
+    {
+      "variant": "restore-highlight",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.051285447497842016,
+      "volumetric": 0.06667108174719463,
+      "volMax": 28,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.41164167797777473,
+        "brightFraction": 0.29890823251696663,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.017949906624244703,
+      "errors": []
+    },
+    {
+      "variant": "restore-bloom",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.051285447497842016,
+      "volumetric": 0.06667108174719463,
+      "volMax": 28,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.40827481864625814,
+        "brightFraction": 0.29890823251696663,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.017949906624244703,
+      "errors": []
+    },
+    {
+      "variant": "restore-volume",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.051285447497842016,
+      "volumetric": 0.7412817389715848,
+      "volMax": 60,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.4089378058192916,
+        "brightFraction": 0.29861316022425494,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.017949906624244703,
+      "errors": []
+    },
+    {
+      "variant": "restore-rays-highlight",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.835178956251694,
+      "volumetric": 0.06667108174719463,
+      "volMax": 28,
+      "soft": 1,
+      "halo": {
+        "meanDisplayLuma": 0.5306923185160847,
+        "brightFraction": 0.4024786072587784,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.835178956251694,
+      "errors": []
+    },
+    {
+      "variant": "restored",
+      "hour": 18.654957856192027,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "sunY": 0.024279238848413046,
+      "sunElevation": 1.3912346231380184,
+      "rays": 0.835178956251694,
+      "volumetric": 0.7412817389715848,
+      "volMax": 60,
+      "soft": 0,
+      "halo": {
+        "meanDisplayLuma": 0.5311032453323707,
+        "brightFraction": 0.4024786072587784,
+        "samples": 6778
+      },
+      "glError": 0,
+      "effectiveRayStrength": 0.835178956251694,
+      "errors": []
+    }
+  ]
+}

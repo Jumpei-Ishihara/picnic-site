@@ -1,0 +1,98 @@
+[
+  {
+    "name": "nagisa",
+    "soft": 0,
+    "loop": {
+      "changed": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "outsideDifference": {
+      "changed": 1493,
+      "max": 9,
+      "mean": 0.05351128472222222
+    },
+    "shaderCases": {
+      "dimOff": [
+        211,
+        170,
+        124
+      ],
+      "dimOn": [
+        211,
+        170,
+        124
+      ],
+      "black": [
+        0,
+        0,
+        0
+      ],
+      "hdr": [
+        255,
+        255,
+        188
+      ],
+      "linearRatios": [
+        1,
+        1,
+        0.5028864580325687
+      ]
+    },
+    "tree": {
+      "x": -64,
+      "z": 44,
+      "r": 1.8
+    },
+    "camera": [
+      -62.2,
+      11.862400283813477,
+      45.8
+    ],
+    "glError": 0,
+    "sunset": {
+      "soft": 0,
+      "rays": 0.835178956251694,
+      "warm": 0.9825634779431694
+    },
+    "movement": {
+      "camera": [
+        -67.3999999999997,
+        11.748000144958507,
+        46
+      ],
+      "rays": 0
+    },
+    "portrait": {
+      "size": {
+        "width": 160,
+        "height": 281
+      },
+      "aspect": 0.5693950177935944,
+      "soft": 0
+    },
+    "media": {
+      "png": {
+        "mime": "image/png",
+        "bytes": 116398,
+        "width": 1280,
+        "height": 720
+      },
+      "restoredSize": {
+        "width": 426,
+        "height": 240
+      },
+      "video": {
+        "mime": "video/mp4",
+        "bytes": 2088282,
+        "filename": "lighting-validation.mp4"
+      },
+      "state": "idle",
+      "restoredAfterVideo": {
+        "width": 426,
+        "height": 240
+      }
+    },
+    "errors": []
+  }
+]

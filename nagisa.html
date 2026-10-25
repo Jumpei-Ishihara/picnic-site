@@ -249,7 +249,7 @@
     // 木と木漏れ日（空中写真から拾った 600 本あまり）。シートのまわり 45 m は 1 本ずつ作って揺らす
     // ============================================================================
     const S = data.sheet;
-    const leafKit = createLeafKit({ loop: LOOP });
+    const leafKit = createLeafKit({ loop: LOOP, softDapple: true });
     // 樹冠は低い所から枝を広げる傘形（ケヤキ・桜。実際の写真）。イチョウも少し混ぜる（秋は黄色）。t.kind があればその種類（カフェの芝の島の桜）
     const forest = createForest({ scene, toon, trees: data.trees, heightAt: terrain.heightAt, detail: { x: S.x, z: S.z, radius: 45 }, kit: leafKit, loop: LOOP, crown: 'spread',
       foliage: t => foliageColors(SEASON, t.kind ?? treeKind(t.x, t.z, { cherry: 0.16, evergreen: 0.3, ginkgo: 0.06 }), (treeHash(t.z, t.x) * 2) | 0) });

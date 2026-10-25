@@ -1,0 +1,61 @@
+[
+  {
+    "name": "picnic",
+    "soft": 1,
+    "loop": {
+      "changed": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "outsideDifference": {
+      "changed": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "camera": [
+      5.6134748840210005,
+      1.9300000000000002,
+      1.158519981986439
+    ],
+    "glError": 0,
+    "movement": {
+      "camera": [
+        6.213474884020988,
+        1.9300000000000002,
+        1.158519981986439
+      ],
+      "rays": 0
+    },
+    "portrait": {
+      "size": {
+        "width": 160,
+        "height": 281
+      },
+      "aspect": 0.5693950177935944,
+      "soft": 1
+    },
+    "media": {
+      "png": {
+        "mime": "image/png",
+        "bytes": 108010,
+        "width": 1280,
+        "height": 720
+      },
+      "restoredSize": {
+        "width": 426,
+        "height": 240
+      },
+      "video": {
+        "mime": "video/mp4",
+        "bytes": 3289579,
+        "filename": "lighting-validation.mp4"
+      },
+      "state": "idle",
+      "restoredAfterVideo": {
+        "width": 426,
+        "height": 240
+      }
+    },
+    "errors": []
+  }
+]

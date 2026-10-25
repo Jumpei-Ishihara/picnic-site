@@ -1,0 +1,36 @@
+[
+  {
+    "file": "picnic-6s.mp4",
+    "result": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "6.001100"
+      }
+    }
+  },
+  {
+    "file": "nagisa-6s.mp4",
+    "result": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "format": {
+        "duration": "5.981200"
+      }
+    }
+  }
+]

@@ -78,6 +78,7 @@
     import { MASTER_PALETTE, PPM, mulberry32, makePicker, makeCanvas, pixelTex, createToon, RAMP, rampify } from './engine/pixel-kit.js';
     import { createPixelRenderer } from './engine/pixel-renderer.js';
     import { createSky } from './engine/sky.js';
+    import { createLeafKit } from './engine/trees.js';
     import { createLights, createTimeOfDay, DEFAULT_TOD_KEYS } from './engine/time-of-day.js';
     import { createCollider } from './engine/collision.js';
     import { createPlayerController } from './engine/player.js';
@@ -187,41 +188,9 @@
     // すき間は「光の向きから見た平面」の上で決めるので、葉の塊の表と裏で同じ場所が抜けて地面まで光が届く。
     // 風で少しずつずれて、光の粒がちらちら動く（6秒ループ）。
     // ============================================================================
-    const LEAF = { time: { value: 0 }, light: { value: new THREE.Vector3(0, 1, 0) } };
-    const LEAF_GAP_GLSL = `
-      uniform float uLeafTime; uniform vec3 uLeafLight; varying vec3 vLeafW;
-      float leafHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      bool leafGap(vec3 w) {
-        vec3 L = normalize(uLeafLight);
-        vec3 T = normalize(cross(L, vec3(0.0, 0.0, 1.0)));
-        vec2 p = vec2(dot(w, T), dot(w, cross(L, T)));
-        float t = uLeafTime * ${W0.toFixed(6)};
-        p += vec2(sin(t + p.y * 0.9), cos(t + p.x * 0.8)) * 0.05;   // wind
-        return leafHash(floor(p / 0.26)) < 0.36 || leafHash(floor(p / 0.85 + 0.37) + 17.0) < 0.18; // small specks + larger gaps
-      }
-`;
-    const leafDepthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-    leafDepthMat.onBeforeCompile = sh => {
-      sh.uniforms.uLeafTime = LEAF.time;
-      sh.uniforms.uLeafLight = LEAF.light;
-      sh.vertexShader = 'varying vec3 vLeafW;\n' + sh.vertexShader.replace('#include <project_vertex>',
-        '#include <project_vertex>\n  vLeafW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-      sh.fragmentShader = LEAF_GAP_GLSL + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (leafGap(vLeafW)) discard;');
-    };
-    // 葉の見た目：葉の房ごとの明暗のまだら（揺れても模様がずれないよう、メッシュ自身の座標で決める）
-    function leafify(mat) {
-      mat.onBeforeCompile = sh => {
-        sh.vertexShader = 'varying vec3 vLeafL;\n' + sh.vertexShader.replace('#include <project_vertex>',
-          '#include <project_vertex>\n  vLeafL = transformed * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));');
-        sh.fragmentShader = 'varying vec3 vLeafL;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-          {
-            float n = fract(sin(dot(floor(vLeafL * 5.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-            diffuseColor.rgb *= n < 0.22 ? 0.8 : (n > 0.86 ? 1.18 : 1.0);
-          }`);
-      };
-      mat.customProgramCacheKey = () => 'leaf';
-      return mat;
-    }
+    const leafKit = createLeafKit({ loop: LOOP, softDapple: true });
+    const LEAF = leafKit.uniforms, leafDepthMat = leafKit.depthMat;
+    const leafify = leafKit.leafify;
 
     const TERRAIN = 64; // 64m 四方
     function buildTerrain() {
@@ -857,13 +826,12 @@
       // 太陽そのものからの光の筋（画面に太陽があるときだけ）
       pixel.setSunRays(sd, sd.y > 0.02 ? warm * 0.9 : 0, sun.color);
       // 木漏れ日：葉のすき間を、いまの光の向きで計算する
-      LEAF.light.value.copy(sun.position).normalize();
-      LEAF.time.value = elapsed;
-      GRASS_TIME.value = elapsed;
+      leafKit.update(elapsed % LOOP, sun);
+      GRASS_TIME.value = elapsed % LOOP;
     }
 
     function updateWorld(dt) {
-      const t = elapsed * W0;
+      const loopT = elapsed % LOOP, t = loopT * W0;
       for (const s of SWAY) {
         s.obj.rotation.x = Math.sin(t + s.phase) * s.amp;
         s.obj.rotation.z = Math.cos(t + s.phase) * s.amp;
@@ -872,7 +840,7 @@
       picnicSet.update(elapsed % LOOP, picnicEnv);
       // アヒル
       for (const d of DUCKS) {
-        const p = duckPos(elapsed - d.lag * LOOP), ahead = duckPos(elapsed - d.lag * LOOP + 0.05);
+        const p = duckPos(loopT - d.lag * LOOP), ahead = duckPos(loopT - d.lag * LOOP + 0.05);
         d.g.position.set(p.x, WATER_Y + Math.sin(t * 3 + d.lag * 10) * 0.012, p.z);
         d.g.rotation.y = Math.atan2(ahead.x - p.x, ahead.z - p.z);
       }
@@ -881,8 +849,8 @@
       petals.mat.opacity = Math.max(0, 1 - tod.night * 2);
       petals.pts.visible = petals.mat.opacity > 0.02;
       petals.seeds.forEach((s, i) => {
-        const f = (elapsed / LOOP + s.ph) % 1; // 6秒で1周（ループ動画用）
-        pp.setXYZ(i, s.x + Math.sin(t + i) * 0.4 - f * 1.5, RIGHT_BANK + s.y * (1 - f), s.z + Math.cos(t * 0.5 + i) * 0.3);
+        const f = (loopT / LOOP + s.ph) % 1; // 6秒で1周（ループ動画用）
+        pp.setXYZ(i, s.x + Math.sin(t + i) * 0.4 - f * 1.5, RIGHT_BANK + s.y * (1 - f), s.z + Math.cos(t + i) * 0.3);
       });
       pp.needsUpdate = true;
       // 蛍：夜だけ、ゆらゆら明滅
@@ -895,7 +863,7 @@
       });
       fp.needsUpdate = true;
 
-      water.update(dt, elapsed, { sun, night: tod.night, warm: warmNow, fog: scene.fog });
+      water.update(dt, loopT, { sun, night: tod.night, warm: warmNow, fog: scene.fog });
       const dEdge = Math.max(0, Math.abs(player.x - riverCenter(player.z)) - riverHalf(player.z));
       audio.setWater(0.22 * Math.max(0, 1 - dEdge / 10), dt);
       birdTimer -= dt;
@@ -911,6 +879,7 @@
       timeUI.update();
       if (!started) player.yaw += dt * 0.05;
       controls.update(dt);
+      camera.updateMatrixWorld(); // 光芒の投影に現在の視点を使う
       // 座ったまま歩き出したら立ち上がる
       if (sitting && sitPos && Math.hypot(player.x - sitPos.x, player.z - sitPos.z) > 0.15) setSitting(false);
       updateWorld(dt);
@@ -918,6 +887,7 @@
       updateLook();
       updatePrompt();
       document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
+      pixel.prepareShadows(); // 反射にも現在の葉の影を使う
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
       capture.frame();
@@ -929,6 +899,7 @@
     // 時間を進めずに1フレーム描く（PNG 用。解像度を変えた直後に使う）
     function renderOnly() {
       updateLook();
+      pixel.prepareShadows(); // 反射にも現在の葉の影を使う
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
     }
@@ -981,7 +952,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__picnic = { lieDown, get lying() { return lying; }, base, player, controls, camera, picnicSet, sunsetView, pixel, tod, LEAF, RAMP, capture, exportPNG, recordLoop, step, sitOnBlanket, goBridge, skipStone, water, setHour, collider, groundAt, isWater, BRIDGE, get sitting() { return sitting; }, get near() { return near; } };
+      window.__picnic = { lieDown, get lying() { return lying; }, base, player, controls, camera, picnicSet, sunsetView, pixel, tod, LEAF, leafKit, RAMP, setElapsed: t => { elapsed = t; }, capture, exportPNG, recordLoop, step, sitOnBlanket, goBridge, skipStone, water, setHour, collider, groundAt, isWater, BRIDGE, get sitting() { return sitting; }, get near() { return near; } };
     }
   </script>
 </body>

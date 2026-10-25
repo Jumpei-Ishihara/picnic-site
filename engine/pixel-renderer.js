@@ -14,15 +14,21 @@ const POST_FRAG = `
   uniform vec3 uShadowShift, uHighShift;       // 色の段階：暗部と明部の色相をずらす量（sRGB）
   uniform vec2 uSunUv; uniform float uRays;     // 光の筋：太陽の画面位置と強さ
   uniform vec3 uRayColor;
+  uniform float uSoftLighting;
   uniform float uBloom;                         // 明るい点（太陽・きらめき・灯り）のにじみ
   uniform float uLevels;                        // パレットを使わないときの、各色の段階数-1（31 なら 32 段階）
   // 空気中の光の筋：視線に沿って影マップを調べ、日の当たる空気だけを光らせる
   uniform float uVol; uniform sampler2D tShadow; uniform mat4 uShadowMat, uInvProj, uCamWorld;
-  uniform vec3 uCamPos, uVolDir, uVolColor; uniform float uVolMax;
+  uniform vec3 uCamPos, uVolDir, uVolColor; uniform float uVolMax, uVolBaseHeight;
   varying vec2 vUv;
   float unpackShadowDepth(vec4 v) { const float D = 255.0 / 256.0; return dot(v, D / vec4(16777216.0, 65536.0, 256.0, 1.0)); }
   vec3 worldAt(vec2 uv, float z) { vec4 v = uInvProj * vec4(uv * 2.0 - 1.0, z * 2.0 - 1.0, 1.0); v /= v.w; return (uCamWorld * v).xyz; }
-  vec3 over1(vec2 uv){ return max(texture2D(tColor, uv).rgb - 1.25, 0.0) * 1.6; } // only real light sources (sun, glints, lamps) glow
+  vec3 bright(vec2 uv) {
+    vec3 c = texture2D(tColor, uv).rgb;
+    if (uSoftLighting < 0.5) return max(c - 1.25, 0.0) * 1.6;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return c * (max(l - 0.95, 0.0) / max(l, 0.0001)) * smoothstep(0.95, 1.45, l);
+  }
   float linDepth(vec2 uv){ float z = texture2D(tDepth, uv).x * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
   vec3 nrm(vec2 uv){ return texture2D(tNormal, uv).xyz * 2.0 - 1.0; }
   float bayer4(vec2 p){
@@ -51,11 +57,16 @@ const POST_FRAG = `
       else if (crease > 0.3) col *= mix(1.0, 1.28, fade);
     }
     float dith = bayer4(gl_FragCoord.xy);
-    // にじみ：とても明るい点（1.25超）だけを、上下左右1〜2ドットと斜めに少しだけ広げる（ドット絵らしい十字の光）
+    // 明部のみを抽出。従来の小さな光に、試作プロファイルでは弱い4ドットの光を重ねる。
     if (uBloom > 0.001) {
-      vec3 g = over1(vUv + vec2(px.x, 0.0)) + over1(vUv - vec2(px.x, 0.0)) + over1(vUv + vec2(0.0, px.y)) + over1(vUv - vec2(0.0, px.y));
-      g += 0.45 * (over1(vUv + vec2(2.0 * px.x, 0.0)) + over1(vUv - vec2(2.0 * px.x, 0.0)) + over1(vUv + vec2(0.0, 2.0 * px.y)) + over1(vUv - vec2(0.0, 2.0 * px.y)));
-      g += 0.35 * (over1(vUv + px) + over1(vUv - px) + over1(vUv + vec2(px.x, -px.y)) + over1(vUv + vec2(-px.x, px.y)));
+      vec3 g = bright(vUv + vec2(px.x, 0.0)) + bright(vUv - vec2(px.x, 0.0)) + bright(vUv + vec2(0.0, px.y)) + bright(vUv - vec2(0.0, px.y));
+      g += 0.45 * (bright(vUv + vec2(2.0 * px.x, 0.0)) + bright(vUv - vec2(2.0 * px.x, 0.0)) + bright(vUv + vec2(0.0, 2.0 * px.y)) + bright(vUv - vec2(0.0, 2.0 * px.y)));
+      g += 0.35 * (bright(vUv + px) + bright(vUv - px) + bright(vUv + vec2(px.x, -px.y)) + bright(vUv + vec2(-px.x, px.y)));
+      if (uSoftLighting > 0.5) {
+        // Wide, low-energy halo; still on the scene's pixel grid.
+        g += 0.16 * (bright(vUv + vec2(4.0 * px.x, 0.0)) + bright(vUv - vec2(4.0 * px.x, 0.0))
+                   + bright(vUv + vec2(0.0, 4.0 * px.y)) + bright(vUv - vec2(0.0, 4.0 * px.y)));
+      }
       col += g * 0.22 * uBloom;
     }
     // 光の筋：太陽へ向かって空（奥行きが最遠）が見えている割合を集める
@@ -66,7 +77,7 @@ const POST_FRAG = `
         vec2 uv = vUv + dir * ((float(i) + dith) / 20.0);
         if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) acc += step(0.99995, texture2D(tDepth, uv).x);
       }
-      col += uRayColor * (acc / 20.0) * exp(-length(dir * vec2(uRes.x / uRes.y, 1.0)) * 2.4) * uRays;
+      col += uRayColor * mix(1.0, 0.35, uSoftLighting) * (acc / 20.0) * exp(-length(dir * vec2(uRes.x / uRes.y, 1.0)) * 2.4) * uRays;
     }
     // 空気中の光の筋（木の葉のすき間を通る光が、空気に筋として見える）
     if (uVol > 0.001) {
@@ -76,16 +87,29 @@ const POST_FRAG = `
       dir = normalize(dir);
       float stepL = len / 24.0, acc = 0.0;
       for (int i = 0; i < 24; i++) {
-        vec3 p = uCamPos + dir * stepL * (float(i) + dith);
+        float t = (float(i) + dith) / 24.0;
+        // More samples near the viewer, with the matching integration weight.
+        float distanceAlong = uSoftLighting > 0.5 ? len * (0.45 * t + 0.55 * t * t) : stepL * (float(i) + dith);
+        float weight = uSoftLighting > 0.5 ? 0.45 + 1.1 * t : 1.0;
+        vec3 p = uCamPos + dir * distanceAlong;
         vec4 sc = uShadowMat * vec4(p, 1.0);
         sc.xyz /= sc.w;
-        float lit = 1.0;
-        if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) lit = step(sc.z - 0.003, unpackShadowDepth(texture2D(tShadow, sc.xy)));
-        acc += lit * exp(-max(p.y, 0.0) * 0.35);   // low air is denser
+        float lit = uSoftLighting > 0.5 ? 0.0 : 1.0;
+        if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0 && (uSoftLighting < 0.5 || sc.z > 0.0))
+          lit = step(sc.z - (uSoftLighting > 0.5 ? 0.001 : 0.003), unpackShadowDepth(texture2D(tShadow, sc.xy)));
+        float attenuation = uSoftLighting > 0.5 ? exp(-distanceAlong * 0.035) : 1.0;
+        acc += lit * exp(-max(p.y - (uSoftLighting > 0.5 ? uVolBaseHeight : 0.0), 0.0) * 0.35) * attenuation * weight;   // low air is denser
       }
       acc *= stepL / uVolMax;
-      float phase = 0.3 + 1.5 * pow(max(dot(dir, uVolDir), 0.0), 5.0);   // brighter toward the light
+      float phase = uSoftLighting > 0.5
+        ? 0.12 + 1.2 * pow(max(dot(dir, uVolDir), 0.0), 6.0)
+        : 0.3 + 1.5 * pow(max(dot(dir, uVolDir), 0.0), 5.0);   // brighter toward the light
       col += uVolColor * acc * phase * uVol;
+    }
+    if (uSoftLighting > 0.5) {
+      // Continuous highlight shoulder, preserving RGB ratios and all darker tones.
+      float peak = max(col.r, max(col.g, col.b));
+      if (peak > 0.8) col *= (0.8 + 0.2 * (1.0 - exp(-(peak - 0.8) / 0.2))) / peak;
     }
     col = clamp(toSRGB(col), 0.0, 1.0); // 発光で 1 を超えた色を収める（下の pow が NaN にならないように）
     // 色の段階：影は青紫へ、光は黄みへ（色相をずらして平坦な明暗にしない）
@@ -113,9 +137,10 @@ const POST_FRAG = `
  * @param {THREE.PerspectiveCamera} o.camera
  * @param {string[]} [o.palette]   減色に使う sRGB の色
  * @param {number} [o.pixelScale]  1ドットあたりの CSS ピクセル数
+ * @param {boolean} [o.softLighting=false]   控えめな広域グロー・明部圧縮・影に沿う光線（試作対象のみ）
  * @param {number} [o.fov]         横長画面での縦FOV。縦長画面では横約70°を確保するよう自動で広げる
  */
-export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PALETTE, pixelScale = 3, fov = 62, dither = 0.075 }) {
+export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PALETTE, pixelScale = 3, fov = 62, dither = 0.075, softLighting = false }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
   renderer.shadowMap.enabled = true;
@@ -134,10 +159,11 @@ export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PA
       uPal: { value: palette.map(hexToVec3) },
       uShadowShift: { value: new THREE.Vector3() }, uHighShift: { value: new THREE.Vector3() },
       uSunUv: { value: new THREE.Vector2(0.5, 2) }, uRays: { value: 0 }, uRayColor: { value: new THREE.Color(1, 0.8, 0.5) },
+      uSoftLighting: { value: softLighting ? 1 : 0 },
       uBloom: { value: 0 }, uLevels: { value: 15 },
       uVol: { value: 0 }, tShadow: { value: null }, uShadowMat: { value: new THREE.Matrix4() },
       uInvProj: { value: camera.projectionMatrixInverse }, uCamWorld: { value: camera.matrixWorld }, uCamPos: { value: camera.position },
-      uVolDir: { value: new THREE.Vector3(0, 1, 0) }, uVolColor: { value: new THREE.Color(1, 0.9, 0.7) }, uVolMax: { value: 30 }
+      uVolDir: { value: new THREE.Vector3(0, 1, 0) }, uVolColor: { value: new THREE.Color(1, 0.9, 0.7) }, uVolMax: { value: 30 }, uVolBaseHeight: { value: 0 }
     },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: glsl(POST_FRAG),
@@ -225,7 +251,7 @@ export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PA
      * 毎フレーム呼ぶ。strength 0 で無効。
      * @param {THREE.DirectionalLight} light
      */
-    setVolumetric(light, strength, color, maxDistance = 30) {
+    setVolumetric(light, strength, color, maxDistance = 30, baseHeight = 0) {
       const u = postMat.uniforms;
       u.uVol.value = light.shadow.map ? strength : 0; // 影マップは最初の描画で作られる
       if (!light.shadow.map) return;
@@ -234,6 +260,7 @@ export function createPixelRenderer({ canvas, scene, camera, palette = MASTER_PA
       u.uVolDir.value.copy(light.position).sub(light.target.position).normalize();
       if (color) u.uVolColor.value.copy(color);
       u.uVolMax.value = maxDistance;
+      u.uVolBaseHeight.value = Number.isFinite(baseHeight) ? baseHeight : 0;
     },
     // 明るい点のにじみの強さ（0 で無効。既定 0）
     setBloom(v) { postMat.uniforms.uBloom.value = v; },

@@ -1,0 +1,204 @@
+[
+  {
+    "name": "nagisa",
+    "soft": 0,
+    "loop": {
+      "changed": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "outsideDifference": {
+      "changed": 1493,
+      "max": 9,
+      "mean": 0.05351128472222222
+    },
+    "shaderCases": {
+      "dimOff": [
+        211,
+        170,
+        124
+      ],
+      "dimOn": [
+        211,
+        170,
+        124
+      ],
+      "black": [
+        0,
+        0,
+        0
+      ],
+      "hdr": [
+        255,
+        255,
+        188
+      ],
+      "linearRatios": [
+        1,
+        1,
+        0.5028864580325687
+      ]
+    },
+    "tree": {
+      "x": -64,
+      "z": 44,
+      "r": 1.8
+    },
+    "camera": [
+      -62.2,
+      11.862400283813477,
+      45.8
+    ],
+    "glError": 0,
+    "sunset": {
+      "soft": 0,
+      "rays": 0.835178956251694,
+      "warm": 0.9825634779431694
+    },
+    "movement": {
+      "camera": [
+        -67.3999999999997,
+        11.748000144958507,
+        46
+      ],
+      "rays": 0
+    },
+    "portrait": {
+      "size": {
+        "width": 160,
+        "height": 281
+      },
+      "aspect": 0.5693950177935944,
+      "soft": 0
+    },
+    "media": {
+      "png": {
+        "mime": "image/png",
+        "bytes": 116398,
+        "width": 1280,
+        "height": 720
+      },
+      "restoredSize": {
+        "width": 426,
+        "height": 240
+      },
+      "video": {
+        "mime": "video/mp4",
+        "bytes": 2091406,
+        "filename": "lighting-validation.mp4"
+      },
+      "state": "idle",
+      "restoredAfterVideo": {
+        "width": 426,
+        "height": 240
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "picnic",
+    "soft": 0,
+    "loop": {
+      "changed": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "outsideDifference": {
+      "changed": 95335,
+      "max": 57,
+      "mean": 4.4454513888888885
+    },
+    "shaderCases": {
+      "dimOff": [
+        211,
+        170,
+        124
+      ],
+      "dimOn": [
+        211,
+        170,
+        124
+      ],
+      "black": [
+        0,
+        0,
+        0
+      ],
+      "hdr": [
+        255,
+        255,
+        188
+      ],
+      "linearRatios": [
+        1,
+        1,
+        0.5028864580325687
+      ]
+    },
+    "camera": [
+      5.6134748840210005,
+      1.9300000000000002,
+      1.158519981986439
+    ],
+    "glError": 0,
+    "sunset": {
+      "soft": 0,
+      "rays": 0.6490384615384629,
+      "volumetric": 0.9391025641025659
+    },
+    "movement": {
+      "camera": [
+        1.9000000000000006,
+        1.9423353289242131,
+        -1.75
+      ],
+      "rays": 0
+    },
+    "portrait": {
+      "size": {
+        "width": 160,
+        "height": 281
+      },
+      "aspect": 0.5693950177935944,
+      "soft": 0
+    },
+    "media": {
+      "png": {
+        "mime": "image/png",
+        "bytes": 138105,
+        "width": 1280,
+        "height": 720
+      },
+      "restoredSize": {
+        "width": 426,
+        "height": 240
+      },
+      "video": {
+        "mime": "video/mp4",
+        "bytes": 9038108,
+        "filename": "lighting-validation.mp4"
+      },
+      "state": "idle",
+      "restoredAfterVideo": {
+        "width": 426,
+        "height": 240
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "edogawa",
+    "soft": 0,
+    "errors": []
+  },
+  {
+    "name": "myoden",
+    "soft": 0,
+    "errors": []
+  },
+  {
+    "name": "myoden-far",
+    "soft": 0,
+    "errors": []
+  }
+]

@@ -5,24 +5,41 @@
 import * as THREE from 'three';
 import { mulberry32 } from './pixel-kit.js';
 
-export function createLeafKit({ loop = 6 } = {}) {
+export function createLeafKit({ loop = 6, softDapple = false } = {}) {
+  if (!Number.isFinite(loop) || loop <= 0) throw new RangeError('Leaf loop must be positive');
   const W0 = Math.PI * 2 / loop;
-  const LEAF = { time: { value: 0 }, light: { value: new THREE.Vector3(0, 1, 0) } };
+  const LEAF = { time: { value: 0 }, light: { value: new THREE.Vector3(0, 1, 0) }, soft: { value: softDapple ? 1 : 0 } };
+  // A shared, tiny repeatable noise tile replaces eight sine hashes per shadow fragment.
+  let noiseTex = null;
+  if (softDapple) {
+    const random = mulberry32(731), pixels = new Uint8Array(32 * 32);
+    for (let i = 0; i < pixels.length; i++) pixels[i] = Math.floor(random() * 256);
+    noiseTex = new THREE.DataTexture(pixels, 32, 32, THREE.RedFormat);
+    noiseTex.wrapS = noiseTex.wrapT = THREE.RepeatWrapping;
+    noiseTex.minFilter = noiseTex.magFilter = THREE.LinearFilter;
+    noiseTex.generateMipmaps = false; noiseTex.needsUpdate = true;
+  }
   const GAP = `
-    uniform float uLeafTime; uniform vec3 uLeafLight; varying vec3 vLeafW;
+    uniform sampler2D uLeafNoise; uniform float uLeafTime, uLeafSoft; uniform vec3 uLeafLight; varying vec3 vLeafW;
     float leafHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     bool leafGap(vec3 w) {
       vec3 L = normalize(uLeafLight);
-      vec3 T = normalize(cross(L, vec3(0.0, 0.0, 1.0)));
+      vec3 T = normalize(cross(L, abs(L.z) > 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0)));
       vec2 p = vec2(dot(w, T), dot(w, cross(L, T)));
       float t = uLeafTime * ${W0.toFixed(6)};
       p += vec2(sin(t + p.y * 0.9), cos(t + p.x * 0.8)) * 0.05;
+      if (uLeafSoft > 0.5) {
+        // Smooth clustered openings: stable under small wind/camera movement.
+        return texture2D(uLeafNoise, p / (0.62 * 32.0)).r * 0.72 + texture2D(uLeafNoise, p / (0.24 * 32.0) + 0.37).r * 0.28 > 0.56;
+      }
       return leafHash(floor(p / 0.26)) < 0.36 || leafHash(floor(p / 0.85 + 0.37) + 17.0) < 0.18;
     }
 `;
   const depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   depthMat.onBeforeCompile = sh => {
     sh.uniforms.uLeafTime = LEAF.time;
+    sh.uniforms.uLeafSoft = LEAF.soft;
+    sh.uniforms.uLeafNoise = { value: noiseTex };
     sh.uniforms.uLeafLight = LEAF.light;
     sh.vertexShader = 'varying vec3 vLeafW;\n' + sh.vertexShader.replace('#include <project_vertex>',
       '#include <project_vertex>\n  vLeafW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -44,8 +61,14 @@ export function createLeafKit({ loop = 6 } = {}) {
   }
   return {
     depthMat, leafify, uniforms: LEAF,
+    dispose() { depthMat.dispose(); noiseTex?.dispose(); },
     // 毎フレーム：時間と光の向き（影を落とす光の位置）
-    update(t, light) { LEAF.time.value = t; LEAF.light.value.copy(light.position).sub(light.target.position).normalize(); }
+    update(t, light) {
+      LEAF.time.value = ((t % loop) + loop) % loop;
+      LEAF.light.value.copy(light.position).sub(light.target.position);
+      if (LEAF.light.value.lengthSq() < 1e-10) LEAF.light.value.set(0, 1, 0);
+      else LEAF.light.value.normalize();
+    }
   };
 }
 

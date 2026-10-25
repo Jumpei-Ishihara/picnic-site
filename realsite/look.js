@@ -50,7 +50,7 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
  * 時刻ごとの仕上げ：素材ごとの 3 色の色ずらし、色の段階、空気中の光の筋、太陽の光の筋、電線・湯気・窓明かり
  * @returns {{ update(): { day:number, warm:number, night:number, sunEl:number } }}
  */
-export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, nightLights = [] }) {
+export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, nightLights = [], softLighting = false, groundHeight = () => 0 }) {
   const cSky = new THREE.Color(), cWire = new THREE.Color(0x5a5e68);
   const state = { day: 1, warm: 0, night: 0, sunEl: 45 };
   return {
@@ -71,8 +71,14 @@ export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, 
         highlight: mix3([[day, [0.012, 0.006, -0.012]], [warm, [0.03, 0.01, -0.025]], [night, [0, 0, 0.01]]])
       });
       // 空気中の光の筋：遮るもの（木）が少ない河川敷なので弱め。夕日のときだけ鉄塔や木の影から出る
-      pixel.setVolumetric(sun, day * 0.12 + warm * 0.75 + night * 0.25, sun.color, 60);
-      pixel.setSunRays(sd, sd.y > 0.0 ? warm * 0.85 : 0, sun.color);
+      if (softLighting) {
+        const daylight = smooth(0, 0.12, sd.y) * (1 - night);
+        pixel.setVolumetric(sun, (day * 0.22 + warm * 0.65) * daylight, sun.color, 28, groundHeight());
+        pixel.setSunRays(sd, warm * 0.5 * daylight, sun.color);
+      } else {
+        pixel.setVolumetric(sun, day * 0.12 + warm * 0.75 + night * 0.25, sun.color, 60);
+        pixel.setSunRays(sd, sd.y > 0.0 ? warm * 0.85 : 0, sun.color);
+      }
       // 電線：空の色に寄せて、地平線のあたりで黒い束にならないように
       if (wires) {
         cSky.copy(sky.uniforms.uHor.value).lerp(sky.uniforms.uTop.value, 0.3);

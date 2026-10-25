@@ -1,0 +1,58 @@
+✔ rejects unauthorized origins, hosts, sessions and GET writes (32.728292ms)
+✔ checks names, modes, media type and JSON (13.578917ms)
+✔ publishes unique names and never overwrites existing files or symlinks (6.537584ms)
+✔ limits declared and chunked uploads and cleans up (34.288584ms)
+✔ encoder failure does not publish an mp4 (63.107833ms)
+✔ busy jobs preserve health responsiveness and time out cleanly (409.02575ms)
+✔ real ffmpeg conversion produces a playable H.264 MP4 (158.260417ms)
+✔ abandoned and stalled uploads release the lock and temporary files (168.97225ms)
+✔ rejects stale sessions and failed media parsing without publishing (65.459916ms)
+✔ timeout during publication rolls back the late final file and releases the lock (98.2485ms)
+✔ disconnect during publication removes the published file (15.937625ms)
+✔ disconnect during cleanup removes the published file (15.251833ms)
+✔ EACCES during mkdtemp returns failure without publishing and permits retry (3.778375ms)
+✔ ENOTSUP during link returns failure without publishing and permits retry (3.610708ms)
+✔ EIO during link returns failure without publishing and permits retry (4.00825ms)
+✔ ENOSPC after a partial write closes the file, removes temporary content and permits retry (2.990541ms)
+✔ real directory permission loss fails safely and works after permission restoration (2.55325ms)
+✔ output size monitor stops a growing job without publishing (104.58475ms)
+✔ POSIX timeout kills both rendering job and its encoder descendant (817.9065ms)
+(node:35268) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ishiharajunpei/picnic-site/engine/capture.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ishiharajunpei/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Worker constructor/postMessage/runtime/timeout failures each fall back once (6.204417ms)
+✔ inherited URL and storage keys never become quality/season settings (0.30275ms)
+✔ capture releases state/resolution/tracks on constructor and start failures (1.150166ms)
+✔ recording errors settle once and recording can be retried (0.241708ms)
+✔ null PNG restores state and resolution (0.087542ms)
+✔ bridge retries only rejected authentication, never an uncertain upload (0.159959ms)
+✔ shared export UI restores pre-recording state after failure and owns only latest result (0.707ms)
+✔ failed Worker rows produce exactly the same terrain pixels as a full bake (2.957417ms)
+✔ converted bridge results retain native extension for the Blob retry link (0.222541ms)
+✔ availability probes health after cached authentication and clears stale tokens (0.255459ms)
+✔ startup error removes the start overlay and provides a visible working retry (0.566208ms)
+✔ legacy status distinguishes confirmed, failed and uncertain results and rejects stale completion (0.373625ms)
+(node:35269) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ishiharajunpei/picnic-site/engine/legacy-export.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ishiharajunpei/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ pixelart_2d reports real bridge outcomes and preserves native WebM download (3.813291ms)
+✔ picnic_3d reports real bridge outcomes and preserves native WebM download (2.084833ms)
+✔ leaf shadow uses target-relative light, periodic time, and a finite fallback direction (3.598917ms)
+✔ shared leaf shader injects its own world position without erasing the material colour hook (1.453666ms)
+✔ classic look preserves low-sun glow without a second horizon fade (0.984209ms)
+✔ picnic preserves original sunset glow, daylight shafts and moonlit atmosphere (0.826625ms)
+✔ grass skips stationary placement work and uploads but continues wind time (4.016ms)
+✔ touch joystick exposes actual movement independently from autowalk (2.097417ms)
+✔ stroll wheel input is ignored while frozen or input-disabled, and works after restoration (0.9545ms)
+✔ picnic keyboard blocks scene actions while capturing but permits recording stop (0.839667ms)
+✔ terrain readiness rejects to its late consumer without an unhandled rejection (56.788666ms)
+ℹ tests 42
+ℹ suites 0
+ℹ pass 42
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2068.236459
