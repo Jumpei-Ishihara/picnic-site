@@ -314,3 +314,8 @@ macOSのアプリ内Chromiumで、[GitHub Pages](https://jumpei-ishihara.github.
 ### 光表現の夕景再評価・切戻し（2026-10-24）
 
 なぎさに続きpicnicも画面効果の劣化を確認し、旧方式へ戻した。木漏れ日・更新順・周期修正は保持。全42回帰テストと実ブラウザの保存・描画を確認。[最新の詳細設計・検証結果](LIGHTING_DESIGN.md#picnic夕景の確認切戻し2026-10-24)、[picnicの比較証跡](lighting-validation/picnic-sunset-review/index.html)を参照。
+
+
+### 光表現のGitHub Pages公開確認（2026-10-25）
+
+実装コミット4704cefをmainへプッシュし、Pagesビルド成功と公開サイトのなぎさ・picnicの夕景、PNG・6秒動画の実ダウンロード、保存後の状態復帰を確認した。検証結果と証跡は[光表現の詳細設計](LIGHTING_DESIGN.md#github-pages公開後検証2026-10-25)へ追記。

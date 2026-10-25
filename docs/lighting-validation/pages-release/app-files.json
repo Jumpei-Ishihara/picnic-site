@@ -1,0 +1,97 @@
+{
+  "commit": "4704cefa27bbdf37dd4d769748c1dc2e80e45c36",
+  "date": "2026-10-25T02:48:41.424Z",
+  "records": [
+    {
+      "path": "engine/trees.js",
+      "status": 200,
+      "bytes": 14211,
+      "sha256": "3419cacde6bd77e4ebfe9ea85dc0db3b753140ec81d92ff84496e27ad23efa49",
+      "matches": true
+    },
+    {
+      "path": "engine/pixel-renderer.js",
+      "status": 200,
+      "bytes": 16558,
+      "sha256": "0a2afbc78dccd2162c34938ce431957c16470a1486c36f479743d688e8346f65",
+      "matches": true
+    },
+    {
+      "path": "realsite/look.js",
+      "status": 200,
+      "bytes": 6942,
+      "sha256": "f71f6b8c320e676604dce4541efb308c63a283cd5e7641e67dd49682da57f652",
+      "matches": true
+    },
+    {
+      "path": "nagisa.html",
+      "status": 200,
+      "bytes": 47739,
+      "sha256": "62ad5922e16411ce17d6557b5153408b1f06a8602e5aa2262f95d58d41267fe1",
+      "matches": true
+    },
+    {
+      "path": "picnic.html",
+      "status": 200,
+      "bytes": 58465,
+      "sha256": "8ff4eccdf03b7e3e3237047b349f685b9f66ac27829121be6162ea1dd4361114",
+      "matches": true
+    },
+    {
+      "path": "docs/LIGHTING_DESIGN.md",
+      "status": 200,
+      "bytes": 20827,
+      "sha256": "b22f693690244360f875dce43849dbb9db9c37683401c669b8a3aa3e0eb93d42",
+      "matches": true
+    },
+    {
+      "path": "docs/LIGHTING_PLAN.md",
+      "status": 200,
+      "bytes": 5809,
+      "sha256": "e39b514e86ffd3292aac121e318e94c30c23a257999cb4283fe38d414d1e69d6",
+      "matches": true
+    },
+    {
+      "path": "docs/SUNSET_REVIEW.md",
+      "status": 200,
+      "bytes": 7494,
+      "sha256": "80511d04addb885885d5139d71bf1ddb85c1d51b87684336bbf4dd5a8a6cd99a",
+      "matches": true
+    },
+    {
+      "path": "docs/lighting-validation/index.html",
+      "status": 200,
+      "bytes": 5489,
+      "sha256": "0b800485c00fa3e3e4d6546e0b5566fe99d9838e7f2fb2c08198d3cd8089be6a",
+      "matches": true
+    },
+    {
+      "path": "docs/lighting-validation/sunset-review/index.html",
+      "status": 200,
+      "bytes": 2657,
+      "sha256": "3b1b69527b5d04df11fe1bea79a669b33e468e01f46f580edf0b587a1d9f6e06",
+      "matches": true
+    },
+    {
+      "path": "docs/lighting-validation/picnic-sunset-review/index.html",
+      "status": 200,
+      "bytes": 2752,
+      "sha256": "39a2fba852b679349db13487cd5946201af6d49c2b1edb291b1908466e82e49c",
+      "matches": true
+    },
+    {
+      "path": "docs/lighting-validation/sunset-review/restored.png",
+      "status": 200,
+      "bytes": 59178,
+      "sha256": "b9ca9512fa08952a47d7c256aa3e0d0329c041a8cc5b0877aa13f4a9a77ba941",
+      "matches": true
+    },
+    {
+      "path": "docs/lighting-validation/picnic-sunset-review/restored.png",
+      "status": 200,
+      "bytes": 74227,
+      "sha256": "8752282aa4b5ae99ffacc223767f6a8ff610a831e2e80b94af537647284a7552",
+      "matches": true
+    }
+  ]
+}

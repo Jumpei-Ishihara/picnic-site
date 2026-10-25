@@ -28,7 +28,14 @@ fs.mkdirSync(out,{recursive:true});
     const url=response.url();if(!url.startsWith(base)||seen.has(url))return;seen.add(url);
     const relative=decodeURIComponent(new URL(url).pathname.slice(new URL(base).pathname.length));
     if(!relative||!fs.existsSync(path.join(root,relative)))return;
-    pending.push((async()=>{const data=await response.buffer(),local=fs.readFileSync(path.join(root,relative));report.files.push({scene:name,path:relative,status:response.status(),sha256:sha(data),matchesLocal:sha(data)===sha(local)});})());
+    pending.push((async()=>{
+     let data=await response.buffer();const local=fs.readFileSync(path.join(root,relative));
+     let method='browser-response',status=response.status();const browserBodyBytes=data.length;
+     // Chrome can expose an empty DevTools body for fetched ImageBitmap inputs.
+     // Independently fetch that same public URL; never substitute a local asset.
+     if(!data.length&&local.length){const fresh=await fetch(url,{headers:{'Cache-Control':'no-cache'}});data=Buffer.from(await fresh.arrayBuffer());status=fresh.status;method='independent-http';}
+     report.files.push({scene:name,path:relative,status,method,browserBodyBytes,bytes:data.length,sha256:sha(data),matchesLocal:sha(data)===sha(local)});
+    })());
    });
    await page.goto(`${base}${name}.html?season=summer&release=${release}#debug`,{waitUntil:'networkidle0',timeout:120000});
    await page.waitForFunction(n=>!!window['__'+n],{polling:100,timeout:60000},name);
@@ -71,7 +78,8 @@ fs.mkdirSync(out,{recursive:true});
    report.scenes.push(scene);console.log(JSON.stringify({name,rays:scene.rays,png:scene.png.filename,video:scene.video.filename,restored:scene.restored}));
    await page.close();
   }
-  assert.ok(report.files.length>10);assert.ok(report.files.every(f=>f.status===200&&f.matchesLocal),'published files must match local commit');
   fs.writeFileSync(path.join(out,'browser.json'),JSON.stringify(report,null,2)+'\n');
+  const mismatches=report.files.filter(f=>f.status!==200||!f.matchesLocal);console.log(JSON.stringify({files:report.files.length,mismatches}));
+  assert.ok(report.files.length>10);assert.equal(mismatches.length,0,'published files must match local commit');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

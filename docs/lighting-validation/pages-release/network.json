@@ -1,0 +1,36 @@
+[
+  {
+    "name": "nagisa",
+    "bad": [
+      {
+        "url": "https://jumpei-ishihara.github.io/favicon.ico",
+        "status": 404
+      },
+      {
+        "url": "https://jumpei-ishihara.github.io/favicon.ico",
+        "status": 404
+      }
+    ],
+    "failed": [
+      {
+        "url": "http://127.0.0.1:18923/health",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      }
+    ]
+  },
+  {
+    "name": "picnic",
+    "bad": [
+      {
+        "url": "https://jumpei-ishihara.github.io/favicon.ico",
+        "status": 404
+      }
+    ],
+    "failed": [
+      {
+        "url": "http://127.0.0.1:18923/health",
+        "error": "net::ERR_CONNECTION_REFUSED"
+      }
+    ]
+  }
+]

@@ -1,0 +1,749 @@
+{
+  "release": "4704cefa27bbdf37dd4d769748c1dc2e80e45c36",
+  "date": "2026-10-25T02:50:37.530Z",
+  "browser": "Chrome/155.0.8059.85",
+  "base": "https://jumpei-ishihara.github.io/picnic-site/",
+  "scenes": [
+    {
+      "name": "nagisa",
+      "hour": 18.654957856192027,
+      "soft": 0,
+      "rays": 0.835178956251694,
+      "volumetric": 0.7412817389715848,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "size": {
+        "width": 426,
+        "height": 240
+      },
+      "glError": 0,
+      "png": {
+        "filename": "nagisa-export.png",
+        "suggestedFilename": "nagisa-park_1839_20261025-115041.png",
+        "bytes": 133813,
+        "sha256": "d6761d86dc026bc2f0a0472e04962e6be48041e1cdf1aafd9c978f65af354ee9",
+        "probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "png",
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "format": {}
+        }
+      },
+      "autoBeforeVideo": true,
+      "video": {
+        "filename": "nagisa-6s.mp4",
+        "suggestedFilename": "nagisa-park_1839_20261025-115041_6s.mp4",
+        "bytes": 2055272,
+        "sha256": "07d4f743993bb423a6396dc49f18646ecc375046ef089d807e7d8d2b3d97de88",
+        "probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "h264",
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "format": {
+            "duration": "5.997133"
+          }
+        }
+      },
+      "restored": {
+        "state": "idle",
+        "auto": true,
+        "size": {
+          "width": 426,
+          "height": 240
+        },
+        "note": "✅ nagisa-park_1839_20261025-115041_6s.mp4 — ブラウザのダウンロードに保存しました  もう一度保存",
+        "blobLink": true,
+        "buttons": [
+          {
+            "id": "x-png",
+            "disabled": false
+          },
+          {
+            "id": "x-v1",
+            "disabled": false
+          },
+          {
+            "id": "x-v2",
+            "disabled": false
+          }
+        ]
+      },
+      "errors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 ()",
+        "Failed to load resource: the server responded with a status of 404 ()",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+      ],
+      "expectedLocalBridgeErrors": [
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+      ]
+    },
+    {
+      "name": "picnic",
+      "hour": 18.35,
+      "soft": 0,
+      "rays": 0.6490384615384629,
+      "volumetric": 0.9391025641025659,
+      "camera": [
+        1.3,
+        1.1302342207805605,
+        -1.75
+      ],
+      "size": {
+        "width": 426,
+        "height": 240
+      },
+      "glError": 0,
+      "png": {
+        "filename": "picnic-export.png",
+        "suggestedFilename": "riverside-picnic_1821_20261025-115050.png",
+        "bytes": 147990,
+        "sha256": "96f4cb77fd4fa762cc2129ca2d6eff853be8e93a6a3635799728da370db9331c",
+        "probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "png",
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "format": {}
+        }
+      },
+      "autoBeforeVideo": true,
+      "video": {
+        "filename": "picnic-6s.mp4",
+        "suggestedFilename": "riverside-picnic_1821_20261025-115050_6s.mp4",
+        "bytes": 13838563,
+        "sha256": "f1ebdcb36f8d64d48bd54beb03c444995ba1c0228577c398eae16681246053eb",
+        "probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "h264",
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "format": {
+            "duration": "6.015467"
+          }
+        }
+      },
+      "restored": {
+        "state": "idle",
+        "auto": true,
+        "size": {
+          "width": 426,
+          "height": 240
+        },
+        "note": "✅ riverside-picnic_1821_20261025-115050_6s.mp4 — ブラウザのダウンロードに保存しました  もう一度保存",
+        "blobLink": true,
+        "buttons": [
+          {
+            "id": "x-png",
+            "disabled": false
+          },
+          {
+            "id": "x-v1",
+            "disabled": false
+          },
+          {
+            "id": "x-v2",
+            "disabled": false
+          }
+        ]
+      },
+      "errors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 ()",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+      ],
+      "expectedLocalBridgeErrors": [
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "scene": "nagisa",
+      "path": "nagisa.html",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 47739,
+      "bytes": 47739,
+      "sha256": "62ad5922e16411ce17d6557b5153408b1f06a8602e5aa2262f95d58d41267fe1",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/season.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 10070,
+      "bytes": 10070,
+      "sha256": "dc0dee6898309924a5aec2499782bb9b637bde0fdb1da128630fd7f5cc675fda",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 3546,
+      "bytes": 3546,
+      "sha256": "2427f62f26c5a8b33b26da7a629f4b467a69e37c1ca8d49a8ac6a17da4796372",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/ui.css",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 9017,
+      "bytes": 9017,
+      "sha256": "c1cca6c04c892a8578008b3f5aa4d6ee95ce7d0787e8d875b6d8b4b96d2d6cae",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "realsite/life.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 22433,
+      "bytes": 22433,
+      "sha256": "29695f912f07bfa88a0430346c4cd2b7048a805b2925e18f84c0736ac817f2c0",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/player.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 15041,
+      "bytes": 15041,
+      "sha256": "8c6ee689c99c7995ce6c7194d2d78e546242b049557502db2e14e31d0846473a",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "realsite/nagisa-surroundings.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 8444,
+      "bytes": 8444,
+      "sha256": "b8e0494d9391f499d705c89d1b02abf8821fefa1110eced5ca61b2dad9668961",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/terrain.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 14631,
+      "bytes": 14631,
+      "sha256": "bb49eb670d710b9590d854f3f029b32427ca3e24a3e7ad68ba6ec9d1d55af3f9",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/pixel-renderer.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 16558,
+      "bytes": 16558,
+      "sha256": "0a2afbc78dccd2162c34938ce431957c16470a1486c36f479743d688e8346f65",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/picnic-set.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 13187,
+      "bytes": 13187,
+      "sha256": "665162f0b31c40d785ba221b5875bb835cef271a7481a6aa1ade02ef1df9692c",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/capture.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5775,
+      "bytes": 5775,
+      "sha256": "a06072c30bd5146a2095c71171e052c1e36e792e7c75cbdeaf8bee8fc069a1cd",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "realsite/look.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 6942,
+      "bytes": 6942,
+      "sha256": "f71f6b8c320e676604dce4541efb308c63a283cd5e7641e67dd49682da57f652",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/trees.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 14211,
+      "bytes": 14211,
+      "sha256": "3419cacde6bd77e4ebfe9ea85dc0db3b753140ec81d92ff84496e27ad23efa49",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/backdrop.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 11730,
+      "bytes": 11730,
+      "sha256": "ae933eb56a283f6c5e817786ee1aeec2a6c6ecc36ea37cb865b8c12e5f3e782b",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/water.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 14273,
+      "bytes": 14273,
+      "sha256": "5aa404a41ac58f661c6f50e090368b4ab5b8ea44b644d03e88516bf0c60f4e2c",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "realsite/nagisa-facilities.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 40714,
+      "bytes": 40714,
+      "sha256": "aa59e340b9a7cf86fa9fe619f45d652e8dca9311637d787f16c0240bd782853e",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/sky.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5160,
+      "bytes": 5160,
+      "sha256": "4d60db57672e8ba8fa9bbbeaf7b2b3652f98494d463a6da628ce8ab5a115e5b8",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/basecamp.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 7784,
+      "bytes": 7784,
+      "sha256": "b9a6dfac928172ac2a05acc5a045599bdc63d96458df41dc0256727ab0083da5",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/export-ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 3488,
+      "bytes": 3488,
+      "sha256": "515d7b8026f2093a6eeefe2c7eace25539c02eef8a4f9ef78ef8c2d78cad60f5",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "realsite/myoden-structures.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 21667,
+      "bytes": 21667,
+      "sha256": "77b1c35f23d66b7387ebad172211f39461f8564556d8931df16f3c66124690ac",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/pixel-kit.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 6127,
+      "bytes": 6127,
+      "sha256": "a5f66189111d22ec2da759490618901bb3ca639c4d6f69f6c982337f2d5681dc",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/grass.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 4990,
+      "bytes": 4990,
+      "sha256": "b225eef9e0b423de6ffd4af20a20927668a80aa8bb1180affecb8dcfecfe26a7",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/time-of-day.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 8768,
+      "bytes": 8768,
+      "sha256": "204697493a4f404b5ef33ca6b8809b7eca6db9f120549b88f8cb1ee4f967a889",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/collision.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5042,
+      "bytes": 5042,
+      "sha256": "f7bf851b555140f0563bff75675532a2638e1d07013c757322a2a54f4e4f99ae",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/audio.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 4723,
+      "bytes": 4723,
+      "sha256": "91f65d752fda2e3a179c728c34e44ae35bf6a5e636aa9094281b3927d95042d0",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/structures.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 28234,
+      "bytes": 28234,
+      "sha256": "ece687ea91c7b593ac8b3dae311d42e82b8f2892ee473ba8e55fa970c93a7e58",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/bridge-client.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 2449,
+      "bytes": 2449,
+      "sha256": "1db72a82f59dceffaf01b60f37e41336b59b8afdc5f0442ca98167618eab0c62",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/terrain-bake.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 4406,
+      "bytes": 4406,
+      "sha256": "e2b4a245fd298c966cc3b5efeda5863d520a1a3f9d77c02c887f1ddd68fcc280",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/worker-task.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 876,
+      "bytes": 876,
+      "sha256": "2ee038699b1afd5fdf06bbb8a02867fe7c717099a92dec963b0eec3a7706a5ab",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/sun.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 7137,
+      "bytes": 7137,
+      "sha256": "8b15886be9cb168c187c5573f6bbd78c5c2e7f97a620596190596ddb7d6a7525",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "scenes/nagisa/scene.json",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 235838,
+      "bytes": 235838,
+      "sha256": "c70132d57132509cfdb7e485c241f19fe4e6581f17c2167d6ae0d6924d339f4e",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "scenes/nagisa/near_height.webp",
+      "status": 200,
+      "method": "independent-http",
+      "browserBodyBytes": 0,
+      "bytes": 29358,
+      "sha256": "e0530c4ac52c8b385176a5d19468a9e2d81a4ef058a1ff3ae2ffa858b56e4738",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "scenes/nagisa/mid_height.webp",
+      "status": 200,
+      "method": "independent-http",
+      "browserBodyBytes": 0,
+      "bytes": 312264,
+      "sha256": "f5f21ec5a1999f7f31cc305cf9e03204daf7b4a498d0e5c05de896e35dd76548",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "scenes/nagisa/ground.webp",
+      "status": 200,
+      "method": "independent-http",
+      "browserBodyBytes": 0,
+      "bytes": 10166,
+      "sha256": "727a36bb35bf7b2fb3dd5b261ba4319162065b6d1ffadd8690b828daf24490f9",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "scenes/nagisa/ground_color.webp",
+      "status": 200,
+      "method": "independent-http",
+      "browserBodyBytes": 0,
+      "bytes": 129320,
+      "sha256": "08ebc00e92d0768807c013aa6fdb285f9c03678c57e37da9beada6b204184ff2",
+      "matchesLocal": true
+    },
+    {
+      "scene": "nagisa",
+      "path": "engine/terrain-bake-worker.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 297,
+      "bytes": 297,
+      "sha256": "f85fca82487c685e8f8ea708219959dd970f3e69d7ae5a2e521688e0d2fcfaef",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "picnic.html",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 58465,
+      "bytes": 58465,
+      "sha256": "8ff4eccdf03b7e3e3237047b349f685b9f66ac27829121be6162ea1dd4361114",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/ui.css",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 9017,
+      "bytes": 9017,
+      "sha256": "c1cca6c04c892a8578008b3f5aa4d6ee95ce7d0787e8d875b6d8b4b96d2d6cae",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/pixel-kit.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 6127,
+      "bytes": 6127,
+      "sha256": "a5f66189111d22ec2da759490618901bb3ca639c4d6f69f6c982337f2d5681dc",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/export-ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 3488,
+      "bytes": 3488,
+      "sha256": "515d7b8026f2093a6eeefe2c7eace25539c02eef8a4f9ef78ef8c2d78cad60f5",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/collision.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5042,
+      "bytes": 5042,
+      "sha256": "f7bf851b555140f0563bff75675532a2638e1d07013c757322a2a54f4e4f99ae",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/season.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 10070,
+      "bytes": 10070,
+      "sha256": "dc0dee6898309924a5aec2499782bb9b637bde0fdb1da128630fd7f5cc675fda",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/capture.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5775,
+      "bytes": 5775,
+      "sha256": "a06072c30bd5146a2095c71171e052c1e36e792e7c75cbdeaf8bee8fc069a1cd",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/sky.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 5160,
+      "bytes": 5160,
+      "sha256": "4d60db57672e8ba8fa9bbbeaf7b2b3652f98494d463a6da628ce8ab5a115e5b8",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/trees.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 14211,
+      "bytes": 14211,
+      "sha256": "3419cacde6bd77e4ebfe9ea85dc0db3b753140ec81d92ff84496e27ad23efa49",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/player.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 15041,
+      "bytes": 15041,
+      "sha256": "8c6ee689c99c7995ce6c7194d2d78e546242b049557502db2e14e31d0846473a",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/picnic-set.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 13187,
+      "bytes": 13187,
+      "sha256": "665162f0b31c40d785ba221b5875bb835cef271a7481a6aa1ade02ef1df9692c",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/audio.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 4723,
+      "bytes": 4723,
+      "sha256": "91f65d752fda2e3a179c728c34e44ae35bf6a5e636aa9094281b3927d95042d0",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/pixel-renderer.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 16558,
+      "bytes": 16558,
+      "sha256": "0a2afbc78dccd2162c34938ce431957c16470a1486c36f479743d688e8346f65",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/basecamp.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 7784,
+      "bytes": 7784,
+      "sha256": "b9a6dfac928172ac2a05acc5a045599bdc63d96458df41dc0256727ab0083da5",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/water.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 14273,
+      "bytes": 14273,
+      "sha256": "5aa404a41ac58f661c6f50e090368b4ab5b8ea44b644d03e88516bf0c60f4e2c",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/time-of-day.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 8768,
+      "bytes": 8768,
+      "sha256": "204697493a4f404b5ef33ca6b8809b7eca6db9f120549b88f8cb1ee4f967a889",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 3546,
+      "bytes": 3546,
+      "sha256": "2427f62f26c5a8b33b26da7a629f4b467a69e37c1ca8d49a8ac6a17da4796372",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/sun.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 7137,
+      "bytes": 7137,
+      "sha256": "8b15886be9cb168c187c5573f6bbd78c5c2e7f97a620596190596ddb7d6a7525",
+      "matchesLocal": true
+    },
+    {
+      "scene": "picnic",
+      "path": "engine/bridge-client.js",
+      "status": 200,
+      "method": "browser-response",
+      "browserBodyBytes": 2449,
+      "bytes": 2449,
+      "sha256": "1db72a82f59dceffaf01b60f37e41336b59b8afdc5f0442ca98167618eab0c62",
+      "matchesLocal": true
+    }
+  ]
+}
