@@ -70,6 +70,7 @@
   </script>
   <script type="module">
     import * as THREE from 'three';
+    import { createGridGround } from './realsite/pony.js';
     import { mulberry32, createToon, RAMP, rampify } from './engine/pixel-kit.js';
     import { createPixelRenderer } from './engine/pixel-renderer.js';
     import { createSky } from './engine/sky.js';
@@ -265,15 +266,17 @@
     const cafeDeck = createCafeDeck({ toon, deck: FAC.cafeDeck });
     scene.add(cafeDeck.group);
     pixel.hideInNormalPass.add(cafeDeck.chain);
-    // なぎさポニーランド：白い丸い馬場（乗馬はここを周回）と、土の馬場・厩舎・放牧場・入口の門
+    // 白い円形囲いと東の乗馬スペースは別施設。寸法は写真からの推定。
     const PL = FAC.ponyLand;
+    const ponyTerrainAt = createGridGround(terrain.near.geometry,terrain.nearField,terrain.heightAt);
     const gatePos = { x: PL.gate[0], z: PL.gate[1] };
-    const ring = createPonyRing({ toon, ring: FAC.ponyRing, heightAt: terrain.heightAt, loop: LOOP, gateToward: gatePos, style: 'white' });
+    const ring = createPonyRing({ toon, ring: FAC.ponyRing, heightAt: ponyTerrainAt, loop: LOOP, gateToward: gatePos, style: 'white' });
     scene.add(ring.group);
     // 乗馬：丸い馬場の東の砂の広場を、水色のシャツの係の人がポニーを引いて回る（実際の写真）
-    const ride = createPonyRing({ toon, ring: FAC.ponyRide, heightAt: terrain.heightAt, loop: LOOP, style: 'none' });
+    const ride = createPonyRing({ toon, ring: FAC.ponyRide, heightAt: ponyTerrainAt, loop: LOOP, style: 'none' });
     scene.add(ride.group);
-    const ponyLand = createPonyLand({ toon, land: PL, heightAt: terrain.heightAt, loop: LOOP });
+    const ponyGroundAt = (x,z) => Math.max(ring.groundAt(x,z),ride.groundAt(x,z));
+    const ponyLand = createPonyLand({ toon, land: PL, heightAt: ponyGroundAt, loop: LOOP });
     scene.add(ponyLand.group);
     const goatPen = createGoatPen({ toon, pen: FAC.goatPen, heightAt: terrain.heightAt, loop: LOOP });
     scene.add(goatPen.group);
@@ -370,7 +373,7 @@
       const P = FAC.goatPen;
       collider.addRect(P.x - P.w / 2, P.z - P.d / 2, P.x + P.w / 2, P.z + P.d / 2, 'pen');
       // ポニーランドの土の馬場・放牧場・厩舎には入れない（柵）
-      for (const r of [PL.arena, PL.paddock, ...PL.stables.map(s => s.rect)]) collider.addRect(r[0], r[1], r[2], r[3], 'ponyland');
+      for (const r of [PL.arena, PL.yard, PL.paddock, ...PL.stables.map(s => s.rect)]) collider.addRect(r[0], r[1], r[2], r[3], 'ponyland');
     }
     for (const b of data.landmarks.nearBuildings ?? []) {
       const xs = b.footprint.map(p => p[0]), zs = b.footprint.map(p => p[1]);
@@ -589,7 +592,9 @@
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
     }
-    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly });
+    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly,
+      prepareVideo: () => { elapsed = 0; step(0); }
+    });
     const xNote = document.getElementById('x-note'), xBridge = document.getElementById('x-bridge');
     const recEl = document.getElementById('rec'), recTime = document.getElementById('rec-time');
     const pad = n => String(n).padStart(2, '0');

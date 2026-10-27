@@ -45,13 +45,13 @@ test('inherited URL and storage keys never become quality/season settings', () =
   assert.equal(getQuality().key, 'high'); assert.equal(getSeason('constructor').key, 'autumn');
 });
 
-function captureEnv({ constructorFails = false, startFails = false, nullPng = false } = {}) {
-  let recorder, stopped = 0, revoked = [], fixed = [], clicks = 0;
+function captureEnv({ constructorFails = false, startFails = false, nullPng = false, prepareVideo = () => {} } = {}) {
+  let recorder, stopped = 0, revoked = [], fixed = [], clicks = 0, events = [];
   globalThis.fetch = async () => { throw Error('bridge unavailable'); };
   globalThis.URL.createObjectURL = () => 'blob:test'; globalThis.URL.revokeObjectURL = u => revoked.push(u);
   globalThis.document = {
     body: { appendChild() {} },
-    createElement: kind => kind === 'canvas' ? { getContext: () => ({ drawImage() {} }), captureStream: () => ({ getTracks: () => [{ stop() { stopped++; } }] }), toBlob: f => f(nullPng ? null : new Blob(['png'], { type: 'image/png' })) } : { click() { clicks++; }, remove() {} }
+    createElement: kind => kind === 'canvas' ? { getContext: () => ({ drawImage() { events.push('copy'); } }), captureStream: () => { events.push('stream'); return { getTracks: () => [{ stop() { stopped++; } }] }; }, toBlob: f => f(nullPng ? null : new Blob(['png'], { type: 'image/png' })) } : { click() { clicks++; }, remove() {} }
   };
   globalThis.MediaRecorder = class {
     static isTypeSupported(m) { return m === 'video/webm'; }
@@ -59,9 +59,19 @@ function captureEnv({ constructorFails = false, startFails = false, nullPng = fa
     start() { if (startFails) throw Error('start failed'); this.state = 'recording'; }
     stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['webm']) }); this.onstop?.(); }
   };
-  const capture = createCapture({ canvas: {}, pixel: { setFixedSize: s => fixed.push(s) }, renderOnce() {} });
-  return { capture, fixed, revoked, get stopped() { return stopped; }, get recorder() { return recorder; }, get clicks() { return clicks; } };
+  const capture = createCapture({ canvas: {}, pixel: { setFixedSize: s => fixed.push(s) }, prepareVideo: () => { events.push('prepare'); prepareVideo(); }, renderOnce() { events.push('render'); } });
+  return { capture, fixed, revoked, events, get stopped() { return stopped; }, get recorder() { return recorder; }, get clicks() { return clicks; } };
 }
+test('video first frame is prepared and copied before captureStream, even after PNG',async()=>{
+  const e=captureEnv();const png=await e.capture.png('previous');png.dispose();e.events.length=0;
+  const video=e.capture.startVideo({duration:6,filename:'loop'});
+  assert.deepEqual(e.events.slice(0,4),['prepare','render','copy','stream']);e.capture.stopVideo();(await video).dispose();
+});
+test('failed first-pose preparation releases fixed size without starting a stream',async()=>{
+  const e=captureEnv({prepareVideo(){throw Error('pose failed');}});
+  await assert.rejects(e.capture.startVideo({duration:6,filename:'loop'}),/pose failed/);
+  assert.equal(e.capture.state,'idle');assert.equal(e.fixed.at(-1),null);assert.ok(!e.events.includes('stream'));
+});
 test('capture releases state/resolution/tracks on constructor and start failures', async () => {
   for (const options of [{ constructorFails: true }, { startFails: true }]) {
     const e = captureEnv(options);

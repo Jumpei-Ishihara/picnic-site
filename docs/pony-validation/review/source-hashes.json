@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-27T06:42:04.798Z",
+  "files": {
+    "realsite/pony.js": "c299d9cc68664e1c61f11bee55f915f8a68c78dd528da5209e49748005edbb49",
+    "realsite/nagisa-facilities.js": "8b59457bcad2291ffd988f9cb07dcbb53c6a863a3603a4a0bbf80ef17e549d13",
+    "nagisa.html": "c7504a6385c72884e79b618494339b2631e1219ccd1893752ea99f151d454135",
+    "engine/capture.js": "63518f1bb6de776b309f40d0b61ff42e84fcfeeece91c504a56191efdf9fa4ae",
+    "scenes/nagisa/scene.json": "6afd489520285c3d0d8e742240adfb331c04ac07bb61a2a0174fe152fe7efdd0",
+    "tests/pony.test.mjs": "c398ce3733afce07d2dc564bf46c5e69d8594baddcad43569e48b59c2318a414",
+    "tests/engine.test.mjs": "f5e35aa1f59e3241ed81df133f65ec5730e56a90e07f911392b0698c2ef58808",
+    "tools/verify-pony.cjs": "ed3bead2c1ab3f41e6a3858444480262f480afadf69343fed611d58babd3a163",
+    "tools/verify-pony-export.cjs": "17f4a8d3eb66bba8aa04496951a8a09abe3a63320fd267f72ea5c810c4f3768f",
+    "tools/verify-pony-impact.cjs": "af33fdd46304c36f2cca376e4edfe99a516b50ab35ae753a2a5e44bc22acdbba",
+    "tools/analyze-pony-video.cjs": "905054a8b66107bb99dfdd8c051531f12a8e5eac369027b2d0cd63b7f9d31f9b"
+  }
+}

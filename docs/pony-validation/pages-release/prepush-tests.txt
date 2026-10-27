@@ -1,0 +1,76 @@
+✔ rejects unauthorized origins, hosts, sessions and GET writes (34.45825ms)
+✔ checks names, modes, media type and JSON (15.262667ms)
+✔ publishes unique names and never overwrites existing files or symlinks (6.952917ms)
+✔ limits declared and chunked uploads and cleans up (34.771666ms)
+✔ encoder failure does not publish an mp4 (64.171208ms)
+✔ busy jobs preserve health responsiveness and time out cleanly (407.703708ms)
+✔ real ffmpeg conversion produces a playable H.264 MP4 (174.398834ms)
+✔ abandoned and stalled uploads release the lock and temporary files (167.207167ms)
+✔ rejects stale sessions and failed media parsing without publishing (56.690417ms)
+✔ timeout during publication rolls back the late final file and releases the lock (96.939625ms)
+✔ disconnect during publication removes the published file (15.48175ms)
+✔ disconnect during cleanup removes the published file (16.155083ms)
+✔ EACCES during mkdtemp returns failure without publishing and permits retry (3.412583ms)
+✔ ENOTSUP during link returns failure without publishing and permits retry (3.311083ms)
+✔ EIO during link returns failure without publishing and permits retry (4.082542ms)
+✔ ENOSPC after a partial write closes the file, removes temporary content and permits retry (3.221916ms)
+✔ real directory permission loss fails safely and works after permission restoration (2.947334ms)
+✔ output size monitor stops a growing job without publishing (105.387833ms)
+✔ POSIX timeout kills both rendering job and its encoder descendant (818.252042ms)
+(node:82647) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ishiharajunpei/picnic-site/engine/capture.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ishiharajunpei/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Worker constructor/postMessage/runtime/timeout failures each fall back once (6.503791ms)
+✔ inherited URL and storage keys never become quality/season settings (0.313583ms)
+✔ video first frame is prepared and copied before captureStream, even after PNG (1.562625ms)
+✔ failed first-pose preparation releases fixed size without starting a stream (0.159625ms)
+✔ capture releases state/resolution/tracks on constructor and start failures (0.259416ms)
+✔ recording errors settle once and recording can be retried (0.190917ms)
+✔ null PNG restores state and resolution (0.071208ms)
+✔ bridge retries only rejected authentication, never an uncertain upload (0.131167ms)
+✔ shared export UI restores pre-recording state after failure and owns only latest result (1.004209ms)
+✔ failed Worker rows produce exactly the same terrain pixels as a full bake (2.969042ms)
+✔ converted bridge results retain native extension for the Blob retry link (0.241583ms)
+✔ availability probes health after cached authentication and clears stale tokens (0.196916ms)
+✔ startup error removes the start overlay and provides a visible working retry (0.606792ms)
+✔ legacy status distinguishes confirmed, failed and uncertain results and rejects stale completion (0.42675ms)
+(node:82648) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ishiharajunpei/picnic-site/engine/legacy-export.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ishiharajunpei/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ pixelart_2d reports real bridge outcomes and preserves native WebM download (4.466833ms)
+✔ picnic_3d reports real bridge outcomes and preserves native WebM download (1.937208ms)
+✔ leaf shadow uses target-relative light, periodic time, and a finite fallback direction (3.773916ms)
+✔ shared leaf shader injects its own world position without erasing the material colour hook (1.395583ms)
+✔ classic look preserves low-sun glow without a second horizon fade (1.222166ms)
+✔ picnic preserves original sunset glow, daylight shafts and moonlit atmosphere (1.056459ms)
+(node:82650) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ishiharajunpei/picnic-site/realsite/pony.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ishiharajunpei/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ walk contacts are a four beat RH RF LH LF sequence (0.920292ms)
+✔ stance hooves stay fixed in world space and swing clears terrain (0.166ms)
+✔ two-link IK keeps segment lengths, clamps extremes and remains finite (0.215625ms)
+✔ real rig hoof bottoms meet target terrain throughout circular walking (11.0405ms)
+✔ 6 second permutation preserves every spatial pony and foot target (0.221833ms)
+✔ fenceless riding creates neither inner rails nor central shelter (4.142375ms)
+✔ grazing moves a connected neck hierarchy and fixed roots loop (1.058709ms)
+✔ planted hooves meet the rendered raised track, independently raycast (17.69825ms)
+✔ lead attaches to the visible hand at the arm end on the pony side (1.359542ms)
+✔ pinto markings follow the barrel and the white waiting pony stays white (3.417417ms)
+✔ idle feet avoid repeated IK and GPU uploads but invalidate after movement and walking (0.601292ms)
+✔ terrain contact follows the indexed diagonal instead of bilinear height (0.201667ms)
+✔ grass skips stationary placement work and uploads but continues wind time (4.56325ms)
+✔ touch joystick exposes actual movement independently from autowalk (2.34775ms)
+✔ stroll wheel input is ignored while frozen or input-disabled, and works after restoration (1.030417ms)
+✔ picnic keyboard blocks scene actions while capturing but permits recording stop (0.876416ms)
+✔ terrain readiness rejects to its late consumer without an unhandled rejection (56.072708ms)
+ℹ tests 56
+ℹ suites 0
+ℹ pass 56
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2075.84475

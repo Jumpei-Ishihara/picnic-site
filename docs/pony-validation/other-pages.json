@@ -1,0 +1,35 @@
+[
+  {
+    "name": "picnic",
+    "soft": 0,
+    "glError": 0,
+    "png": {
+      "width": 1280,
+      "height": 720
+    },
+    "video": {
+      "mime": "video/mp4",
+      "bytes": 7973099
+    },
+    "state": "idle",
+    "errors": []
+  },
+  {
+    "name": "edogawa",
+    "soft": 0,
+    "glError": 0,
+    "errors": []
+  },
+  {
+    "name": "myoden",
+    "soft": 0,
+    "glError": 0,
+    "errors": []
+  },
+  {
+    "name": "myoden-far",
+    "soft": 0,
+    "glError": 0,
+    "errors": []
+  }
+]

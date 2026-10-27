@@ -1,0 +1,131 @@
+{
+  "variant": "before",
+  "date": "2026-10-27T06:01:16.754Z",
+  "browser": "Chrome/156.0.8078.48",
+  "cases": [
+    {
+      "view": "pony",
+      "hour": 10.75,
+      "camera": [
+        -153.5,
+        1.3100000083446504,
+        -34
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 1863,
+        "mean": 0.5949696180555556
+      },
+      "seam": {
+        "changed": 337,
+        "mean": 0.07985677083333333
+      },
+      "ordinary": {
+        "changed": 309,
+        "mean": 0.056002604166666664
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 176,
+        "calls": 1726,
+        "triangles": 4869340,
+        "points": 414,
+        "lines": 4218
+      },
+      "frameMs": {
+        "median": 4.600000023841858,
+        "p95": 5.599999964237213
+      },
+      "glError": 0
+    },
+    {
+      "view": "close",
+      "hour": 10.75,
+      "camera": [
+        -148.5,
+        1.3199999988079072,
+        -42
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 18046,
+        "mean": 6.0295225694444445
+      },
+      "seam": {
+        "changed": 3490,
+        "mean": 0.7510069444444445
+      },
+      "ordinary": {
+        "changed": 4660,
+        "mean": 0.9823654513888889
+      },
+      "modelEndpoint": {
+        "changed": 37,
+        "mean": 0.004240451388888889
+      },
+      "render": {
+        "frame": 732,
+        "calls": 1633,
+        "triangles": 4837276,
+        "points": 414,
+        "lines": 4218
+      },
+      "frameMs": {
+        "median": 3.699999988079071,
+        "p95": 4.100000023841858
+      },
+      "glError": 0
+    },
+    {
+      "view": "sunset",
+      "hour": 16.85,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 2051,
+        "mean": 0.2005078125
+      },
+      "seam": {
+        "changed": 113,
+        "mean": 0.009097222222222222
+      },
+      "ordinary": {
+        "changed": 108,
+        "mean": 0.007790798611111111
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 1288,
+        "calls": 2204,
+        "triangles": 5028118,
+        "points": 366,
+        "lines": 4914
+      },
+      "frameMs": {
+        "median": 3.900000035762787,
+        "p95": 4.5
+      },
+      "glError": 0
+    }
+  ],
+  "errors": []
+}

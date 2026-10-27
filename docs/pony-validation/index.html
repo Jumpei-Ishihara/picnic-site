@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>なぎさポニーランド 改修比較と検証</title>
+<style>body{font:16px/1.7 system-ui,sans-serif;margin:auto;padding:28px;max-width:1280px;color:#eee;background:#18231e}h1{font-size:26px}h2{margin-top:2em}a{color:#b7dfbf}.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:0}img,video{display:block;width:100%;height:auto;border-radius:6px;background:#111}figcaption{padding:8px 0;color:#d3dcd5}p{max-width:90ch}.motion{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}@media(max-width:700px){.pair,.motion{grid-template-columns:1fr}body{padding:16px}}</style>
+<h1>なぎさポニーランド：改修前後と検証証跡</h1>
+<p><strong>最新：</strong><a href="review/index.html">再レビューで見つかった問題の修正・再検証</a>。以下の画像と測定値は初回改修時の履歴です。</p>
+<p>2026-10-27。施設の不要な内柵を除去し、ポニーの輪郭・4拍子の歩行・接地・手綱を改修。施設の寸法は推定です。6秒・12秒ループを維持するため、周回3頭は同じ外観です。</p>
+<p><a href="../PONY_PLAN.md">改修方針</a> / <a href="../PONY_DESIGN.md">詳細設計・測定値・未検証事項</a> / <a href="../../nagisa.html">なぎさページ</a></p>
+<h2>通常のポニー視点（10:45）</h2><div class="pair">
+<figure><img src="before-pony.png" alt="改修前。中央に内柵、箱形のポニー"><figcaption>改修前：26cb304。比較に使うソースをGitから取得して同条件で描画。</figcaption></figure>
+<figure><img src="after-pony.png" alt="改修後。内柵を除去し輪郭を改善"><figcaption>改修後：不要な内柵を除去。形状・接地・乗り台を改善。</figcaption></figure></div>
+<h2>形状の確認用接写（比較用カメラ、10:45）</h2><div class="pair">
+<figure><img src="before-close.png" alt="改修前の接写"><figcaption>改修前</figcaption></figure><figure><img src="after-close.png" alt="改修後の接写"><figcaption>改修後：胸・腰・首・耳・口吻・蹄。接写は確認専用で、通常の視点は変更していません。</figcaption></figure></div>
+<h2>歩行の位相（14:00）</h2><div class="motion">
+<figure><img src="walk-0.png" alt="歩行0秒"><figcaption>0秒</figcaption></figure><figure><img src="walk-0.1875.png" alt="歩行0.1875秒"><figcaption>0.1875秒</figcaption></figure><figure><img src="walk-0.375.png" alt="歩行0.375秒"><figcaption>0.375秒</figcaption></figure><figure><img src="walk-0.5625.png" alt="歩行0.5625秒"><figcaption>0.5625秒</figcaption></figure></div>
+<h2>実際に保存した動画（10:45）</h2>
+<p>ブラウザーの保存UIから生成したH.264 MP4です。ループ再生で継ぎ目を確認できます。圧縮と実時間のフレーム採取を含むため、先頭・末尾フレームの画素は一致しません。0秒と6秒の元の描画は一致しています。</p>
+<div class="pair"><figure><video src="pony-6s.mp4" controls loop muted playsinline preload="metadata"></video><figcaption>6秒保存 <a href="pony-6s.mp4" download>ダウンロード</a></figcaption></figure><figure><video src="pony-12s.mp4" controls loop muted playsinline preload="metadata"></video><figcaption>12秒保存 <a href="pony-12s.mp4" download>ダウンロード</a></figcaption></figure></div>
+<h2>6秒動画の先頭・末尾</h2><div class="pair"><figure><img src="6s-first.png" alt="保存した6秒動画の最初のフレーム"><figcaption>最初のフレーム</figcaption></figure><figure><img src="6s-last.png" alt="保存した6秒動画の最後のフレーム"><figcaption>最後のフレーム（0秒より約1フレーム前の姿勢）</figcaption></figure></div>
+<h2>夕景の回帰確認（16:51）</h2><div class="pair"><figure><img src="before-sunset.png" alt="改修前の夕景"><figcaption>改修前</figcaption></figure><figure><img src="after-sunset.png" alt="改修後の夕景"><figcaption>改修後。比較PNGはファイルのバイト単位でも一致。</figcaption></figure></div>
+<h2>測定データ</h2><p><a href="before.json">改修前描画</a> / <a href="after.json">改修後描画・実地形の接地</a> / <a href="exports.json">実保存・先頭姿勢</a> / <a href="video-seams.json">動画のフレーム解析</a> / <a href="other-pages.json">他ページの回帰確認</a> / <a href="tests.txt">全回帰テスト</a></p>
+</html>

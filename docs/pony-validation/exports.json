@@ -1,0 +1,110 @@
+{
+  "date": "2026-10-27T06:09:41.462Z",
+  "browser": "Chrome/156.0.8078.48",
+  "downloads": [
+    {
+      "filename": "pony-export.png",
+      "bytes": 126037,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "png",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "25/1"
+          }
+        ],
+        "format": {}
+      }
+    },
+    {
+      "filename": "pony-6s.mp4",
+      "bytes": 3012098,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "6.023267"
+        }
+      }
+    },
+    {
+      "filename": "pony-12s.mp4",
+      "bytes": 4685973,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "12.007033"
+        }
+      }
+    }
+  ],
+  "restored": {
+    "state": "idle",
+    "auto": false,
+    "size": {
+      "width": 426,
+      "height": 240
+    }
+  },
+  "firstPoseSeeds": [
+    {
+      "positions": [
+        [
+          -144.2,
+          -0.27900000214576726,
+          -48.5
+        ],
+        [
+          -150.65,
+          -0.24573908890922402,
+          -44.77609076372691
+        ],
+        [
+          -150.65,
+          -0.19854459216371445,
+          -52.22390923627309
+        ]
+      ]
+    },
+    {
+      "positions": [
+        [
+          -144.2,
+          -0.27900000214576726,
+          -48.5
+        ],
+        [
+          -150.65,
+          -0.24573908890922402,
+          -44.77609076372691
+        ],
+        [
+          -150.65,
+          -0.19854459216371445,
+          -52.22390923627309
+        ]
+      ]
+    }
+  ],
+  "errors": []
+}

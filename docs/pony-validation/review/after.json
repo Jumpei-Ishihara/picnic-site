@@ -1,0 +1,168 @@
+{
+  "variant": "after",
+  "date": "2026-10-27T06:38:05.419Z",
+  "browser": "Chrome/156.0.8078.48",
+  "cases": [
+    {
+      "view": "pony",
+      "hour": 10.75,
+      "camera": [
+        -153.5,
+        1.3100000083446504,
+        -34
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "endpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 1806,
+        "mean": 0.49082899305555555
+      },
+      "seam": {
+        "changed": 389,
+        "mean": 0.08484809027777777
+      },
+      "ordinary": {
+        "changed": 339,
+        "mean": 0.07027777777777777
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "modelEndpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 190,
+        "calls": 1726,
+        "triangles": 4888320,
+        "points": 414,
+        "lines": 4242
+      },
+      "frameMs": {
+        "median": 5,
+        "p95": 5.899999976158142
+      },
+      "glError": 0
+    },
+    {
+      "view": "close",
+      "hour": 10.75,
+      "camera": [
+        -148.5,
+        1.3199999988079072,
+        -42
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "endpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 18937,
+        "mean": 6.103663194444445
+      },
+      "seam": {
+        "changed": 4180,
+        "mean": 0.919921875
+      },
+      "ordinary": {
+        "changed": 5766,
+        "mean": 1.3489973958333332
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "modelEndpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 760,
+        "calls": 1637,
+        "triangles": 4849788,
+        "points": 414,
+        "lines": 4242
+      },
+      "frameMs": {
+        "median": 4.199999988079071,
+        "p95": 4.900000035762787
+      },
+      "glError": 0
+    },
+    {
+      "view": "sunset",
+      "hour": 16.85,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "endpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 2051,
+        "mean": 0.2005078125
+      },
+      "seam": {
+        "changed": 113,
+        "mean": 0.009097222222222222
+      },
+      "ordinary": {
+        "changed": 108,
+        "mean": 0.007790798611111111
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "modelEndpoint12": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 1330,
+        "calls": 2199,
+        "triangles": 5031986,
+        "points": 366,
+        "lines": 4914
+      },
+      "frameMs": {
+        "median": 3.900000035762787,
+        "p95": 4.400000035762787
+      },
+      "glError": 0
+    }
+  ],
+  "contact": {
+    "samples": 4320,
+    "maxHoofTargetErrorMeters": 6.35528803840043e-14,
+    "supportSamples": 2784,
+    "maxRenderedSupportErrorMeters": 3.552713678800501e-15,
+    "oldTerrainOnlyMaxPenetrationMeters": 0.042549340764603844,
+    "idleSamples": 28,
+    "maxIdleRenderedSupportErrorMeters": 4.551914400963142e-15,
+    "clamped": 0,
+    "minWaitingCenterDistanceMeters": 3.8394441817168956,
+    "minYardCenterClearanceMeters": 3.1999999999999886
+  },
+  "errors": [],
+  "shaderErrors": []
+}

@@ -1,7 +1,7 @@
 // PNG / native-format recording. The bridge optionally converts video to H.264.
 import { bridgeClient } from './bridge-client.js';
 
-export function createCapture({ canvas, pixel, renderOnce, source = { width: 320, height: 180 }, scale = 4, bitrate = 12_000_000 }) {
+export function createCapture({ canvas, pixel, renderOnce, prepareVideo = () => {}, source = { width: 320, height: 180 }, scale = 4, bitrate = 12_000_000 }) {
   const out = document.createElement('canvas');
   out.width = source.width * scale; out.height = source.height * scale;
   const ctx = out.getContext('2d', { alpha: false });
@@ -62,6 +62,9 @@ export function createCapture({ canvas, pixel, renderOnce, source = { width: 320
         const mime = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
         if (!mime) throw Error('対応する動画形式がありません');
         r.fixed = true; pixel.setFixedSize(source);
+        // captureStream can emit the existing canvas immediately. Seed it with
+        // the prepared first pose rather than a stale PNG or previous recording.
+        prepareVideo(); renderOnce(); copyFrame();
         r.stream = out.captureStream(60);
         r.recorder = new MediaRecorder(r.stream, { mimeType: mime, videoBitsPerSecond: bitrate });
         r.recorder.ondataavailable = e => {

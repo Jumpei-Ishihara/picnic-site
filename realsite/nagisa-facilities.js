@@ -1,8 +1,9 @@
 // なぎさ公園の施設：魔法の文学館（カフェ・キキ）、なぎさポニーランド（柵の中を周回するポニー）、ヤギのふれあいコーナー
 // 形と位置は scene.json の facilities（OSM・空中写真・公式の案内から。docs/NAGISA_DESIGN.md 7 章）
-// 動くもの（ポニー・人・ヤギ）はループ周期で元に戻る：ポニーは 5 頭が等間隔で、6 秒でちょうど 1 頭分進む
+// 周回ポニーは同じ姿で等間隔。6秒で1頭分進み、風景としてつながる。
 import * as THREE from 'three';
 import { GeoBuilder } from '../engine/structures.js';
+import { createPony, sampleWalk, createTrackGround } from './pony.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -168,9 +169,10 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
   trackMesh.position.set(cx, y0, cz);
   trackMesh.receiveShadow = true;
   group.add(trackMesh);
+  const groundAt = createTrackGround(trackMesh,heightAt);
   // 外の柵：門（幅 2.4 m）を gateToward の方に開ける
   const gateA = gateToward ? Math.atan2(gateToward.z - cz, gateToward.x - cx) : Math.PI / 2;
-  const gateHalf = 1.2 / fenceR;
+  const gateHalf = fenceR > 0 ? 1.2 / fenceR : 0;
   const angDiff = a => Math.abs(Math.atan2(Math.sin(a - gateA), Math.cos(a - gateA)));
   const fence = new GeoBuilder(), inner = new GeoBuilder();
   const P = (a, r, y) => { const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; return V(x, heightAt(x, z) + y, z); };
@@ -195,69 +197,82 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
     for (const y of [0.15, 1.3]) fence.beam(P(a, fenceR, y), P(a1, fenceR, y), 0.06, 0.06); // 上下の横桟
   }
   // 内側の低い柵（走路の内縁）と、中央の柱と八角の小屋根
-  const nIn = rIn >= 2.5 ? 24 : 0; // 小さな丸い馬場には内側の柵・中央の柱は無い
+  const nIn = style !== 'none' && rIn >= 2.5 ? 24 : 0;
   for (let i = 0; i < nIn; i++) {
     const a = i / nIn * Math.PI * 2, a1 = (i + 1) / nIn * Math.PI * 2;
     inner.beam(P(a, rIn - 0.1, 0), P(a, rIn - 0.1, 0.8), 0.08, 0.08);
     inner.beam(P(a, rIn - 0.1, 0.8), P(a1, rIn - 0.1, 0.8), 0.06, 0.06);
   }
-  if (centerR > 0) inner.beam(V(cx, y0, cz), V(cx, y0 + 2.8, cz), 0.25, 0.25);
+  const hasCenter = style !== 'none' && centerR > 0;
+  if (hasCenter) inner.beam(V(cx, y0, cz), V(cx, y0 + 2.8, cz), 0.25, 0.25);
   const parts = [];
   if (!fence.empty) parts.push(new THREE.Mesh(fence.build(), toon({ color: style === 'white' ? '#f2f2ee' : '#3f6a4a' })));
-  if (nIn || centerR > 0) parts.push(new THREE.Mesh(inner.build(), toon({ color: '#8a6a4a' })));
-  if (centerR > 0) {
+  if (nIn || hasCenter) parts.push(new THREE.Mesh(inner.build(), toon({ color: '#8a6a4a' })));
+  if (hasCenter) {
     const roof = new THREE.Mesh(new THREE.ConeGeometry(centerR + 0.4, 0.9, 8), toon({ color: '#e0b84a' }));
     roof.position.set(cx, y0 + 3.2, cz);
     parts.push(roof);
   }
   for (const m of parts) { m.castShadow = true; m.receiveShadow = true; group.add(m); }
 
-  // ポニー 5 頭（同じ姿）：引く人と、乗る子ども。反時計回り（上から見て）
+  // 周回個体は同じ姿。6秒後の置換でも鞍・歩行・尾・手綱が連続する。
   const N = ring.ponies ?? 5;
   const rTrack = (rIn + rOut) / 2;
   const units = [];
   for (let i = 0; i < N; i++) {
     const [coat, mane] = ring.coat ?? ['#8a5a3a', '#3a2a20'];
-    const pony = makeQuadruped(toon, { len: 1.35, h: 1.05, color: coat, mane, saddle: '#b8463f' });
+    const pony = createPony(toon, { color: coat, mane, saddle: '#b8463f' });
     const handler = makePerson(toon, { height: 1.65, shirt: ring.handler?.shirt ?? '#2f5a3a', pants: '#3a4a6a', hat: ring.handler?.hat ?? '#2f5a3a' });
     const rider = makePerson(toon, { height: 1.15, shirt: '#f2c94c', pants: '#3a5a8a', hat: '#f4f4f2', seated: true });
     rider.group.position.y = pony.saddleY - 0.62;
     pony.group.add(rider.group);
     group.add(pony.group, handler.group);
-    units.push({ pony, handler, rider });
+    const ropeGeo = new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
+    const rope = new THREE.Line(ropeGeo,new THREE.LineBasicMaterial({color:'#6a4935'}));
+    rope.frustumCulled=false;group.add(rope);
+    // Relaxed leading arm, with its end near the hand attachment.
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.11,.42,.12),handler.group.children[2].material);
+    arm.position.set(-.19,1.14,-.12);arm.rotation.x=.45;arm.castShadow=true;handler.group.add(arm);
+    const hand=new THREE.Mesh(new THREE.BoxGeometry(.12,.10,.13),handler.group.children[3].material);
+    hand.position.set(0,-.21,0);hand.castShadow=true;arm.add(hand);
+    units.push({ pony, handler, rider, hand, rope });
   }
   const W0 = Math.PI * 2 / loop;
-  const omega = Math.PI * 2 / N / loop; // 6 秒で 1 頭分（約 1.6 m/s の並足）
+  const route = {x:cx,z:cz,radius:rTrack,count:N,loop};
+  const lead = new THREE.Vector3(),handPos = new THREE.Vector3();
   return {
-    group, units, rTrack,
+    group, units, rTrack, route, groundAt, trackMesh, fenceParts:parts,
     /**
      * @param {number} t      ループで折り返した時刻
      * @param {boolean} riding 乗馬の時間か（それ以外は輪の上に止まって休む）
      */
     update(t, riding) {
-      const a0 = riding ? t * omega : 0;
       for (let i = 0; i < N; i++) {
         const u = units[i];
-        const a = i / N * Math.PI * 2 + a0;
-        const x = cx + Math.cos(a) * rTrack, z = cz + Math.sin(a) * rTrack;
+        const motion = sampleWalk(riding?t:0,i,route,groundAt);
+        const {angle:a,x,z,yaw} = motion;
         // 進む向き（反時計回り＝角度が増える向き）の接線。組の -z が頭
-        const tx = -Math.sin(a), tz = Math.cos(a);
-        const yaw = Math.atan2(-tx, -tz);
-        u.pony.group.position.set(x, heightAt(x, z), z);
+        u.pony.group.position.set(x, motion.y, z);
         u.pony.group.rotation.y = yaw;
         // 引く人：ポニーの内側（輪の中心より）・頭の横
-        const hx = cx + Math.cos(a + 0.06) * (rTrack - 0.8), hz = cz + Math.sin(a + 0.06) * (rTrack - 0.8);
-        u.handler.group.position.set(hx, heightAt(hx, hz), hz);
+        const hx = cx + Math.cos(a + 0.16) * (rTrack - 0.75), hz = cz + Math.sin(a + 0.16) * (rTrack - 0.75);
+        u.handler.group.position.set(hx, groundAt(hx, hz), hz);
         u.handler.group.rotation.y = yaw;
         u.rider.group.visible = riding;
         u.handler.group.visible = riding;
-        // 歩き：脚を振る（6 秒に 8 歩）、首を上下、乗る子どもが揺れる
+        u.rope.visible = riding;
+        // 4拍子の常歩。接地は時間から求めた世界座標へ拘束する。
         const s = riding ? Math.sin(t * W0 * 8) : 0;
-        u.pony.legs.forEach((l, k) => { l.rotation.x = (k === 0 || k === 3 ? s : -s) * 0.35; });
-        u.pony.head.position.y = u.pony.saddleY + 0.28 + (riding ? Math.abs(Math.sin(t * W0 * 8)) * 0.04 : Math.sin(t * W0) * 0.02);
-        u.pony.tail.rotation.z = Math.sin(t * W0 * 2 + i) * 0.15;
-        u.rider.group.position.y = u.pony.saddleY - 0.62 + Math.abs(s) * 0.03;
+        if(riding){u.clamped=u.pony.setFeet(motion.feet);u.pony.neck.position.y=.95;u.pony.neck.rotation.x=-.30+s*.025;}
+        else u.pony.idle(t,{heightAt:groundAt,loop});
+        u.pony.tail.rotation.z = Math.sin(t * W0 * 2 + a) * 0.13;
+        u.rider.group.position.y = u.pony.saddleY - 0.62 + s * 0.008;
         u.handler.legs.forEach((l, k) => { l.rotation.x = (k ? s : -s) * 0.45; });
+        u.pony.group.updateWorldMatrix(true,true);u.handler.group.updateWorldMatrix(true,true);
+        u.pony.leadPoint.getWorldPosition(lead);u.hand.getWorldPosition(handPos);
+        group.worldToLocal(lead);group.worldToLocal(handPos);
+        const pos=u.rope.geometry.attributes.position;
+        pos.setXYZ(0,lead.x,lead.y,lead.z);pos.setXYZ(1,(lead.x+handPos.x)/2,(lead.y+handPos.y)/2-.08,(lead.z+handPos.z)/2);pos.setXYZ(2,handPos.x,handPos.y,handPos.z);pos.needsUpdate=true;
       }
     }
   };
@@ -436,7 +451,6 @@ export function createAzaleas({ toon, clumps, heightAt, seed = 9 }) {
 // ---------------------------------------------------------------------------
 export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
   const group = new THREE.Group();
-  const W0 = Math.PI * 2 / loop;
   const white = new GeoBuilder(), brown = new GeoBuilder();
   const H = (x, z) => heightAt(x, z);
   // 四角い範囲の縁に柵（rails の高さ、posts の間隔）
@@ -497,9 +511,9 @@ export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
   // 乗り台（ポニーに乗るための段。緑と木の色）
   if (land.mountBlock) {
     const [mx, mz] = land.mountBlock, my = H(mx, mz);
-    const step1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 1.2).translate(mx, my + 0.22, mz), toon({ color: '#4a9a7a' }));
-    const step2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.2).translate(mx - 0.3, my + 0.45, mz), toon({ color: '#b89a6a' }));
-    for (const m of [step1, step2]) { m.castShadow = m.receiveShadow = true; group.add(m); }
+    const steps=new GeoBuilder();
+    for(let i=0;i<3;i++)steps.box(V(mx,my+(i+1)*.15,mz-i*.2),1.6,(i+1)*.30,1.2-i*.4);
+    const m=new THREE.Mesh(steps.build(),toon({color:'#76ad79'}));m.castShadow=m.receiveShadow=true;group.add(m);
   }
   // 入口の門：白い柱 2 本と、上に看板（白地に桃色の文字の帯）
   {
@@ -518,14 +532,14 @@ export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
   const coats = [['#e8d8b0', '#f4ecd8'], ['#f2efe8', '#6a4030'], ['#7a4a2a', '#2a1a14'], ['#c8c4bc', '#8a8680']];
   land.grazing.forEach(([x, z, yaw], i) => {
     const [body, mane] = coats[i % coats.length];
-    const p = makeQuadruped(toon, { len: 1.3, h: 1.0, color: body, mane, saddle: null });
+    const p = createPony(toon, { len: 1.3, h: 1.0, color: body, mane, patch:i===1?'#79513b':null });
     p.group.position.set(x, H(x, z), z); p.group.rotation.y = yaw;
     group.add(p.group);
     grazers.push({ p, ph: i * 1.7 });
   });
   // 止まっているポニー（乗り台の栗毛、順番を待つぶち、丸い馬場の白いポニー）と、そばに立つ係の人（水色のシャツ）
   for (const [x, z, yaw, body, mane] of land.waiting ?? []) {
-    const p = makeQuadruped(toon, { len: 1.35, h: 1.05, color: body, mane, saddle: '#b8463f' });
+    const p = createPony(toon, { color: body, mane, saddle: '#b8463f',patch:body==='#f2efe8'&&mane==='#6a4030'?'#79513b':null });
     p.group.position.set(x, H(x, z), z); p.group.rotation.y = yaw;
     const staff = makePerson(toon, { height: 1.65, shirt: '#8ec4e0', pants: '#3a4a6a', hat: '#f4f4f0' });
     const sx = x + Math.cos(yaw) * 0.9, sz = z - Math.sin(yaw) * 0.9;
@@ -534,12 +548,10 @@ export function createPonyLand({ toon, land, heightAt, loop = 6 }) {
     grazers.push({ p, ph: x * 0.3, idle: true });
   }
   return {
-    group,
+    group, grazers,
     update(t) {
       for (const g of grazers) {
-        if (g.idle) { g.p.tail.rotation.z = Math.sin(t * W0 * 2 + g.ph) * 0.2; g.p.head.position.y = g.p.saddleY + 0.28 + Math.sin(t * W0 + g.ph) * 0.03; continue; }
-        g.p.head.position.y = g.p.saddleY - 0.15 + Math.sin(t * W0 + g.ph) * 0.06; // 首を下げて草を食む
-        g.p.tail.rotation.z = Math.sin(t * W0 * 2 + g.ph) * 0.2;
+        g.p.idle(t,{heightAt,grazing:!g.idle,phase:g.ph,loop});
       }
     }
   };

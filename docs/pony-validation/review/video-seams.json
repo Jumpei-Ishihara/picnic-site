@@ -1,0 +1,24 @@
+[
+  {
+    "file": "pony-6s.mp4",
+    "frames": 298,
+    "firstPTS": 0,
+    "lastPTS": 5.970333,
+    "wrapMeanAbsRGB": 2.5313773148148146,
+    "adjacentMeanAbsRGBP95": 0.3289814814814815,
+    "ponyROIWrap": 5.452,
+    "ponyROIAdjacentP95": 2.998666666666667,
+    "maxFrameIntervalSeconds": 0.048832999999999994
+  },
+  {
+    "file": "pony-12s.mp4",
+    "frames": 593,
+    "firstPTS": 0,
+    "lastPTS": 11.953833,
+    "wrapMeanAbsRGB": 2.5960127314814816,
+    "adjacentMeanAbsRGBP95": 0.32362847222222224,
+    "ponyROIWrap": 6.238539682539683,
+    "ponyROIAdjacentP95": 3.235365079365079,
+    "maxFrameIntervalSeconds": 0.0406
+  }
+]

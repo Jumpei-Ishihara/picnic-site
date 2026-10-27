@@ -1,0 +1,138 @@
+{
+  "variant": "after",
+  "date": "2026-10-27T06:05:06.835Z",
+  "browser": "Chrome/156.0.8078.48",
+  "cases": [
+    {
+      "view": "pony",
+      "hour": 10.75,
+      "camera": [
+        -153.5,
+        1.3100000083446504,
+        -34
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 1754,
+        "mean": 0.46759982638888886
+      },
+      "seam": {
+        "changed": 353,
+        "mean": 0.07894965277777778
+      },
+      "ordinary": {
+        "changed": 327,
+        "mean": 0.07296875
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 176,
+        "calls": 1712,
+        "triangles": 4887540,
+        "points": 414,
+        "lines": 4242
+      },
+      "frameMs": {
+        "median": 4.800000011920929,
+        "p95": 5.799999952316284
+      },
+      "glError": 0
+    },
+    {
+      "view": "close",
+      "hour": 10.75,
+      "camera": [
+        -148.5,
+        1.3199999988079072,
+        -42
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 18603,
+        "mean": 5.991145833333333
+      },
+      "seam": {
+        "changed": 3842,
+        "mean": 0.8705425347222222
+      },
+      "ordinary": {
+        "changed": 5696,
+        "mean": 1.3270616319444444
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 732,
+        "calls": 1626,
+        "triangles": 4849148,
+        "points": 414,
+        "lines": 4242
+      },
+      "frameMs": {
+        "median": 4.099999964237213,
+        "p95": 4.5
+      },
+      "glError": 0
+    },
+    {
+      "view": "sunset",
+      "hour": 16.85,
+      "camera": [
+        -68,
+        11.780000305175781,
+        46
+      ],
+      "endpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "mid": {
+        "changed": 2051,
+        "mean": 0.2005078125
+      },
+      "seam": {
+        "changed": 113,
+        "mean": 0.009097222222222222
+      },
+      "ordinary": {
+        "changed": 108,
+        "mean": 0.007790798611111111
+      },
+      "modelEndpoint": {
+        "changed": 0,
+        "mean": 0
+      },
+      "render": {
+        "frame": 1288,
+        "calls": 2199,
+        "triangles": 5031778,
+        "points": 366,
+        "lines": 4914
+      },
+      "frameMs": {
+        "median": 4,
+        "p95": 4.600000023841858
+      },
+      "glError": 0
+    }
+  ],
+  "contact": {
+    "samples": 4320,
+    "maxHoofTargetErrorMeters": 6.35528803840043e-14,
+    "clamped": 0,
+    "minWaitingCenterDistanceMeters": 3.8394441817168956,
+    "minYardCenterClearanceMeters": 3.1999999999999886
+  },
+  "errors": []
+}
