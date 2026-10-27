@@ -2,7 +2,7 @@
 
 [改修方針](PONY_PLAN.md) の段階A〜Eに対応する。実装と検証の最新仕様は本資料を優先し、`NAGISA_DESIGN.md` の初期版の位置・頭数・歩行説明を現行仕様として扱わない。
 
-最新の結果は本書「再レビューと追加修正（2026-10-27）」と[再検証の証跡](pony-validation/review/index.html)を参照。初回検証で使った地形高さとの一致だけでは、描画した走路への接地を保証できなかったため、今回検証方法も修正した。
+最新の公開後の結果は本書「GitHub Pages公開後の検証（2026-10-27）」と[公開後の証跡](pony-validation/pages-release/index.html)を参照。初回検証で使った地形高さとの一致だけでは、描画した走路への接地を保証できなかったため、再レビューで検証方法も修正した。
 
 ## 設計
 
@@ -124,14 +124,48 @@
 
 実在施設の最新寸法・個体、実機スマートフォン/iOS Safariでの性能と保存、引き手自身の足接地や独立した耳の動きは引き続き未検証/対象外。走路の位置・形状や地形を再生成する実装を将来追加する場合は、接地サンプラーの再作成と静止脚キャッシュの無効化が必要。`createGridGround`は近景地形と同じ座標系・2三角形/セルの格子を前提とする。
 
+## GitHub Pages公開後の検証（2026-10-27）
+
+### 公開した変更と対象
+
+改修・資料・ローカル検証証跡を`28a874be91bcc87e8dbf6e9f72626b044f8f4aba`（Improve Nagisa pony anatomy, grounded walking and loop exports）としてmainへコミット・プッシュした。GitHub Pagesの[デプロイ40467183557](https://github.com/Jumpei-Ishihara/picnic-site/actions/runs/40467183557)がsuccessとなった後、公開URL `https://jumpei-ishihara.github.io/picnic-site/nagisa.html` を検証した。[デプロイ証跡](pony-validation/pages-release/app-deployment.json)。
+
+Chrome 156、画面1280×720。公開版はCDNのThree.jsを含め通常の通信で取得し、ローカルソース・依存ファイルの差替えは行っていない。`PONY_BASE`による公開URL指定と`RELEASE_SHA`によるコミット照合を検証ツールに追加した。初回・再レビュー時のツールのハッシュは履歴として保持し、公開版は今回の配信ファイル照合を採用する。
+
+### 表示・歩行・接地・継ぎ目
+
+- 実際のブラウザー応答37件（HTML・実装モジュール・場面データ・画像）をGitコミットの内容とSHA-256照合し、全件HTTP 200・不一致0。[配信ファイル](pony-validation/pages-release/published-source.json)。ImageBitmap用の応答でDevTools本文が空の場合は同じ公開URLを独立してHTTP取得し、ローカルファイルで代替しない。
+- 通常視点・接写でポニーの輪郭、4拍子の歩行、手綱と腕の接続、不要な内柵の除去を確認。[公開版の画像・動画](pony-validation/pages-release/index.html)。
+- 歩行4,320点で到達限界による補正0。支持中2,784点の実走路との最大誤差は約3.55e-15m、待機・放牧28点の実地形/走路との最大誤差は約4.55e-15m。いずれも数値丸め誤差で、現地の再現精度を示す値ではない。
+- 0/6/12秒の全体描画と、折返しなしでポニーを直接更新した比較は、影・反射を含め3視点とも変更チャンネル数0。途中の歩行では画素が変わることも確認した。GLエラー・シェーダーエラー・実行時例外0。[計測](pony-validation/pages-release/after.json)。
+- 内部320×180で90フレームを手動更新し、通常視点は1,726描画・中央値5.20ms/P95 6.50ms、接写は1,637描画・4.10ms/P95 4.70ms、夕景は2,199描画・4.10ms/P95 4.90ms。デスクトップでの`gl.finish()`込みの測定であり、実機スマートフォンのFPSを保証しない。夕景PNGはローカル再レビュー時とバイト単位でも一致。
+
+### 保存機能
+
+通常のrAFで動く公開版を別のブラウザーページで起動し、実際の保存UIからPNG・6秒・12秒動画をダウンロードした。このページでも37件の配信ファイルが同じコミットと一致した。[保存時の配信ファイル](pony-validation/pages-release/published-export-source.json)、[実保存結果](pony-validation/pages-release/exports.json)。
+
+| 保存物 | 結果 |
+|---|---|
+| PNG | 1280×720、126,623 bytes、PNGとしてデコード成功 |
+| 6秒動画 | H.264 MP4、1280×720、6.005300秒、2,546,689 bytes |
+| 12秒動画 | H.264 MP4、1280×720、12.019733秒、4,879,321 bytes |
+
+録画開始時のキャンバスとポニーの座標を検査し、両動画とも0秒の姿勢で開始。保存後はidle、保存ボタン3つが有効、録画UI非表示、内部426×240へ復帰し、時刻自動進行の設定falseも維持した。圧縮・フレーム間隔を含む実動画の評価は[フレーム解析](pony-validation/pages-release/video-seams.json)に記録する。元の描画の周期一致と動画の画素一致は区別する。
+
+公開版の6秒動画は329フレーム、最大フレーム間隔50.734ms、12秒動画は709フレーム、最大37.700ms。先頭・末尾の平均RGB差は2.491/255・2.349/255で、圧縮と終端前の時間差を含む。インアプリブラウザーでもデバッグ用URLを使わず公開版を起動し、通常操作の「シートに座る」→キー6でポニー視点への切替と歩行表示を確認した。
+
+プッシュ前の回帰テスト56件も全件成功。[実行記録](pony-validation/pages-release/prepush-tests.txt)。現地の実測精度、実機スマートフォン/iOS Safariでの性能・保存、固定60fps/無劣化の保存は引き続き未検証または保証対象外とする。検証結果・証跡の追加は資料更新として別途コミットし、公開後に資料と証跡URLも確認する。
+
 ## 再実行手順
 
 静的サーバーを127.0.0.1:8790で起動し、Three.js r160のコピーを`/private/tmp/picnic-three-r160.js`に用意する（`verify-pony.cjs`は`THREE_LOCAL`でも指定可能）。`node tools/verify-pony.cjs`、`node tools/verify-pony-export.cjs`、`node tools/analyze-pony-video.cjs`、`node tools/verify-pony-impact.cjs`を順に実行する。改修前は`PONY_VARIANT=before node tools/verify-pony.cjs`。ツールはローカルChromeとffmpeg/ffprobeのパスを指定しており、別環境では変更が必要。
 
 再レビュー用の証跡は各コマンドに`PONY_OUT=docs/pony-validation/review`を付けて生成する。初回の履歴へ上書きせずに保存できる。
 
+公開版は`PONY_BASE=https://jumpei-ishihara.github.io/picnic-site/ PONY_OUT=docs/pony-validation/pages-release RELEASE_SHA=<公開した40桁コミット>`を`verify-pony.cjs`と`verify-pony-export.cjs`に指定する。HTTPSの場合、ソース・Three.jsの差替えを行わず、`pages-proof.cjs`でブラウザー応答を対象コミットと照合する。
+
 ## 残る未検証事項
 
 現地の寸法・最新配置・在籍頭数と個体別の特徴。実機スマートフォン/iOS Safariでの性能と保存。寒暑・臨時休園・祝日振替を含む実運用の完全再現。
 
-周回個体の異なる毛色・耳の独立動作・体重移動を含む高度な歩行・引き手自身の足接地・乗降動作・厩舎への移動は未実装。極端な斜面や施設寸法を変更した場合はIKの到達範囲と衝突判定を再検証する。今回の変更はローカル作業ツリーであり、コミット・プッシュ・GitHub Pagesへの反映確認は実施していない。
+周回個体の異なる毛色・耳の独立動作・体重移動を含む高度な歩行・引き手自身の足接地・乗降動作・厩舎への移動は未実装。極端な斜面や施設寸法を変更した場合はIKの到達範囲と衝突判定を再検証する。改修本体はコミット・プッシュ済みで、上記のGitHub Pages公開後の表示・接地・保存検証まで実施した。

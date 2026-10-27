@@ -2,6 +2,7 @@
 <title>ポニー改修 再レビューと修正検証</title>
 <style>body{font:16px/1.7 system-ui,sans-serif;max-width:1280px;margin:auto;padding:28px;color:#eee;background:#18231e}h1{font-size:26px}h2{margin-top:2em}a{color:#b7dfbf}.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:0}img,video{display:block;width:100%;height:auto;background:#111;border-radius:6px}figcaption{padding:8px 0;color:#d3dcd5}table{border-collapse:collapse;width:100%}td,th{border:1px solid #52655a;text-align:left;padding:10px}@media(max-width:700px){body{padding:16px}.pair{grid-template-columns:1fr}}</style>
 <h1>なぎさポニーランド：再レビューと修正検証</h1>
+<p><strong>公開後：</strong><a href="../pages-release/index.html">GitHub Pagesでの表示・接地・保存の検証結果</a></p>
 <p>2026-10-27。初回改修の後、接地・手綱・毛色・斑模様・静止時の更新処理を再レビューして修正しました。元の地形高さに合うことだけではなく、描画した走路表面への接地を検証しています。</p>
 <p><a href="../../PONY_DESIGN.md">詳細設計と再レビュー結果</a> / <a href="../index.html">初回改修の比較</a> / <a href="../../../nagisa.html">現在のなぎさページ</a></p>
 <table><tr><th>項目</th><th>再レビューでの修正</th></tr><tr><td>接地</td><td>約4cm高い走路への埋まりを修正。歩行の支持位置2,784点と待機・放牧28点を独立したレイで検証。</td></tr><tr><td>手綱</td><td>見える手を腕の先に付け、ポニー側の手へ接続。</td></tr><tr><td>毛色・模様</td><td>白い待機個体への誤った模様を除去。斑模様を板から胴体に沿う曲面へ変更。</td></tr><tr><td>負荷</td><td>静止時の脚IK・GPU転送を省略。移動や歩行再開に合わせて無効化。</td></tr><tr><td>検証</td><td>0/6/12秒の影・反射を含む比較を追加。シェーダーエラーも失敗として扱う。</td></tr></table>

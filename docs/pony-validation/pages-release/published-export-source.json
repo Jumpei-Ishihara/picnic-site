@@ -1,0 +1,303 @@
+{
+  "base": "https://jumpei-ishihara.github.io/picnic-site/",
+  "release": "28a874be91bcc87e8dbf6e9f72626b044f8f4aba",
+  "date": "2026-10-27T07:29:49.287Z",
+  "files": [
+    {
+      "path": "engine/audio.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 4723,
+      "sha256": "91f65d752fda2e3a179c728c34e44ae35bf6a5e636aa9094281b3927d95042d0",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/backdrop.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 11730,
+      "sha256": "ae933eb56a283f6c5e817786ee1aeec2a6c6ecc36ea37cb865b8c12e5f3e782b",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/basecamp.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 7784,
+      "sha256": "b9a6dfac928172ac2a05acc5a045599bdc63d96458df41dc0256727ab0083da5",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/bridge-client.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 2449,
+      "sha256": "1db72a82f59dceffaf01b60f37e41336b59b8afdc5f0442ca98167618eab0c62",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/capture.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 6013,
+      "sha256": "63518f1bb6de776b309f40d0b61ff42e84fcfeeece91c504a56191efdf9fa4ae",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/collision.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 5042,
+      "sha256": "f7bf851b555140f0563bff75675532a2638e1d07013c757322a2a54f4e4f99ae",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/export-ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 3488,
+      "sha256": "515d7b8026f2093a6eeefe2c7eace25539c02eef8a4f9ef78ef8c2d78cad60f5",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/grass.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 4990,
+      "sha256": "b225eef9e0b423de6ffd4af20a20927668a80aa8bb1180affecb8dcfecfe26a7",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/picnic-set.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 13187,
+      "sha256": "665162f0b31c40d785ba221b5875bb835cef271a7481a6aa1ade02ef1df9692c",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/pixel-kit.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 6127,
+      "sha256": "a5f66189111d22ec2da759490618901bb3ca639c4d6f69f6c982337f2d5681dc",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/pixel-renderer.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 16558,
+      "sha256": "0a2afbc78dccd2162c34938ce431957c16470a1486c36f479743d688e8346f65",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/player.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 15041,
+      "sha256": "8c6ee689c99c7995ce6c7194d2d78e546242b049557502db2e14e31d0846473a",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/season.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 10070,
+      "sha256": "dc0dee6898309924a5aec2499782bb9b637bde0fdb1da128630fd7f5cc675fda",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/sky.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 5160,
+      "sha256": "4d60db57672e8ba8fa9bbbeaf7b2b3652f98494d463a6da628ce8ab5a115e5b8",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/structures.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 28234,
+      "sha256": "ece687ea91c7b593ac8b3dae311d42e82b8f2892ee473ba8e55fa970c93a7e58",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/sun.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 7137,
+      "sha256": "8b15886be9cb168c187c5573f6bbd78c5c2e7f97a620596190596ddb7d6a7525",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/terrain-bake-worker.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 297,
+      "sha256": "f85fca82487c685e8f8ea708219959dd970f3e69d7ae5a2e521688e0d2fcfaef",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/terrain-bake.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 4406,
+      "sha256": "e2b4a245fd298c966cc3b5efeda5863d520a1a3f9d77c02c887f1ddd68fcc280",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/terrain.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 14631,
+      "sha256": "bb49eb670d710b9590d854f3f029b32427ca3e24a3e7ad68ba6ec9d1d55af3f9",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/time-of-day.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 8768,
+      "sha256": "204697493a4f404b5ef33ca6b8809b7eca6db9f120549b88f8cb1ee4f967a889",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/trees.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 14211,
+      "sha256": "3419cacde6bd77e4ebfe9ea85dc0db3b753140ec81d92ff84496e27ad23efa49",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/ui.css",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 9017,
+      "sha256": "c1cca6c04c892a8578008b3f5aa4d6ee95ce7d0787e8d875b6d8b4b96d2d6cae",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/ui.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 3546,
+      "sha256": "2427f62f26c5a8b33b26da7a629f4b467a69e37c1ca8d49a8ac6a17da4796372",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/water.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 14273,
+      "sha256": "5aa404a41ac58f661c6f50e090368b4ab5b8ea44b644d03e88516bf0c60f4e2c",
+      "matchesCommit": true
+    },
+    {
+      "path": "engine/worker-task.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 876,
+      "sha256": "2ee038699b1afd5fdf06bbb8a02867fe7c717099a92dec963b0eec3a7706a5ab",
+      "matchesCommit": true
+    },
+    {
+      "path": "nagisa.html",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 48000,
+      "sha256": "c7504a6385c72884e79b618494339b2631e1219ccd1893752ea99f151d454135",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/life.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 22433,
+      "sha256": "29695f912f07bfa88a0430346c4cd2b7048a805b2925e18f84c0736ac817f2c0",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/look.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 6942,
+      "sha256": "f71f6b8c320e676604dce4541efb308c63a283cd5e7641e67dd49682da57f652",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/myoden-structures.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 21667,
+      "sha256": "77b1c35f23d66b7387ebad172211f39461f8564556d8931df16f3c66124690ac",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/nagisa-facilities.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 41481,
+      "sha256": "8b59457bcad2291ffd988f9cb07dcbb53c6a863a3603a4a0bbf80ef17e549d13",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/nagisa-surroundings.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 8444,
+      "sha256": "b8e0494d9391f499d705c89d1b02abf8821fefa1110eced5ca61b2dad9668961",
+      "matchesCommit": true
+    },
+    {
+      "path": "realsite/pony.js",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 11563,
+      "sha256": "c299d9cc68664e1c61f11bee55f915f8a68c78dd528da5209e49748005edbb49",
+      "matchesCommit": true
+    },
+    {
+      "path": "scenes/nagisa/ground_color.webp",
+      "status": 200,
+      "method": "independent-http",
+      "bytes": 129320,
+      "sha256": "08ebc00e92d0768807c013aa6fdb285f9c03678c57e37da9beada6b204184ff2",
+      "matchesCommit": true
+    },
+    {
+      "path": "scenes/nagisa/ground.webp",
+      "status": 200,
+      "method": "independent-http",
+      "bytes": 10166,
+      "sha256": "727a36bb35bf7b2fb3dd5b261ba4319162065b6d1ffadd8690b828daf24490f9",
+      "matchesCommit": true
+    },
+    {
+      "path": "scenes/nagisa/mid_height.webp",
+      "status": 200,
+      "method": "independent-http",
+      "bytes": 312264,
+      "sha256": "f5f21ec5a1999f7f31cc305cf9e03204daf7b4a498d0e5c05de896e35dd76548",
+      "matchesCommit": true
+    },
+    {
+      "path": "scenes/nagisa/near_height.webp",
+      "status": 200,
+      "method": "independent-http",
+      "bytes": 29358,
+      "sha256": "e0530c4ac52c8b385176a5d19468a9e2d81a4ef058a1ff3ae2ffa858b56e4738",
+      "matchesCommit": true
+    },
+    {
+      "path": "scenes/nagisa/scene.json",
+      "status": 200,
+      "method": "browser-response",
+      "bytes": 235821,
+      "sha256": "6afd489520285c3d0d8e742240adfb331c04ac07bb61a2a0174fe152fe7efdd0",
+      "matchesCommit": true
+    }
+  ]
+}
