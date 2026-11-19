@@ -16,7 +16,7 @@ const out=path.resolve(__dirname,'..',process.env.PONY_OUT||'docs/pony-validatio
   const baseline={};if(variant==='before')for(const file of ['nagisa.html','realsite/nagisa-facilities.js','scenes/nagisa/scene.json'])baseline['/'+file]=cp.execFileSync('/usr/bin/git',['show','26cb304:'+file],{encoding:'utf8'});
   if(!published){await page.setRequestInterception(true);page.on('request',r=>{
    if(r.url()==='https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js')return r.respond({status:200,contentType:'application/javascript',headers:{'access-control-allow-origin':'*'},body:fs.readFileSync(process.env.THREE_LOCAL||'/private/tmp/picnic-three-r160.js','utf8')});
-   const u=new URL(r.url());if(u.origin==='http://127.0.0.1:8790'&&baseline[u.pathname])return r.respond({status:200,contentType:u.pathname.endsWith('.html')?'text/html':u.pathname.endsWith('.json')?'application/json':'application/javascript',body:baseline[u.pathname]});
+   const u=new URL(r.url());if(process.env.PONY_MODEL_BASELINE==='1'&&['/realsite/pony.js','/realsite/pony-model.js','/realsite/nagisa-facilities.js'].includes(u.pathname))return r.respond({status:200,contentType:'application/javascript',body:fs.readFileSync(path.resolve('docs/pony-validation/leg-revision/before',path.basename(u.pathname)),'utf8')});if(u.origin==='http://127.0.0.1:8790'&&baseline[u.pathname])return r.respond({status:200,contentType:u.pathname.endsWith('.html')?'text/html':u.pathname.endsWith('.json')?'application/json':'application/javascript',body:baseline[u.pathname]});
    return r.continue();
   });}
   await page.evaluateOnNewDocument(()=>{window.requestAnimationFrame=()=>0;});

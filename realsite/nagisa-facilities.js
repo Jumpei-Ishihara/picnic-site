@@ -3,7 +3,8 @@
 // 周回ポニーは同じ姿で等間隔。6秒で1頭分進み、風景としてつながる。
 import * as THREE from 'three';
 import { GeoBuilder } from '../engine/structures.js';
-import { createPony, sampleWalk, createTrackGround } from './pony.js';
+import { PONY_PALETTE, PONY_RIG } from './pony-model.js';
+import { createPony, sampleWalk, createTrackGround, computeBodyTilt } from './pony.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -221,7 +222,7 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
   const units = [];
   for (let i = 0; i < N; i++) {
     const [coat, mane] = ring.coat ?? ['#8a5a3a', '#3a2a20'];
-    const pony = createPony(toon, { color: coat, mane, saddle: '#b8463f' });
+    const pony = createPony(toon, { color: coat, mane, saddle: PONY_PALETTE.saddle });
     const handler = makePerson(toon, { height: 1.65, shirt: ring.handler?.shirt ?? '#2f5a3a', pants: '#3a4a6a', hat: ring.handler?.hat ?? '#2f5a3a' });
     const rider = makePerson(toon, { height: 1.15, shirt: '#f2c94c', pants: '#3a5a8a', hat: '#f4f4f2', seated: true });
     rider.group.position.y = pony.saddleY - 0.62;
@@ -253,7 +254,8 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
         const {angle:a,x,z,yaw} = motion;
         // 進む向き（反時計回り＝角度が増える向き）の接線。組の -z が頭
         u.pony.group.position.set(x, motion.y, z);
-        u.pony.group.rotation.y = yaw;
+        const tilt = computeBodyTilt(motion.feet);
+        u.pony.group.rotation.set(tilt.pitch, yaw, tilt.roll, 'YXZ');
         // 引く人：ポニーの内側（輪の中心より）・頭の横
         const hx = cx + Math.cos(a + 0.16) * (rTrack - 0.75), hz = cz + Math.sin(a + 0.16) * (rTrack - 0.75);
         u.handler.group.position.set(hx, groundAt(hx, hz), hz);
@@ -262,11 +264,12 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
         u.handler.group.visible = riding;
         u.rope.visible = riding;
         // 4拍子の常歩。接地は時間から求めた世界座標へ拘束する。
-        const s = riding ? Math.sin(t * W0 * 8) : 0;
-        if(riding){u.clamped=u.pony.setFeet(motion.feet);u.pony.neck.position.y=.95;u.pony.neck.rotation.x=-.30+s*.025;}
+        const s = riding ? Math.sin(t * W0 * 8) : 0; // preserve the handler cadence
+        const ponyS = riding ? Math.sin(t * W0 * PONY_RIG.stridesPerLoop * 2) : 0;
+        if(riding){u.clamped=u.pony.setFeet(motion.feet);u.pony.neck.position.y=PONY_RIG.neck[1];u.pony.neck.rotation.x=PONY_RIG.neckAngle+ponyS*.025;}
         else u.pony.idle(t,{heightAt:groundAt,loop});
         u.pony.tail.rotation.z = Math.sin(t * W0 * 2 + a) * 0.13;
-        u.rider.group.position.y = u.pony.saddleY - 0.62 + s * 0.008;
+        u.rider.group.position.y = u.pony.saddleY - 0.62 + ponyS * 0.008;
         u.handler.legs.forEach((l, k) => { l.rotation.x = (k ? s : -s) * 0.45; });
         u.pony.group.updateWorldMatrix(true,true);u.handler.group.updateWorldMatrix(true,true);
         u.pony.leadPoint.getWorldPosition(lead);u.hand.getWorldPosition(handPos);

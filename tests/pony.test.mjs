@@ -1,26 +1,27 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createPony,sampleWalk,PONY_HIPS,solvePonyLeg,WALK_OFFSETS,STANCE,createGridGround} from '../realsite/pony.js';
+import {PONY_RIG} from '../realsite/pony-model.js';
+import {createPony,sampleWalk,PONY_HIPS,solvePonyLeg,WALK_OFFSETS,STANCE,createGridGround,computeBodyTilt} from '../realsite/pony.js';
 import {createPonyRing,createPonyLand} from '../realsite/nagisa-facilities.js';
 const toon=p=>new THREE.MeshBasicMaterial(p),route={x:-148.5,z:-48.5,radius:4.3,count:3,loop:6};
 const H=(x,z)=>.012*x+.018*z;
 const near=(x,y,e=1e-8)=>assert.ok(Math.abs(x-y)<e,`${x} != ${y}`);
 test('walk contacts are a four beat RH RF LH LF sequence',()=>{
  assert.deepEqual(WALK_OFFSETS.map((v,i)=>[v,i]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]),[3,1,2,0]);
- for(let i=0;i<4;i++)near(sampleWalk(WALK_OFFSETS[i]*.75+.001,0,route,H).feet[i].phase,.001/.75);
+ const period=route.loop/PONY_RIG.stridesPerLoop;for(let i=0;i<4;i++)near(sampleWalk(WALK_OFFSETS[i]*period+.001,0,route,H).feet[i].phase,.001/period);
 });
 test('stance hooves stay fixed in world space and swing clears terrain',()=>{
  for(let leg=0;leg<4;leg++){
-  const t=(WALK_OFFSETS[leg]+.1)*.75,a=sampleWalk(t,0,route,H).feet[leg],b=sampleWalk(t+.15,0,route,H).feet[leg];
+  const period=route.loop/PONY_RIG.stridesPerLoop,t=(WALK_OFFSETS[leg]+.1)*period,a=sampleWalk(t,0,route,H).feet[leg],b=sampleWalk(t+.1,0,route,H).feet[leg];
   assert.ok(a.planted&&b.planted);a.world.forEach((v,i)=>near(v,b.world[i]));near(a.world[1],H(a.world[0],a.world[2]));
-  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*.75,0,route,H).feet[leg];assert.ok(!f.planted);assert.ok(f.world[1]-H(f.world[0],f.world[2])>.10);
+  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*period,0,route,H).feet[leg];assert.ok(!f.planted);assert.ok(f.world[1]-H(f.world[0],f.world[2])>.10);
  }
 });
-test('two-link IK keeps segment lengths, clamps extremes and remains finite',()=>{
+test('three-section fore and hind IK keep lengths, clamp extremes and remain finite',()=>{
  for(const foot of [[.18,.07,-.22],[.18,.15,-.7],[20,-9,4],PONY_HIPS[1]]){
-  const r=solvePonyLeg(PONY_HIPS[1],foot,-1),h=new THREE.Vector3().fromArray(PONY_HIPS[1]),j=new THREE.Vector3().fromArray(r.joint),f=new THREE.Vector3().fromArray(r.foot);
-  near(h.distanceTo(j),.34);near(j.distanceTo(f),.33);assert.ok([...r.foot,...r.joint].every(Number.isFinite));
+  for(const leg of [1,3]){const bend=leg<2?-1:1,rig=leg<2?PONY_RIG.fore:PONY_RIG.hind,r=solvePonyLeg(PONY_HIPS[leg],foot,bend),h=new THREE.Vector3().fromArray(PONY_HIPS[leg]),e=new THREE.Vector3().fromArray(r.elbow),j=new THREE.Vector3().fromArray(r.joint),f=new THREE.Vector3().fromArray(r.foot);
+  near(h.distanceTo(e),rig.proximal);near(e.distanceTo(j),rig.upper);near(j.distanceTo(f),rig.lower);assert.ok([...r.foot,...r.joint,...r.elbow].every(Number.isFinite));}
  }
 });
 test('real rig hoof bottoms meet target terrain throughout circular walking',()=>{
@@ -84,20 +85,20 @@ test('lead attaches to the visible hand at the arm end on the pony side',()=>{
   }
  }
 });
-test('pinto markings follow the barrel and the white waiting pony stays white',()=>{
+test('block pinto markings stay against the flat barrel and the white waiting pony stays white',()=>{
  const land={arena:[-20,-20,-10,-10],paddock:[10,10,20,20],stables:[],gate:[0,20,0],grazing:[],waiting:[[0,0,0,'#f2efe8','#6a4030'],[4,0,0,'#f2efe8','#c8c4bc']]};
  const a=createPonyLand({toon,land,heightAt:()=>0});
  const patches=p=>p.group.children.filter(o=>o.material?.color?.getHexString()==='79513b');
  assert.equal(patches(a.grazers[0].p).length,1);assert.equal(patches(a.grazers[1].p).length,0);
  const pos=patches(a.grazers[0].p)[0].geometry.attributes.position;
- for(let i=0;i<pos.count;i++)near((pos.getX(i)/.262)**2+((pos.getY(i)-.81)/.257)**2+(pos.getZ(i)/.622)**2,1,1e-6);
+ for(let i=0;i<pos.count;i++){assert.ok(Math.abs(pos.getX(i))>=.245&&Math.abs(pos.getX(i))<=.261);assert.ok(pos.getY(i)>.55&&pos.getY(i)<1.05);assert.ok(Math.abs(pos.getZ(i))<.55);}
 });
 test('idle feet avoid repeated IK and GPU uploads but invalidate after movement and walking',()=>{
  const p=createPony(toon);let samples=0;const ground=(x,z)=>{samples++;return H(x,z);};
- p.idle(0,{heightAt:ground});const before=[samples,p.legInstances.instanceMatrix.version],neck=p.neck.rotation.x;
+ p.idle(0,{heightAt:ground});const before=[samples,p.hoofInstances.instanceMatrix.version],neck=p.neck.rotation.x;
  for(let i=1;i<100;i++)p.idle(i/60,{heightAt:ground});
- assert.deepEqual([samples,p.legInstances.instanceMatrix.version],before);assert.notEqual(p.neck.rotation.x,neck);
- p.group.position.x=1;p.idle(2,{heightAt:ground});assert.equal(samples,before[0]+4);assert.equal(p.legInstances.instanceMatrix.version,before[1]+1);
+ assert.deepEqual([samples,p.hoofInstances.instanceMatrix.version],before);assert.notEqual(p.neck.rotation.x,neck);
+ p.group.position.x=1;p.idle(2,{heightAt:ground});assert.equal(samples,before[0]+4);assert.equal(p.hoofInstances.instanceMatrix.version,before[1]+1);
  const parent=new THREE.Group();parent.add(p.group);parent.position.z=2;p.idle(2,{heightAt:ground});assert.equal(samples,before[0]+8);
  p.invalidateFeet();p.idle(2,{heightAt:ground});assert.equal(samples,before[0]+12);
  const feet=PONY_HIPS.map(([x,,z])=>({world:[x,H(x,z),z]}));p.setFeet(feet);p.idle(2,{heightAt:ground});assert.equal(samples,before[0]+16);
@@ -110,4 +111,37 @@ test('terrain contact follows the indexed diagonal instead of bilinear height',(
   ray.set(new THREE.Vector3(x,10,z),new THREE.Vector3(0,-1,0));near(sample(x,z),ray.intersectObject(mesh)[0].point.y);
  }
  near(sample(.5,.5),.5);assert.notEqual(sample(.5,.5),.5*.5);assert.equal(sample(-1,0),-99);
+});
+
+
+test('hoof pitch eases into and out of swing without an angular snap at contact',()=>{
+ const period=route.loop/PONY_RIG.stridesPerLoop,epsilon=1e-6;
+ for(let leg=0;leg<4;leg++)for(const phase of [STANCE,1]){
+  const time=(WALK_OFFSETS[leg]+phase)*period;
+  const pitch=t=>sampleWalk(t,0,route,H).feet[leg].pitch||0;
+  assert.ok(Math.abs(pitch(time-epsilon)-pitch(time+epsilon))/(2*epsilon)<.01,'contact angular velocity should tend to zero');
+ }
+});
+
+test('planted hooves align to sloped terrain normals and hinge IK avoids Z-axis singularity',()=>{
+ const geometry=new THREE.BufferGeometry();
+ // Uniform slope: y = 0.25 * z (uphill toward +z, downhill toward -z).
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute([-2,-.5,-2, 2,-.5,-2, -2,.5,2, 2,.5,2],3));
+ geometry.setIndex([0,2,3,0,3,1]);
+ const ground=createGridGround(geometry,{x0:-2,z0:-2,step:4,w:2,h:2},()=>0);
+ const s=ground.sample(0,0),expectedN=new THREE.Vector3(0,1,-.25).normalize();
+ near(s.nx,expectedN.x,1e-6);near(s.ny,expectedN.y,1e-6);near(s.nz,expectedN.z,1e-6);
+ const p=createPony(toon);p.idle(0,{heightAt:ground});p.group.updateMatrixWorld(true);
+ for(const leg of p.legs){
+  const hoofUp=new THREE.Vector3(0,1,0).applyQuaternion(leg.hoof.quaternion);
+  near(hoofUp.dot(expectedN),1,1e-6);
+ }
+ // Compute body tilt: front (-z) lower than hind (+z) => negative pitch; clamped on steep slopes.
+ const tilt=computeBodyTilt([{world:[0,0,0]},{world:[0,0,0]},{world:[0,.2,0]},{world:[0,.2,0]}]);
+ assert.ok(tilt.pitch<0&&tilt.pitch>=-.20);
+ const steep=computeBodyTilt([{world:[0,5,0]},{world:[0,5,0]},{world:[0,0,0]},{world:[0,0,0]}]);
+ near(steep.pitch,.20,1e-9);
+ // Extreme forward target along -Z: hinge plane stays in hip X without jumping sideways.
+ const hip=PONY_HIPS[1],r=solvePonyLeg(hip,[hip[0],hip[1],hip[2]-.55],-1);
+ near(r.elbow[0],hip[0],1e-6);near(r.joint[0],hip[0],1e-6);near(r.foot[0],hip[0],1e-6);
 });
