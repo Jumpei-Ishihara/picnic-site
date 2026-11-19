@@ -49,6 +49,14 @@
      - 全フレーム生成後、`bridgeClient.uploadFrames(frames, `${filename}.mp4`, fps)` で保存し、`{ where: 'downloads', filename, mime: 'video/mp4', ... }` を返す。
      - `finally` で必ず `pixel.setFixedSize(null)` と `renderOnce()` を実行して通常表示へ復帰する。
   2. `renderAt` が未指定、またはブリッジが利用不可の場合は、従来どおり `MediaRecorder` リアルタイム収録へ自動フォールバックする（後方互換 100% 維持）。
+- `capture.fixedTimestep`（boolean getter）：固定タイムステップ録画の実行中のみ `true`、それ以外は `false`。
+
+### 3.3 シーン側接続仕様（`nagisa.html` 等）
+- `createCapture` へ `renderAt: t => step(0, { fixedTime: t })` を渡す。
+- `step(dt, { fixedTime = null } = {})` のルール：
+  1. `fixedTime === null && capture.fixedTimestep` のときは描画を行わず即 return し、`requestAnimationFrame` ループが固定タイムステップ録画中のフレームや `elapsed` を上書きしないようにする。
+  2. `fixedTime !== null` のときは `elapsed = fixedTime` とし、リアルタイム録画用の `capture.frame()` を呼ばない。
+  3. 録画中の `sky.update(0, elapsed, ...)`・`water.update`・`loopT = elapsed % LOOP` の挙動はリアルタイム録画と同一とする。
 
 ## 4. 受け入れ基準（TDD テスト項目）
 1. **Bridge バリデーション**：`/save-frames` が不正 `fps`・不正 `Content-Type`・`.mp4` 以外の拡張子・0 フレーム・切り詰めデータ・非 PNG データを `400` で拒否し、ファイルを公開しないこと。

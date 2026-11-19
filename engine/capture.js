@@ -142,6 +142,7 @@ export function createCapture({ canvas, pixel, renderOnce, prepareVideo = () => 
     get state() { return state; },
     get busy() { return state !== 'idle'; },
     get recording() { return state === 'recording'; },
+    get fixedTimestep() { return Boolean(rec?.cancel && state === 'recording'); },
     elapsed() { return rec && rec.start && state === 'recording' ? (performance.now() - rec.start) / 1000 : null; },
     frame() {
       const r = rec;

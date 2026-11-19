@@ -279,11 +279,13 @@ test('capture uses fixed-timestep renderAt over bridge when available and falls 
       canvas: {},
       pixel: { setFixedSize: s => sizes.push(s) },
       renderOnce: () => {},
-      renderAt: t => times.push(t),
+      renderAt: t => { assert.equal(cap.fixedTimestep, true); times.push(t); },
       fps: 10,
       bridge: fakeBridge
     });
+    assert.equal(cap.fixedTimestep, false);
     const res = await cap.startVideo({ duration: 0.5, filename: 'fixed', onProgress: (t, d) => progress.push([t, d]) });
+    assert.equal(cap.fixedTimestep, false);
     assert.equal(res.where, 'downloads');
     assert.equal(res.filename, 'fixed-uuid.mp4');
     assert.equal(cap.state, 'idle');

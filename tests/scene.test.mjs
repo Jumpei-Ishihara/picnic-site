@@ -120,3 +120,14 @@ test('terrain readiness rejects to its late consumer without an unhandled reject
     assert.deepEqual(JSON.parse(result.stdout.trim()), { unhandled: 0, rejectedToConsumer: true }, kind);
   }
 });
+
+test('all picnic pages use shared picnic shell and wire fixed-timestep renderAt with rAF guard', async () => {
+  for (const file of ['nagisa.html', 'edogawa.html', 'myoden.html', 'myoden-far.html', 'picnic.html']) {
+    const html = await fs.readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(html, /import\s*\{[^}]*mountPicnicShell[^}]*\}\s*from\s*['"]\.\/engine\/shell\.js['"]/, file);
+    assert.match(html, /mountPicnicShell\s*\(/, file);
+    assert.doesNotMatch(html, /<div id="export" class="box hidden">/, `${file}: export modal markup should come from engine/shell.js`);
+    assert.match(html, /renderAt\s*:/, file);
+    assert.match(html, /capture\.fixedTimestep/, file);
+  }
+});

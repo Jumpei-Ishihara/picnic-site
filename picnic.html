@@ -12,69 +12,12 @@
   </style>
 </head>
 <body>
-  <canvas id="view"></canvas>
-
-  <!-- 風景を優先：場所の表示と小さなドックだけ。操作がないと .fade は消える -->
-  <div id="hud-tl" class="box chip fade"><div id="loc">📍 川辺の石畳</div></div>
-
-  <button id="prompt" class="small fade hidden"></button>
-  <div id="toast" class="box hidden"></div>
-  <div id="help" class="box fade hidden">WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ 1〜4: 視点 ・ C: 座る・立つ ・ F: 水切り ・ B: シートをここに敷く ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる</div>
-  <div id="joy" class="fade hidden"><div id="joy-knob"></div><div id="joy-label">ここをドラッグで移動</div></div>
-
-  <div id="bar" class="box dock fade">
-    <button id="v-lunch" title="拠点に戻る：シートに座って川と太鼓橋を眺める。時刻はそのまま（1）" aria-label="拠点に戻る">🧺</button>
-    <button id="v-nap" title="寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）" aria-label="寝っ転がる">😴</button>
-    <button id="v-sunset" title="夕日：川べりに座って、対岸に沈む夕日を眺める（3）" aria-label="夕日">🌇</button>
-    <button id="v-bridge" title="太鼓橋：橋の上から川を見下ろす（4）" aria-label="太鼓橋">🌉</button>
-    <span class="sep"></span>
-    <button id="m-mode" title="おまかせ散策にする" aria-label="歩き方の切り替え">🚶</button>
-    <button id="s-pause" title="散策を一時停止（Space）" aria-label="散策を一時停止">⏸</button>
-    <button id="a-export" title="書き出し：PNG・ループ動画（P / R）" aria-label="書き出し">📷</button>
-    <button id="o-more" title="時刻・表示・音の設定" aria-label="設定">⚙️</button>
-  </div>
-
-  <div id="menu" class="box hidden">
-    <div class="row"><span>時刻</span><label id="time-label">15:30</label><input id="time" type="range" min="0" max="24" step="0.05" value="15.5" aria-label="時刻" /><button id="t-auto" title="時間を自動で進める" aria-label="時間を自動で進める">⏩</button></div>
-    <div class="row"><span></span><button id="t-day">☀️ 昼下がり</button><button id="t-dusk">🌅 夕暮れ</button><button id="t-night">🌙 星と蛍</button></div>
-    <div class="row"><span>拠点</span><button id="b-here" title="立っている前に、向いている方を正面にしてシートを敷く（B）">🧺 ここに敷く</button><button id="b-home" title="シートをもとの場所に戻す">↩ もとの場所</button></div>
-    <div class="row" id="season-row"><span>季節</span></div>
-    <div class="row"><span>歩き方</span><button id="m-walk" class="on">🚶 自由歩行</button><button id="m-stroll">👣 おまかせ散策</button></div>
-    <div class="row"><span>寄り道</span><button id="a-stone">🪨 水切り（F）</button></div>
-    <div class="row"><span>表示</span><button id="o-line" class="on" title="深度・法線から輪郭線">✏️ 輪郭</button><button id="o-px" title="ドットの大きさ">🔍 ×3</button><button id="o-help">❔ 操作説明</button></div>
-    <div class="row"><span></span><button id="o-snd" class="on">🔊 音</button><button id="o-pal" title="43色の固定パレットで減色（オフで各色32段階）">🎨 43色パレット</button></div>
-  </div>
-
-  <div id="export" class="box hidden">
-    <div class="ex-head"><strong>📷 書き出し</strong><span id="x-bridge"></span><button id="x-close" aria-label="閉じる">✕</button></div>
-    <div class="ex-row">
-      <button id="x-png">🖼️ PNG</button>
-      <button id="x-v1">🎬 6秒ループ</button>
-      <button id="x-v2">🎬 12秒（2周）</button>
-    </div>
-    <div id="x-note" class="ex-note">いまの視点と時刻のまま、1280×720 で書き出します。動画は最後と最初がつながるループです。</div>
-  </div>
-  <div id="rec" class="box hidden"><span class="rec-dot"></span>REC <span id="rec-time">0.0 / 6.0 秒</span><button id="rec-stop">■ 停止</button></div>
-
-  <div id="start">
-    <div class="card box">
-      <h1>🧺 川辺のピクニック</h1>
-      <p>木陰にシートを広げた、初夏の午後の川辺です。シートに座って川を眺めたり、橋を渡ったり、水切りをしてみましょう。</p>
-      <div class="btns">
-        <button id="s-sit">🧺 シートに座る</button>
-        <button id="s-sunset" class="sub">🌇 夕日を見る</button>
-        <button id="s-walk" class="sub">🚶 自由に歩く</button>
-        <button id="s-stroll" class="sub">👣 おまかせ散策</button>
-      </div>
-      <small>PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、1〜4 で視点、C で座る・立つ、F で水切り ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ 📷 でいまの景色を PNG・ループ動画に書き出せます ／ ⚙️ の「拠点」（B キー）で、シートを好きな場所へ移せます</small>
-    </div>
-  </div>
-
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
   </script>
   <script type="module">
     import * as THREE from 'three';
+    import { mountPicnicShell } from './engine/shell.js';
     import { MASTER_PALETTE, PPM, mulberry32, makePicker, makeCanvas, pixelTex, createToon, RAMP, rampify } from './engine/pixel-kit.js';
     import { createPixelRenderer } from './engine/pixel-renderer.js';
     import { createSky } from './engine/sky.js';
@@ -90,6 +33,42 @@
     import { createBaseCamp, instanceHider, bindBaseCampUI } from './engine/basecamp.js';
     import { getSeason, dayArc, SKY, bindSeasonUI, treeKind } from './engine/season.js';
     import { createPicnicSet, SHEET, SIT_BACK, EYE_SIT as SHEET_EYE } from './engine/picnic-set.js';
+
+    mountPicnicShell({
+      loadingText: null,
+      locationLabel: '📍 川辺の石畳',
+      extraHudHtml: '<button id="prompt" class="small fade hidden"></button>',
+      helpText: 'WASD/矢印: 歩く ・ Shift: 走る ・ ドラッグ: 見回す ・ クリック: そこへ歩く／水面に波紋 ・ 1〜4: 視点 ・ C: 座る・立つ ・ F: 水切り ・ B: シートをここに敷く ・ P: PNG ・ R: 録画 ・ Esc: メニューを閉じる',
+      dockButtons: [
+        { id: 'v-lunch', label: '🧺', title: '拠点に戻る：シートに座って川と太鼓橋を眺める。時刻はそのまま（1）', ariaLabel: '拠点に戻る' },
+        { id: 'v-nap', label: '😴', title: '寝っ転がる：その場に寝そべって空を見上げる。もう一度押すか歩くと起きる（2）', ariaLabel: '寝っ転がる' },
+        { id: 'v-sunset', label: '🌇', title: '夕日：川べりに座って、対岸に沈む夕日を眺める（3）', ariaLabel: '夕日' },
+        { id: 'v-bridge', label: '🌉', title: '太鼓橋：橋の上から川を見下ろす（4）', ariaLabel: '太鼓橋' },
+        { sep: true },
+        { id: 'm-mode', label: '🚶', title: 'おまかせ散策にする', ariaLabel: '歩き方の切り替え' },
+        { id: 's-pause', label: '⏸', title: '散策を一時停止（Space）', ariaLabel: '散策を一時停止' }
+      ],
+      settingsTitle: '時刻・表示・音の設定',
+      timeSlider: { min: 0, max: 24, value: 15.5, label: '15:30' },
+      extraTimeRow: '<div class="row"><span></span><button id="t-day">☀️ 昼下がり</button><button id="t-dusk">🌅 夕暮れ</button><button id="t-night">🌙 星と蛍</button></div>',
+      extraMenuRows: '<div class="row"><span>歩き方</span><button id="m-walk" class="on">🚶 自由歩行</button><button id="m-stroll">👣 おまかせ散策</button></div>\n    <div class="row"><span>寄り道</span><button id="a-stone">🪨 水切り（F）</button></div>',
+      extraSoundButtons: [{ id: 'o-pal', label: '🎨 43色パレット', title: '43色の固定パレットで減色（オフで各色32段階）' }],
+      creditHtml: null,
+      exportNote: 'いまの視点と時刻のまま、1280×720 で書き出します。動画は最後と最初がつながるループです。',
+      startCard: {
+        title: '🧺 川辺のピクニック',
+        paragraphs: [
+          '木陰にシートを広げた、初夏の午後の川辺です。シートに座って川を眺めたり、橋を渡ったり、水切りをしてみましょう。'
+        ],
+        buttons: [
+          { id: 's-sit', label: '🧺 シートに座る' },
+          { id: 's-sunset', label: '🌇 夕日を見る', cls: 'sub' },
+          { id: 's-walk', label: '🚶 自由に歩く', cls: 'sub' },
+          { id: 's-stroll', label: '👣 おまかせ散策', cls: 'sub' }
+        ],
+        hint: 'PC: WASD で移動、ドラッグで見回し、クリックした場所へ歩く（水面なら波紋）、1〜4 で視点、C で座る・立つ、F で水切り ／ スマホ: 左半分をドラッグで移動、右半分をスワイプで見回し、タップした場所へ歩く ／ 📷 でいまの景色を PNG・ループ動画に書き出せます ／ ⚙️ の「拠点」（B キー）で、シートを好きな場所へ移せます'
+      }
+    });
 
     // すべての動き（波・アヒル・木や草の揺れ）はこの周期でループする。動画書き出しで継ぎ目が出ないように。
     const LOOP = 6;
@@ -871,9 +850,11 @@
       toast.update(dt);
     }
 
-    function step(dt) {
+    function step(dt, { fixedTime = null } = {}) {
+      if (fixedTime === null && capture.fixedTimestep) return;
       // 録画中は録画開始からの経過時間を時計にする（0秒から始まり、周期の倍数で終わる）
-      if (capture.recording) elapsed = capture.elapsed();
+      if (fixedTime !== null) elapsed = fixedTime;
+      else if (capture.recording) elapsed = capture.elapsed();
       else elapsed += dt;
       tod.update(dt);
       timeUI.update();
@@ -890,7 +871,7 @@
       pixel.prepareShadows(); // 反射にも現在の葉の影を使う
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
-      capture.frame();
+      if (fixedTime === null) capture.frame();
     }
 
     // ============================================================================
@@ -903,7 +884,10 @@
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
     }
-    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly });
+    const capture = createCapture({ canvas, pixel, renderOnce: renderOnly,
+      prepareVideo: () => { elapsed = 0; step(0); },
+      renderAt: t => step(0, { fixedTime: t })
+    });
     const exportEl = document.getElementById('export'), xNote = document.getElementById('x-note'), xBridge = document.getElementById('x-bridge');
     const recEl = document.getElementById('rec'), recTime = document.getElementById('rec-time');
     const pad = n => String(n).padStart(2, '0');
