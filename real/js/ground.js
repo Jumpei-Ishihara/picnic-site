@@ -21,7 +21,7 @@ export const CLASS_LAYER = {
   leveeGrass: 'grass', road: 'asphalt', tree: 'grass', reeds: 'worn', other: 'grass'
 };
 
-export const GROUND_BASE = new URL('../assets/ground/', import.meta.url).href;
+export const GROUND_BASE = new URL('./assets/ground/', typeof document !== 'undefined' ? document.baseURI : new URL('../', import.meta.url)).href;
 
 async function loadLayerArray(urls, size, srgb) {
   const data = new Uint8Array(size * size * 4 * urls.length);

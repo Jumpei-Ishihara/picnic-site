@@ -4,7 +4,7 @@
 //   ready：素材を読み終えたら解決する Promise（木を写して板の絵を作る前に待つ）
 import * as THREE from 'three';
 
-const base = new URL('../../../assets/trees/', import.meta.url).href;
+const base = new URL('./assets/trees/', typeof document !== 'undefined' ? document.baseURI : new URL('../../../', import.meta.url)).href;
 const loader = new THREE.TextureLoader();
 const loads = [];
 const load = (file, srgb) => {

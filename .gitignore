@@ -13,4 +13,10 @@ docs/*企画提案書*.pdf
 __pycache__/
 *.pyc
 node_modules/
+dist/
 .DS_Store
+
+# 大容量のローカル検証アーカイブ（設計書・数値記録は docs/*.md で管理）
+docs/pony-validation/leg-revision/
+docs/pony-validation/spline-improvement/
+docs/pony-validation/voxel-pony/
