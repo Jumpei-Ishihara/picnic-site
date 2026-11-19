@@ -1,3 +1,19 @@
+export function packFrames(frameBuffers) {
+  const chunks = frameBuffers.map(b => b instanceof Uint8Array ? b : new Uint8Array(b));
+  let total = 0;
+  for (const c of chunks) total += 4 + c.byteLength;
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  let offset = 0;
+  for (const c of chunks) {
+    view.setUint32(offset, c.byteLength, false);
+    offset += 4;
+    out.set(c, offset);
+    offset += c.byteLength;
+  }
+  return out;
+}
+
 // Protocol 2. Tokens are scoped to this page's memory and obtained only through an allowed Origin.
 export function createBridgeClient({ base = 'http://127.0.0.1:18923', fetcher = (...args) => fetch(...args), timeoutMs = 125000 } = {}) {
   let session = null;
@@ -35,6 +51,7 @@ export function createBridgeClient({ base = 'http://127.0.0.1:18923', fetcher = 
       return false;
     },
     upload: (blob, filename) => post(`/save-blob?filename=${encodeURIComponent(filename)}${blob.type.startsWith('video/') ? '&convert=mp4' : ''}`, blob, blob.type.split(';')[0]),
+    uploadFrames: (frameBuffers, filename, fps = 30) => post(`/save-frames?filename=${encodeURIComponent(filename)}&fps=${encodeURIComponent(String(fps))}`, packFrames(frameBuffers), 'application/x-picnic-frames'),
     generate: (kind, options) => post(`/save-${kind}`, JSON.stringify(options), 'application/json')
   };
 }

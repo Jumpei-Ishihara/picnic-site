@@ -196,3 +196,117 @@ test('legacy status distinguishes confirmed, failed and uncertain results and re
   current = false; title.textContent = 'new.png'; finish({ ok: true, filename: 'old-uuid.png' }); await pending;
   assert.equal(title.textContent, 'new.png');
 });
+
+test('shared picnic shell renders required HUD, menu, export and start IDs with escaping', async () => {
+  const { renderPicnicShellHTML, mountPicnicShell } = await import('../engine/shell.js');
+  const html = renderPicnicShellHTML({
+    loadingText: '読み込み中<test>',
+    locationLabel: '📍 テスト公園',
+    helpText: 'WASD & ドラッグ',
+    dockButtons: [{ id: 'v-lunch', label: '🧺', title: '拠点', ariaLabel: '拠点' }],
+    detourButtons: [{ id: 'v-pony', label: '🐴 ポニー' }],
+    creditHtml: 'テスト出典',
+    exportNote: '1280×720',
+    startCard: {
+      title: 'テスト',
+      paragraphs: ['説明文'],
+      buttons: [{ id: 's-lunch', label: '座る' }],
+      hint: 'ヒント'
+    }
+  });
+  for (const id of ['view', 'loading', 'loc', 'toast', 'help', 'joy', 'bar', 'v-lunch', 'a-export', 'o-more', 'menu', 'v-pony', 'season-row', 'export', 'rec', 'start', 's-lunch']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /読み込み中&lt;test&gt;/);
+  assert.match(html, /WASD &amp; ドラッグ/);
+  let inserted = null;
+  mountPicnicShell({ loadingText: 'ok', locationLabel: 'loc', helpText: '', dockButtons: [], creditHtml: '', exportNote: '', startCard: { title: '', paragraphs: [], buttons: [], hint: '' } }, {
+    insertAdjacentHTML(pos, content) { inserted = { pos, content }; }
+  });
+  assert.equal(inserted.pos, 'afterbegin');
+  assert.match(inserted.content, /id="view"/);
+});
+
+test('bridge client packs length-prefixed PNG frames and posts to /save-frames', async () => {
+  const { createBridgeClient, packFrames } = await import('../engine/bridge-client.js');
+  const a = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
+  const b = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 2, 3]);
+  const packed = packFrames([a, b]);
+  const view = new DataView(packed.buffer, packed.byteOffset, packed.byteLength);
+  assert.equal(packed.byteLength, 4 + a.length + 4 + b.length);
+  assert.equal(view.getUint32(0, false), a.length);
+  assert.equal(view.getUint32(4 + a.length, false), b.length);
+  let captured = null;
+  const client = createBridgeClient({
+    fetcher: async (url, init) => {
+      if (url.endsWith('/session')) return { ok: true, status: 200, json: async () => ({ ok: true, protocol: 2, token: 'a'.repeat(64) }) };
+      captured = { url, init };
+      return { ok: true, status: 200, json: async () => ({ ok: true, filename: 'clip-1.mp4', mime: 'video/mp4' }) };
+    }
+  });
+  const res = await client.uploadFrames([a, b], 'clip.mp4', 30);
+  assert.equal(res.ok, true);
+  assert.equal(res.filename, 'clip-1.mp4');
+  assert.match(captured.url, /\/save-frames\?filename=clip\.mp4&fps=30$/);
+  assert.equal(captured.init.headers['Content-Type'], 'application/x-picnic-frames');
+  assert.equal(captured.init.body.byteLength, packed.byteLength);
+});
+
+test('capture uses fixed-timestep renderAt over bridge when available and falls back when unavailable', async () => {
+  const { createCapture } = await import('../engine/capture.js');
+  const origDoc = globalThis.document, origURL = globalThis.URL, origMR = globalThis.MediaRecorder;
+  const fakePng = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0]);
+  const makeFakeCanvas = () => ({
+    width: 0, height: 0,
+    getContext: () => ({ drawImage() {}, imageSmoothingEnabled: true }),
+    toBlob: (cb) => cb(new Blob([fakePng], { type: 'image/png' })),
+    captureStream: () => ({ getTracks: () => [{ stop() {} }] })
+  });
+  globalThis.document = {
+    createElement: tag => tag === 'canvas' ? makeFakeCanvas() : { click() {}, remove() {}, set href(_) {}, set download(_) {} },
+    body: { appendChild() {} }
+  };
+  globalThis.URL = { createObjectURL: () => 'blob:fake', revokeObjectURL() {} };
+  try {
+    const sizes = [], times = [], progress = [];
+    let uploaded = null;
+    const fakeBridge = {
+      available: async () => true,
+      upload: async () => ({ ok: false, unavailable: true }),
+      uploadFrames: async (frames, filename, fps) => { uploaded = { count: frames.length, filename, fps }; return { ok: true, filename: 'fixed-uuid.mp4', mime: 'video/mp4' }; }
+    };
+    const cap = createCapture({
+      canvas: {},
+      pixel: { setFixedSize: s => sizes.push(s) },
+      renderOnce: () => {},
+      renderAt: t => times.push(t),
+      fps: 10,
+      bridge: fakeBridge
+    });
+    const res = await cap.startVideo({ duration: 0.5, filename: 'fixed', onProgress: (t, d) => progress.push([t, d]) });
+    assert.equal(res.where, 'downloads');
+    assert.equal(res.filename, 'fixed-uuid.mp4');
+    assert.equal(cap.state, 'idle');
+    assert.deepEqual(times, [0, 0.1, 0.2, 0.3, 0.4]);
+    assert.deepEqual(uploaded, { count: 5, filename: 'fixed.mp4', fps: 10 });
+    assert.deepEqual(sizes[0], { width: 320, height: 180 });
+    assert.equal(sizes[sizes.length - 1], null);
+    assert.equal(progress.length, 5);
+
+    // Cancellation mid-loop restores fixed size and idle state.
+    let cancelCap;
+    cancelCap = createCapture({
+      canvas: {},
+      pixel: { setFixedSize: s => sizes.push(s) },
+      renderOnce: () => {},
+      renderAt: t => { if (t >= 0.1) cancelCap.stopVideo(); },
+      fps: 10,
+      bridge: fakeBridge
+    });
+    await assert.rejects(() => cancelCap.startVideo({ duration: 0.5, filename: 'cancel' }), /中止/);
+    assert.equal(cancelCap.state, 'idle');
+    assert.equal(sizes[sizes.length - 1], null);
+  } finally {
+    globalThis.document = origDoc; globalThis.URL = origURL; globalThis.MediaRecorder = origMR;
+  }
+});

@@ -15,11 +15,33 @@ function validateName(name) {
   if (typeof name !== 'string' || Buffer.byteLength(name, 'utf8') > 160 || !name || /[\\/:<>"|?*\x00-\x1f\x7f]/u.test(name) || name === '.' || name === '..' || !MIME[path.extname(name)]) fail(400, 'invalid_filename');
   return name;
 }
+const PNG_MAGIC = Buffer.from([137,80,78,71,13,10,26,10]);
 function mediaType(head) {
-  if (head.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return 'image/png';
+  if (head.subarray(0, 8).equals(PNG_MAGIC)) return 'image/png';
   if (head.subarray(0, 4).equals(Buffer.from([26,69,223,163]))) return 'video/webm';
   if (head.length >= 12 && head.toString('ascii', 4, 8) === 'ftyp') return 'video/mp4';
   fail(400, 'invalid_media');
+}
+async function validateFrameStream(filePath) {
+  const fh = await fsp.open(filePath, 'r');
+  try {
+    const size = (await fh.stat()).size;
+    if (size < 12) fail(400, 'invalid_frames');
+    const hdr = Buffer.alloc(12);
+    let offset = 0, count = 0;
+    while (offset < size) {
+      if (size - offset < 4) fail(400, 'invalid_frames');
+      await fh.read(hdr, 0, 4, offset);
+      const len = hdr.readUInt32BE(0);
+      if (len < 8 || offset + 4 + len > size) fail(400, 'invalid_frames');
+      await fh.read(hdr, 4, 8, offset + 4);
+      if (!hdr.subarray(4, 12).equals(PNG_MAGIC)) fail(400, 'invalid_media');
+      offset += 4 + len;
+      if (++count > 1800) fail(400, 'invalid_frames');
+    }
+    if (count < 1) fail(400, 'invalid_frames');
+    return count;
+  } finally { await fh.close(); }
 }
 function renderOptions(body) {
   const mode = body.mode ?? 'day';
@@ -93,7 +115,7 @@ async function createExportServer({ directory, port = 18923, origins = ['http://
       res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
       res.setHeader('Vary', 'Origin'); res.setHeader('Cache-Control', 'no-store');
       const url = new URL(req.url, `http://127.0.0.1:${actualPort}`);
-      if (!['/health', '/session', '/save-blob', '/save-png', '/save-video'].includes(url.pathname)) fail(404, 'not_found');
+      if (!['/health', '/session', '/save-blob', '/save-frames', '/save-png', '/save-video'].includes(url.pathname)) fail(404, 'not_found');
       if (req.method === 'OPTIONS') {
         if (req.headers['access-control-request-method'] && req.headers['access-control-request-method'] !== 'POST') fail(405, 'method_not_allowed');
         const headers = (req.headers['access-control-request-headers'] || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
@@ -108,14 +130,25 @@ async function createExportServer({ directory, port = 18923, origins = ['http://
       const supplied = req.headers['x-picnic-token'];
       if (typeof supplied !== 'string' || !/^[a-f0-9]{64}$/.test(supplied) || !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(token))) fail(403, 'invalid_session');
       if (busy) fail(429, 'busy');
-      const isBlob = url.pathname === '/save-blob', limit = isBlob ? maxUploadBytes : 4096;
+      const isBlob = url.pathname === '/save-blob', isFrames = url.pathname === '/save-frames';
+      const limit = (isBlob || isFrames) ? maxUploadBytes : 4096;
       const length = req.headers['content-length'];
       if (length !== undefined && (!/^\d+$/.test(length) || Number(length) > limit)) fail(413, 'upload_too_large');
-      const name = isBlob ? validateName(url.searchParams.get('filename')) : null;
+      const name = (isBlob || isFrames) ? validateName(url.searchParams.get('filename')) : null;
       const convert = url.searchParams.get('convert');
-      if (convert && convert !== 'mp4') fail(400, 'invalid_conversion');
-      if (convert && path.extname(name || '') === '.png') fail(400, 'invalid_conversion');
-      if (!isBlob && (req.headers['content-type'] || '').split(';')[0] !== 'application/json') fail(400, 'invalid_content_type');
+      let fps = 30;
+      if (isFrames) {
+        if (path.extname(name || '') !== '.mp4') fail(400, 'invalid_filename');
+        const rawFps = url.searchParams.get('fps') ?? '30';
+        if (!/^\d+$/.test(rawFps)) fail(400, 'invalid_fps');
+        fps = Number(rawFps);
+        if (fps < 1 || fps > 60) fail(400, 'invalid_fps');
+        if ((req.headers['content-type'] || '').split(';')[0] !== 'application/x-picnic-frames') fail(400, 'invalid_content_type');
+      } else {
+        if (convert && convert !== 'mp4') fail(400, 'invalid_conversion');
+        if (convert && path.extname(name || '') === '.png') fail(400, 'invalid_conversion');
+        if (!isBlob && (req.headers['content-type'] || '').split(';')[0] !== 'application/json') fail(400, 'invalid_content_type');
+      }
       busy = locked = true;
       controller = new AbortController(); active.add(controller);
       const abort = reason => { if (!controller.signal.aborted) controller.abort(reason); };
@@ -144,6 +177,10 @@ async function createExportServer({ directory, port = 18923, origins = ['http://
           await runJob({ kind: 'convert', input, output, ffmpegBin, maxOutputBytes }, controller.signal, { maxOutputBytes, jobScript });
           source = output; mime = 'video/mp4'; resultName = name.replace(/\.(webm|mp4)$/, '.mp4');
         }
+      } else if (isFrames) {
+        await validateFrameStream(input);
+        await runJob({ kind: 'frames', input, output, fps, ffmpegBin, maxOutputBytes }, controller.signal, { maxOutputBytes, jobScript });
+        source = output; mime = 'video/mp4'; resultName = name;
       } else {
         let body; try { body = JSON.parse(await fsp.readFile(input, 'utf8')); } catch { fail(400, 'invalid_json'); }
         if (!body || Array.isArray(body) || typeof body !== 'object') fail(400, 'invalid_json');

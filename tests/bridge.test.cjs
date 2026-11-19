@@ -214,3 +214,57 @@ test('POSIX timeout kills both rendering job and its encoder descendant', { time
   assert.ok(pids.every(pid => !alive(pid)), 'no rendering or encoder process remains');
   await waitForEmpty(dir);
 });
+
+function packFrames(frames) {
+  let total = 0;
+  for (const f of frames) total += 4 + f.length;
+  const out = Buffer.allocUnsafe(total);
+  let offset = 0;
+  for (const f of frames) { out.writeUInt32BE(f.length, offset); offset += 4; f.copy(out, offset); offset += f.length; }
+  return out;
+}
+
+test('save-frames rejects invalid fps, content type, filename, truncated or non-PNG frames', async t => {
+  const { post, headers, dir } = await setup(t);
+  const frameHeaders = { ...headers, 'Content-Type': 'application/x-picnic-frames' };
+  const validBody = packFrames([PNG]);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=0', validBody, { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=61', validBody, { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=30.5', validBody, { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.png&fps=30', validBody, { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=30', validBody, { headers })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=30', Buffer.alloc(0), { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=30', validBody.subarray(0, validBody.length - 1), { headers: frameHeaders })).status, 400);
+  assert.equal((await post('/save-frames?filename=out.mp4&fps=30', packFrames([Buffer.from('not-a-png-file')]), { headers: frameHeaders })).status, 400);
+  assert.deepEqual(await fs.readdir(dir), []);
+});
+
+test('save-frames encodes fixed-timestep PNG sequence into exact-fps 1280x720 H.264 MP4', async t => {
+  const { spawnSync } = require('node:child_process');
+  const ffmpeg = require('node:fs').existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg';
+  const ffprobe = require('node:fs').existsSync('/opt/homebrew/bin/ffprobe') ? '/opt/homebrew/bin/ffprobe' : 'ffprobe';
+  if (spawnSync(ffmpeg, ['-version']).status !== 0 || spawnSync(ffprobe, ['-version']).status !== 0) { t.skip('ffmpeg/ffprobe unavailable'); return; }
+  const { encodePNG } = require('../tools/export_server.js');
+  const { post, headers, dir } = await setup(t, { ffmpegBin: ffmpeg });
+  const frames = [];
+  for (let i = 0; i < 30; i++) {
+    const rgb = Buffer.alloc(320 * 180 * 3);
+    for (let p = 0; p < rgb.length; p += 3) { rgb[p] = (i * 8) & 255; rgb[p + 1] = 120; rgb[p + 2] = 200; }
+    frames.push(encodePNG(320, 180, rgb));
+  }
+  const r = await post('/save-frames?filename=loop-test.mp4&fps=30', packFrames(frames), {
+    headers: { ...headers, 'Content-Type': 'application/x-picnic-frames' }
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.mime, 'video/mp4');
+  assert.match(j.filename, /^loop-test-.*\.mp4$/);
+  const probe = JSON.parse(spawnSync(ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,width,height,nb_frames,avg_frame_rate', '-of', 'json', path.join(dir, j.filename)], { encoding: 'utf8' }).stdout);
+  const s = probe.streams[0];
+  assert.equal(s.codec_name, 'h264');
+  assert.equal(s.width, 1280);
+  assert.equal(s.height, 720);
+  assert.equal(Number(s.nb_frames), 30);
+  assert.equal(s.avg_frame_rate, '30/1');
+});
