@@ -6,7 +6,13 @@ const mod = (x, n) => ((x % n) + n) % n;
 export const PONY_HIPS = PONY_RIG.hips;
 // LF, RF, LH, RH: RH -> RF -> LH -> LF, one contact each quarter stride.
 export const WALK_OFFSETS = [.75,.25,.5,0];
-export const STANCE = .64;
+export const STANCE = .56;
+
+export function stridesForRoute(route) {
+  if (Number.isInteger(route?.strides) && route.strides > 0) return route.strides;
+  if (route?.radius > 0 && route?.count > 0) return Math.max(1, Math.round((TAU * route.radius / route.count) / .85));
+  return PONY_RIG.stridesPerLoop;
+}
 
 function triNormal(ax,ay,az,bx,by,bz,cx,cy,cz){
   const e1x=bx-ax,e1y=by-ay,e1z=bz-az,e2x=cx-ax,e2y=cy-ay,e2z=cz-az;
@@ -99,29 +105,33 @@ function hoofAnchor(t,index,leg,route,heightAt) {
   return {world:[wx,s.y,wz],normal:[s.nx,s.ny,s.nz]};
 }
 export function sampleWalk(t,index,route,heightAt) {
-  const pose=circlePose(t,index,route),period=route.loop/PONY_RIG.stridesPerLoop;
+  const pose=circlePose(t,index,route),period=route.loop/(route.strides??PONY_RIG.stridesPerLoop);
   const feet=PONY_HIPS.map((_,leg)=>{
     const stride=t/period-WALK_OFFSETS[leg],cycle=Math.floor(stride),phase=mod(stride,1);
     const contact=(cycle+WALK_OFFSETS[leg]+STANCE/2)*period;
     const from=hoofAnchor(contact,index,leg,route,heightAt);
-    if(phase<STANCE)return {world:from.world,normal:from.normal,phase,planted:true};
+    if(phase<STANCE)return {world:from.world,groundY:from.world[1],normal:from.normal,phase,planted:true};
     const to=hoofAnchor(contact+period,index,leg,route,heightAt);
-    const u=(phase-STANCE)/(1-STANCE),s=u*u*(3-2*u);
+    const u=(phase-STANCE)/(1-STANCE),s=u*u*u*(u*(6*u-15)+10);
     const x=from.world[0]+(to.world[0]-from.world[0])*s,z=from.world[2]+(to.world[2]-from.world[2])*s;
-    const pitch=.30*Math.sin(TAU*u)*Math.sin(Math.PI*u);
+    const groundHere=heightAt(x,z);
+    const pitch=.08*Math.sin(TAU*u)*Math.sin(Math.PI*u);
     // Account for tilted toe/heel drop so the rectangular hoof clears uneven ground.
     const toeDrop=.5*PONY_RIG.hoof[2]*Math.abs(Math.sin(pitch));
-    const y=Math.max(from.world[1]+(to.world[1]-from.world[1])*s,heightAt(x,z)+toeDrop)+.105*Math.sin(Math.PI*u)**2;
-    return {world:[x,y,z],phase,planted:false,pitch};
+    // Gentle, low-arc equine walk lift: smooth liftoff and unhurried touch-down.
+    const lift=.058*Math.sin(Math.PI*u)**2*(1+.30*Math.cos(Math.PI*u));
+    const y=Math.max(from.world[1]+(to.world[1]-from.world[1])*s,groundHere+toeDrop)+lift;
+    return {world:[x,y,z],groundY:groundHere,phase,planted:false,pitch};
   });
   return { ...pose, y:heightAt(pose.x,pose.z), feet };
 }
 
-// Compute gentle body pitch/roll from the four foot target heights (forward -Z, right +X).
+// Compute gentle body pitch/roll from ground heights under the four feet (never swing air height).
 const _bodyLength=PONY_HIPS[2][2]-PONY_HIPS[0][2],_bodyWidth=PONY_HIPS[1][0]-PONY_HIPS[0][0];
+const _footGroundY=f=>f.groundY??f.world[1];
 export function computeBodyTilt(feet,maxTilt=.20){
-  const yF=(feet[0].world[1]+feet[1].world[1])*.5,yH=(feet[2].world[1]+feet[3].world[1])*.5;
-  const yL=(feet[0].world[1]+feet[2].world[1])*.5,yR=(feet[1].world[1]+feet[3].world[1])*.5;
+  const yF=(_footGroundY(feet[0])+_footGroundY(feet[1]))*.5,yH=(_footGroundY(feet[2])+_footGroundY(feet[3]))*.5;
+  const yL=(_footGroundY(feet[0])+_footGroundY(feet[2]))*.5,yR=(_footGroundY(feet[1])+_footGroundY(feet[3]))*.5;
   return {
     pitch:THREE.MathUtils.clamp(Math.atan2(yF-yH,_bodyLength)*.85,-maxTilt,maxTilt),
     roll:THREE.MathUtils.clamp(Math.atan2(yR-yL,_bodyWidth)*.85,-maxTilt,maxTilt)
@@ -148,10 +158,11 @@ function solveTwoLink(hip,foot,upper,lower,bend) {
     clamped:Math.abs(distance-actual)>1e-6
   };
 }
+const smoothMax=(a,b,k=.02)=>.5*(a+b+Math.hypot(a-b,k));
 export function solvePonyLeg(hip,foot,bend=1,swing=0) {
   const rig=bend<0?PONY_RIG.fore:PONY_RIG.hind;
   const distance=Math.hypot(foot[0]-hip[0],foot[1]-hip[1],foot[2]-hip[2]);
-  const reach=THREE.MathUtils.clamp(Math.max(rig.reach-.025*swing,distance-rig.proximal+.015),Math.abs(rig.upper-rig.lower)+.001,rig.upper+rig.lower-.0003);
+  const reach=THREE.MathUtils.clamp(smoothMax(rig.reach-.025*swing,distance-rig.proximal+.015),Math.abs(rig.upper-rig.lower)+.001,rig.upper+rig.lower-.0003);
   const proximal=solveTwoLink(hip,foot,rig.proximal,reach,-bend);
   const distal=solveTwoLink(proximal.joint,proximal.foot,rig.upper,rig.lower,bend);
   return {elbow:proximal.joint,joint:distal.joint,foot:distal.foot,clamped:proximal.clamped||distal.clamped};
@@ -271,6 +282,7 @@ export function createPony(toon,{color='#8a5a3a',mane='#3a2a20',saddle=null,patc
     const p=t*TAU/loop+phase;
     neck.position.y=grazing?.69:PONY_RIG.neck[1];
     neck.rotation.x=grazing?-1.90+Math.sin(p)*.035:PONY_RIG.neckAngle+Math.sin(p)*.025;
+    neck.rotation.y=0;
     tail.rotation.z=Math.sin(p*2)*.13;
     group.updateWorldMatrix(true,false);
     // Idle neck/tail motion does not change planted feet on this static ground.

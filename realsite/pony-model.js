@@ -8,7 +8,7 @@ export const PONY_RIG = {
   // Proximal muscle is mostly inside the body; exposed distal joints differ.
   fore: {proximal:.25, upper:.30, lower:.25, reach:.548, widths:[.14,.11,.09,.08]},
   hind: {proximal:.33, upper:.32, lower:.27, reach:.51, widths:[.14,.12,.095,.08]},
-  stridesPerLoop:12,
+  stridesPerLoop:10,
   hoof: [.12,.07,.16]
 };
 

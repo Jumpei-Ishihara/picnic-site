@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {PONY_RIG} from '../realsite/pony-model.js';
-import {createPony,sampleWalk,PONY_HIPS,solvePonyLeg,WALK_OFFSETS,STANCE,createGridGround,computeBodyTilt} from '../realsite/pony.js';
+import {createPony,sampleWalk,PONY_HIPS,solvePonyLeg,WALK_OFFSETS,STANCE,createGridGround,computeBodyTilt,stridesForRoute} from '../realsite/pony.js';
 import {createPonyRing,createPonyLand} from '../realsite/nagisa-facilities.js';
 const toon=p=>new THREE.MeshBasicMaterial(p),route={x:-148.5,z:-48.5,radius:4.3,count:3,loop:6};
 const H=(x,z)=>.012*x+.018*z;
@@ -15,7 +15,7 @@ test('stance hooves stay fixed in world space and swing clears terrain',()=>{
  for(let leg=0;leg<4;leg++){
   const period=route.loop/PONY_RIG.stridesPerLoop,t=(WALK_OFFSETS[leg]+.1)*period,a=sampleWalk(t,0,route,H).feet[leg],b=sampleWalk(t+.1,0,route,H).feet[leg];
   assert.ok(a.planted&&b.planted);a.world.forEach((v,i)=>near(v,b.world[i]));near(a.world[1],H(a.world[0],a.world[2]));
-  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*period,0,route,H).feet[leg];assert.ok(!f.planted);assert.ok(f.world[1]-H(f.world[0],f.world[2])>.10);
+  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*period,0,route,H).feet[leg];assert.ok(!f.planted);const clearance=f.world[1]-H(f.world[0],f.world[2]);assert.ok(clearance>.048&&clearance<.08,`natural walk clearance ${clearance}`);
  }
 });
 test('three-section fore and hind IK keep lengths, clamp extremes and remain finite',()=>{
@@ -144,4 +144,48 @@ test('planted hooves align to sloped terrain normals and hinge IK avoids Z-axis 
  // Extreme forward target along -Z: hinge plane stays in hip X without jumping sideways.
  const hip=PONY_HIPS[1],r=solvePonyLeg(hip,[hip[0],hip[1],hip[2]-.55],-1);
  near(r.elbow[0],hip[0],1e-6);near(r.joint[0],hip[0],1e-6);near(r.foot[0],hip[0],1e-6);
+});
+
+test('flat walking keeps body tilt level without swing-induced wobbling and uses asymmetric lift',()=>{
+ const flat=()=>0,period=route.loop/PONY_RIG.stridesPerLoop;
+ for(let i=0;i<60;i++){
+  const m=sampleWalk(i/60*period,0,route,flat);
+  const tilt=computeBodyTilt(m.feet);
+  near(tilt.pitch,0,1e-6);near(tilt.roll,0,1e-6);
+ }
+ // Natural walk swing peaks earlier (after lift-off) and lowers gently before touch-down.
+ const early=sampleWalk((WALK_OFFSETS[0]+STANCE+(1-STANCE)*.38)*period,0,route,flat).feet[0].world[1];
+ const late=sampleWalk((WALK_OFFSETS[0]+STANCE+(1-STANCE)*.72)*period,0,route,flat).feet[0].world[1];
+ assert.ok(early>late&&early>.045&&early<.075,`early ${early}, late ${late}`);
+});
+
+test('calm walk scales strides to route speed and nods the neck smoothly without chatter',()=>{
+ assert.equal(stridesForRoute({radius:4.3,count:5,loop:6}),6);
+ const ring=createPonyRing({toon,ring:{x:0,z:0,rIn:3.2,rOut:5.4,fenceR:0,centerR:0,ponies:5},heightAt:()=>0,style:'none'});
+ const pitches=[],yaws=[];
+ for(let i=0;i<120;i++){
+  ring.update(i/20,true);
+  const u=ring.units[0];
+  assert.ok(u.clamped.every(v=>!v));
+  pitches.push(u.pony.neck.rotation.x);
+  yaws.push(u.pony.neck.rotation.y);
+ }
+ const pitchSpan=Math.max(...pitches)-Math.min(...pitches);
+ const yawSpan=Math.max(...yaws)-Math.min(...yaws);
+ assert.ok(pitchSpan>.08&&pitchSpan<.16,`neck pitch span ${pitchSpan}`);
+ assert.ok(yawSpan>.02&&yawSpan<.06,`neck yaw span ${yawSpan}`);
+ ring.update(0,true);const p0=ring.units[0].pony.neck.rotation.x,y0=ring.units[0].pony.neck.rotation.y;
+ ring.update(6,true);near(ring.units[0].pony.neck.rotation.x,p0,1e-7);near(ring.units[0].pony.neck.rotation.y,y0,1e-7);
+});
+
+test('nagisa scene pony riding hours cover daytime 11:00 to 16:00',async()=>{
+ const fs=await import('node:fs/promises');
+ const data=JSON.parse(await fs.readFile(new URL('../scenes/nagisa/scene.json',import.meta.url),'utf8'));
+ for(const key of ['ponyRide','ponyRing']){
+  const hours=data.facilities[key].hours;
+  const active=h=>hours.some(([a,b])=>h>=a&&h<b);
+  assert.equal(active(10.5),false,`${key} before 11:00`);
+  for(const h of [11,12,13.5,15.5])assert.equal(active(h),true,`${key} at ${h}`);
+  assert.equal(active(16),false,`${key} at 16:00`);
+ }
 });
