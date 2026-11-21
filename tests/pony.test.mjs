@@ -15,7 +15,7 @@ test('stance hooves stay fixed in world space and swing clears terrain',()=>{
  for(let leg=0;leg<4;leg++){
   const period=route.loop/PONY_RIG.stridesPerLoop,t=(WALK_OFFSETS[leg]+.1)*period,a=sampleWalk(t,0,route,H).feet[leg],b=sampleWalk(t+.1,0,route,H).feet[leg];
   assert.ok(a.planted&&b.planted);a.world.forEach((v,i)=>near(v,b.world[i]));near(a.world[1],H(a.world[0],a.world[2]));
-  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*period,0,route,H).feet[leg];assert.ok(!f.planted);const clearance=f.world[1]-H(f.world[0],f.world[2]);assert.ok(clearance>.048&&clearance<.08,`natural walk clearance ${clearance}`);
+  const f=sampleWalk((WALK_OFFSETS[leg]+(STANCE+1)/2)*period,0,route,H).feet[leg];assert.ok(!f.planted);const clearance=f.world[1]-H(f.world[0],f.world[2]);const minClear=leg<2?.048:.034;assert.ok(clearance>minClear&&clearance<.08,`natural walk clearance leg ${leg}: ${clearance}`);
  }
 });
 test('three-section fore and hind IK keep lengths, clamp extremes and remain finite',()=>{
@@ -46,7 +46,7 @@ test('fenceless riding creates neither inner rails nor central shelter',()=>{
 });
 test('grazing moves a connected neck hierarchy and fixed roots loop',()=>{
  const p=createPony(toon,{patch:'#79513b'});p.group.position.set(1,H(1,2),2);p.idle(.2,{heightAt:H,grazing:true});const angle=p.neck.rotation.x;
- assert.equal(p.leadPoint.parent,p.neck);p.group.updateMatrixWorld(true);const initial=p.leadPoint.getWorldPosition(new THREE.Vector3());
+ assert.equal(p.leadPoint.parent,p.head);assert.equal(p.head.parent,p.neck);p.group.updateMatrixWorld(true);const initial=p.leadPoint.getWorldPosition(new THREE.Vector3());
  p.idle(6.2,{heightAt:H,grazing:true});p.group.updateMatrixWorld(true);near(angle,p.neck.rotation.x);near(initial.distanceTo(p.leadPoint.getWorldPosition(new THREE.Vector3())),0);
 });
 test('planted hooves meet the rendered raised track, independently raycast',()=>{

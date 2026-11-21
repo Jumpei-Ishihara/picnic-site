@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { GeoBuilder } from '../engine/structures.js';
 import { PONY_PALETTE, PONY_RIG } from './pony-model.js';
-import { createPony, sampleWalk, createTrackGround, computeBodyTilt, stridesForRoute } from './pony.js';
+import { createPony, sampleWalk, createTrackGround, computeBodyTilt, stridesForRoute, equineNodWave } from './pony.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -255,10 +255,11 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
         const {angle:a,x,z,yaw} = motion;
         // 進む向き（反時計回り＝角度が増える向き）の接線。組の -z が頭
         const walkPhase = riding ? t * W0 * strides : 0;
-        const bodyBob = riding ? Math.cos(walkPhase * 2) * 0.004 : 0;
+        const bodyBob = riding ? Math.cos(walkPhase * 2) * 0.006 : 0;
         u.pony.group.position.set(x, motion.y + bodyBob, z);
         const tilt = computeBodyTilt(motion.feet);
-        u.pony.group.rotation.set(tilt.pitch, yaw, tilt.roll, 'YXZ');
+        const walkRoll = riding ? Math.sin(walkPhase) * 0.012 : 0;
+        u.pony.group.rotation.set(tilt.pitch, yaw, tilt.roll + walkRoll, 'YXZ');
         // 引く人：ポニーの内側（輪の中心より）・頭の横
         const hx = cx + Math.cos(a + 0.16) * (rTrack - 0.75), hz = cz + Math.sin(a + 0.16) * (rTrack - 0.75);
         u.handler.group.position.set(hx, groundAt(hx, hz), hz);
@@ -266,18 +267,18 @@ export function createPonyRing({ toon, ring, heightAt, loop = 6, gateToward, sty
         u.rider.group.visible = riding;
         u.handler.group.visible = riding;
         u.rope.visible = riding;
-        // 4拍子のゆったりした常歩。首は歩調の穏やかなうなずき＋6秒周期の息づかいを重ねる。
+        // 4拍子のゆったりした常歩。首は低く伸ばし、頭ピボットがわずかに遅れて柔らかく追従する。
         const s = riding ? Math.sin(walkPhase) : 0;
         if(riding){
           u.clamped=u.pony.setFeet(motion.feet);
-          const nod=Math.cos(walkPhase*2-.4);
-          const breathe=Math.sin(t*W0);
-          u.pony.neck.position.y=PONY_RIG.neck[1]+nod*.005;
-          u.pony.neck.rotation.x=PONY_RIG.neckAngle+nod*.038+breathe*.025;
-          u.pony.neck.rotation.y=Math.sin(walkPhase)*.018;
+          const nod=equineNodWave(walkPhase*2);
+          const headNod=equineNodWave(walkPhase*2-.55);
+          u.pony.neck.position.y=PONY_RIG.neck[1]-.03+nod*.008;
+          u.pony.neck.rotation.set(-.58+nod*.055,Math.sin(walkPhase)*.022,0,'YXZ');
+          u.pony.head.rotation.x=.16-headNod*.055*.65;
         } else u.pony.idle(t,{heightAt:groundAt,loop});
-        u.pony.tail.rotation.z = Math.sin(t * W0 * 2 + a) * 0.10;
-        u.rider.group.position.y = u.pony.saddleY - 0.62 + (riding ? Math.sin(walkPhase * 2) * 0.003 : 0);
+        u.pony.tail.rotation.z = Math.sin(t * W0 * 2 + a) * 0.09;
+        u.rider.group.position.y = u.pony.saddleY - 0.62 + (riding ? Math.sin(walkPhase * 2) * 0.004 : 0);
         u.handler.legs.forEach((l, k) => { l.rotation.x = (k ? s : -s) * 0.32; });
         u.pony.group.updateWorldMatrix(true,true);u.handler.group.updateWorldMatrix(true,true);
         u.pony.leadPoint.getWorldPosition(lead);u.hand.getWorldPosition(handPos);

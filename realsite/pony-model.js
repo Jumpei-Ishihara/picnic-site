@@ -2,12 +2,12 @@
 // Metres, Y up, forward -Z. Neck/head coordinates are relative to the neck pivot.
 export const PONY_PALETTE = { hoof: '#443b36', tack: '#654636', saddle: '#b8463f' };
 export const PONY_RIG = {
-  neck: [0, .95, -.43], neckAngle: -.30, tail: [0, .94, .61],
+  neck: [0, .95, -.43], neckAngle: -.30, poll: [0, .44, -.10], tail: [0, .94, .61],
   lead: [-.14, .335, -.575], saddleY: 1.10,
   hips: [[-.18,.80,-.45],[.18,.80,-.45],[-.18,.83,.45],[.18,.83,.45]],
   // Proximal muscle is mostly inside the body; exposed distal joints differ.
   fore: {proximal:.25, upper:.30, lower:.25, reach:.548, widths:[.14,.11,.09,.08]},
-  hind: {proximal:.33, upper:.32, lower:.27, reach:.51, widths:[.14,.12,.095,.08]},
+  hind: {proximal:.27, upper:.295, lower:.275, reach:.538, widths:[.14,.12,.095,.08]},
   stridesPerLoop:10,
   hoof: [.12,.07,.16]
 };
@@ -32,7 +32,7 @@ export const PONY_MODEL={
       box('Cheek strap '+s,[s*.152,.345,-.42],[.022,.032,.27]),
       box('Upright strap '+s,[s*.153,.46,-.285],[.022,.23,.026]),
       box('Upper cheek strap '+s,[s*.153,.565,-.225],[.022,.032,.16])])],
-  saddle:[box('Saddle blanket',[0,1.045,0],[.50,.06,.42])],
+  saddle:[box('Saddle blanket',[0,1.045,0],[.512,.06,.42])],
   seat:[box('Saddle seat',[0,1.09,0],[.34,.045,.30]),
     ...[-1,1].map(s=>box('Girth '+s,[s*.257,.88,0],[.022,.30,.075]))],
   patch:[...[-1,1].flatMap(s=>[

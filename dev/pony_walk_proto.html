@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ポニー常歩モーション試作（参考動画分析ベース）</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #78909c; font-family: system-ui, -apple-system, sans-serif; color: #f4f6f8; }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    #panel {
+      position: fixed; top: 12px; left: 12px; width: 300px; padding: 12px 14px;
+      background: rgba(24, 30, 38, 0.86); backdrop-filter: blur(6px);
+      border-radius: 10px; font-size: 12px; line-height: 1.5;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+    }
+    #panel h1 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+    .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+    .row label { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    input[type="range"] { width: 130px; }
+    button {
+      border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.1);
+      color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;
+    }
+    button.on { background: #3b82f6; border-color: #60a5fa; }
+    .beats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+    .beat {
+      text-align: center; padding: 4px 0; border-radius: 5px;
+      background: rgba(255,255,255,0.08); font-size: 11px; font-weight: 600;
+    }
+    .beat.planted { background: #22c55e; color: #052e16; }
+    .note { margin-top: 8px; font-size: 11px; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="panel">
+    <h1>🐴 ポニー常歩モーション試作</h1>
+    <div class="row">
+      <button id="play" class="on">⏸ 一時停止</button>
+      <button id="sp-025">0.25x</button>
+      <button id="sp-05">0.5x</button>
+      <button id="sp-1" class="on">1.0x</button>
+    </div>
+    <div class="row">
+      <button id="cam-side" class="on">真横</button>
+      <button id="cam-qtr">斜め前</button>
+      <button id="cam-front">正面</button>
+      <button id="cam-back">背面</button>
+    </div>
+    <div class="row">
+      <button id="mode-proto" class="on">試作のみ</button>
+      <button id="mode-compare">現行と並走比較</button>
+      <button id="px-toggle">ドット絵表示</button>
+    </div>
+    <div class="row">
+      <label>位相 <span id="phase-val">0.00</span><input id="phase" type="range" min="0" max="1" step="0.005" value="0" /></label>
+    </div>
+    <div class="row">
+      <label>周期(秒) <span id="period-val">1.15s</span><input id="period" type="range" min="0.85" max="1.50" step="0.05" value="1.15" /></label>
+    </div>
+    <div class="row">
+      <label>首の高さ <span id="neck-val">-0.58</span><input id="neck" type="range" min="-0.90" max="-0.25" step="0.02" value="-0.58" /></label>
+    </div>
+    <div class="row">
+      <label>首うなずき <span id="nod-val">0.055</span><input id="nod" type="range" min="0" max="0.11" step="0.005" value="0.055" /></label>
+    </div>
+    <div class="row">
+      <label>前膝畳み <span id="flex-val">0.085</span><input id="flex" type="range" min="0.02" max="0.14" step="0.005" value="0.085" /></label>
+    </div>
+    <div class="beats">
+      <div class="beat" id="b-3">1: RH</div>
+      <div class="beat" id="b-1">2: RF</div>
+      <div class="beat" id="b-2">3: LH</div>
+      <div class="beat" id="b-0">4: LF</div>
+    </div>
+    <div class="note">
+      緑＝接地中（常に2〜3脚支持）<br/>
+      手前：<b>新試作</b>（前膝の早い畳み込み→伸展着地＋2段首オーバーラップ）<br/>
+      奥（並走時）：現行モデル
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { createToon } from '../engine/pixel-kit.js';
+    import { createPony, sampleWalk } from '../realsite/pony.js';
+    import { createProtoPony, sampleEquineWalk, EQUINE_GAIT_DEFAULTS } from '../realsite/pony-gait-proto.js';
+
+    const canvas = document.getElementById('view');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#78909c');
+    const camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.1, 100);
+
+    const sun = new THREE.DirectionalLight('#fff4de', 1.4);
+    sun.position.set(-4, 7, -5);
+    sun.castShadow = true;
+    sun.shadow.bias = -0.001;
+    sun.shadow.normalBias = 0.015;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
+    sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+    scene.add(sun);
+    scene.add(new THREE.HemisphereLight('#dae5ff', '#6b5c49', 0.85));
+
+    // Ground + scrolling treadmill grid (0.5 m spacing) to verify zero foot sliding.
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 24),
+      new THREE.MeshLambertMaterial({ color: '#8f7d65' })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const gridGroup = new THREE.Group();
+    const gridMat = new THREE.LineBasicMaterial({ color: '#c8b89d', transparent: true, opacity: 0.55 });
+    const gridPts = [];
+    for (let z = -8; z <= 8; z += 0.5) gridPts.push(-5, 0.004, z, 5, 0.004, z);
+    for (let x = -5; x <= 5; x += 0.5) gridPts.push(x, 0.004, -8, x, 0.004, 8);
+    const gridGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(gridPts, 3));
+    gridGroup.add(new THREE.LineSegments(gridGeo, gridMat));
+    scene.add(gridGroup);
+
+    const toon = createToon();
+    const proto = createProtoPony(toon, { color: '#e6d8b8', mane: '#f4ecd8', saddle: '#b8463f' });
+    scene.add(proto.group);
+
+    // Optional side-by-side comparison with current site pony.
+    const current = createPony(toon, { color: '#cfa982', mane: '#654636', saddle: '#466ab8' });
+    current.group.visible = false;
+    scene.add(current.group);
+
+    // Ground contact markers for prototype hooves.
+    const markerGeo = new THREE.RingGeometry(0.05, 0.085, 16);
+    markerGeo.rotateX(-Math.PI / 2);
+    const markers = Array.from({ length: 4 }, () => {
+      const m = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: '#22c55e', side: THREE.DoubleSide }));
+      m.position.y = 0.006;
+      scene.add(m);
+      return m;
+    });
+
+    const state = {
+      playing: true,
+      speedScale: 1.0,
+      pixelMode: false,
+      compare: false,
+      cam: 'side',
+      simTime: 0,
+      period: EQUINE_GAIT_DEFAULTS.period,
+      neckBaseAngle: EQUINE_GAIT_DEFAULTS.neckBaseAngle,
+      neckNod: EQUINE_GAIT_DEFAULTS.neckNod,
+      foreFlex: EQUINE_GAIT_DEFAULTS.foreFlex
+    };
+
+    const CAMS = {
+      side:  { pos: [-3.8, 0.92, -0.25], target: [0, 0.72, -0.25] },
+      qtr:   { pos: [-2.8, 1.15, -2.6], target: [0, 0.72, -0.15] },
+      front: { pos: [0.0, 0.95, -3.5], target: [0, 0.75, 0.0] },
+      back:  { pos: [0.0, 0.95, 3.5], target: [0, 0.75, 0.0] }
+    };
+
+    function resize() {
+      const w = window.innerWidth, h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      if (state.pixelMode) {
+        const pw = Math.max(240, Math.round(w / 3)), ph = Math.max(135, Math.round(h / 3));
+        renderer.setPixelRatio(1);
+        renderer.setSize(pw, ph, false);
+      } else {
+        renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+        renderer.setSize(w, h, false);
+      }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const setActive = (ids, activeId) => ids.forEach(id => document.getElementById(id).classList.toggle('on', id === activeId));
+    document.getElementById('play').onclick = e => {
+      state.playing = !state.playing;
+      e.target.textContent = state.playing ? '⏸ 一時停止' : '▶ 再生';
+      e.target.classList.toggle('on', state.playing);
+    };
+    for (const [id, v] of [['sp-025', 0.25], ['sp-05', 0.5], ['sp-1', 1.0]]) {
+      document.getElementById(id).onclick = () => { state.speedScale = v; setActive(['sp-025', 'sp-05', 'sp-1'], id); };
+    }
+    for (const [id, k] of [['cam-side', 'side'], ['cam-qtr', 'qtr'], ['cam-front', 'front'], ['cam-back', 'back']]) {
+      document.getElementById(id).onclick = () => { state.cam = k; setActive(['cam-side', 'cam-qtr', 'cam-front', 'cam-back'], id); };
+    }
+    document.getElementById('mode-proto').onclick = () => {
+      state.compare = false; current.group.visible = false;
+      setActive(['mode-proto', 'mode-compare'], 'mode-proto');
+    };
+    document.getElementById('mode-compare').onclick = () => {
+      state.compare = true; current.group.visible = true;
+      setActive(['mode-proto', 'mode-compare'], 'mode-compare');
+    };
+    document.getElementById('px-toggle').onclick = e => {
+      state.pixelMode = !state.pixelMode;
+      e.target.classList.toggle('on', state.pixelMode);
+      resize();
+    };
+
+    const phaseEl = document.getElementById('phase'), phaseVal = document.getElementById('phase-val');
+    phaseEl.oninput = () => {
+      state.playing = false;
+      document.getElementById('play').textContent = '▶ 再生';
+      document.getElementById('play').classList.remove('on');
+      state.simTime = Number(phaseEl.value) * state.period;
+    };
+    document.getElementById('period').oninput = e => { state.period = Number(e.target.value); document.getElementById('period-val').textContent = state.period.toFixed(2) + 's'; };
+    document.getElementById('neck').oninput = e => { state.neckBaseAngle = Number(e.target.value); document.getElementById('neck-val').textContent = state.neckBaseAngle.toFixed(2); };
+    document.getElementById('nod').oninput = e => { state.neckNod = Number(e.target.value); document.getElementById('nod-val').textContent = state.neckNod.toFixed(3); };
+    document.getElementById('flex').oninput = e => { state.foreFlex = Number(e.target.value); document.getElementById('flex-val').textContent = state.foreFlex.toFixed(3); };
+
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (state.playing) state.simTime += dt * state.speedScale;
+
+      const strideLen = 0.90;
+      const speed = strideLen / state.period;
+      const phase = ((state.simTime / state.period) % 1 + 1) % 1;
+      phaseEl.value = phase.toFixed(3);
+      phaseVal.textContent = phase.toFixed(2);
+
+      // Scroll treadmill grid at exact pony speed so planted hooves stay locked to grid lines.
+      gridGroup.position.z = ((state.simTime * speed) % 0.5 + 0.5) % 0.5;
+
+      const pose = sampleEquineWalk(state.simTime, {
+        treadmill: true,
+        period: state.period,
+        speed,
+        neckBaseAngle: state.neckBaseAngle,
+        neckNod: state.neckNod,
+        foreFlex: state.foreFlex
+      });
+      proto.applyPose(pose);
+      proto.group.position.x = state.compare ? -0.55 : 0;
+
+      for (let i = 0; i < 4; i++) {
+        const f = pose.feet[i];
+        markers[i].position.x = f.world[0] + proto.group.position.x;
+        markers[i].position.z = f.world[2];
+        markers[i].material.color.set(f.planted ? '#22c55e' : '#facc15');
+        markers[i].material.opacity = f.planted ? 0.95 : 0.4;
+        document.getElementById('b-' + i).classList.toggle('planted', f.planted);
+      }
+
+      if (state.compare) {
+        // Run current site walk on a huge radius straight-ish tangent for side-by-side comparison.
+        const route = { x: -1000, z: 0, radius: 1000, count: 1000, loop: 6, strides: 6 };
+        const m = sampleWalk(state.simTime, 0, route, () => 0);
+        current.group.position.set(0.55, 0, 0);
+        current.group.rotation.set(0, 0, 0);
+        const relFeet = m.feet.map(f => ({
+          ...f,
+          world: [f.world[0] - m.x + 0.55, f.world[1], f.world[2] - m.z]
+        }));
+        current.setFeet(relFeet);
+      }
+
+      const c = CAMS[state.cam];
+      camera.position.set(...c.pos);
+      camera.lookAt(...c.target);
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

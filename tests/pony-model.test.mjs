@@ -27,18 +27,21 @@ test('site consumes the shared body geometry and shares it across same-coat poni
   assert.equal(body.material.isMeshToonMaterial,true);assert.equal(body.material.flatShading,true);
 });
 
-test('grazing keeps all face details on the neck and the saddle anchor on the body',()=>{
+test('grazing keeps all face details on the head/neck hierarchy and the saddle anchor on the body',()=>{
   const p=createPony(x=>new THREE.MeshBasicMaterial(x),{saddle:'#b8463f'});
-  const names=['Pony Head','Pony Eyes','Pony Mane','Pony Halter'];
-  for(const name of names)assert.equal(p.group.getObjectByName(name).parent,p.neck,name);
+  assert.equal(p.head.parent,p.neck);
+  assert.equal(p.group.getObjectByName('Pony Mane').parent,p.neck);
+  for(const name of ['Pony Head','Pony Eyes','Pony Forelock','Pony Halter'])assert.equal(p.group.getObjectByName(name).parent,p.head,name);
   const head=p.group.getObjectByName('Pony Head');p.group.updateWorldMatrix(true,true);
-  const facePoint=()=>new THREE.Vector3(0,.44,-.18).applyMatrix4(head.matrixWorld);
+  const facePoint=()=>new THREE.Vector3(0,0,-.08).applyMatrix4(head.matrixWorld);
   const before=facePoint();
   const seat=p.group.getObjectByName('Pony Saddle Seat'),seatBefore=seat.getWorldPosition(new THREE.Vector3());
   p.idle(1,{heightAt:()=>0,grazing:true});p.group.updateWorldMatrix(true,true);
   assert.ok(facePoint().distanceTo(before)>.4);
   assert.ok(seat.getWorldPosition(new THREE.Vector3()).distanceTo(seatBefore)<1e-9);
-  assert.deepEqual(p.leadPoint.position.toArray(),PONY_RIG.lead);
+  assert.equal(p.leadPoint.parent,p.head);
+  const expectedLead=PONY_RIG.lead.map((v,i)=>v-PONY_RIG.poll[i]);
+  p.leadPoint.position.toArray().forEach((v,i)=>assert.ok(Math.abs(v-expectedLead[i])<1e-9));
   assert.equal(p.hoofInstances.count,4);
   assert.equal(p.legMesh.geometry.attributes.position.count,224);
   p.idle(0,{heightAt:()=>0});p.group.updateWorldMatrix(true,true);
@@ -52,7 +55,7 @@ test('standing fore support is nearly straight and hind stifle and hock have dis
   assert.ok(Math.abs(front[2][2]-front[3][2])<.06,'carpus must not jut 21cm in front of the hoof');
   assert.ok(front[2][1]>.28&&front[2][1]<.35);
   assert.ok(hind[1][2]<hind[0][2]-.10,'stifle forward under the thigh');
-  assert.ok(hind[2][2]>hind[3][2]+.03&&hind[2][2]<hind[3][2]+.09,'hock behind the cannon, without a deep Z');
+  assert.ok(hind[2][2]>hind[3][2]+.01&&hind[2][2]<hind[3][2]+.05,'hock slightly behind cannon with nearly vertical standing lower leg');
 });
 
 test('continuous flexed leg has shared joint rings and a closed manifold surface',()=>{

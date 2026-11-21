@@ -8,6 +8,20 @@ export const PONY_HIPS = PONY_RIG.hips;
 export const WALK_OFFSETS = [.75,.25,.5,0];
 export const STANCE = .56;
 
+export function equineNodWave(phase2) {
+  return Math.cos(phase2 - .35) + .18 * Math.sin(phase2 * 2 - .7);
+}
+function earlySwingPulse(u) {
+  if (u <= 0 || u >= 1) return 0;
+  const s = Math.sin(Math.PI * u);
+  return s * s * Math.pow(1 - u, 1.15) * 1.85;
+}
+function swingLiftProfile(u) {
+  if (u <= 0 || u >= 1) return 0;
+  const s = Math.sin(Math.PI * u);
+  return s * s * (1 + .32 * Math.cos(Math.PI * u));
+}
+
 export function stridesForRoute(route) {
   if (Number.isInteger(route?.strides) && route.strides > 0) return route.strides;
   if (route?.radius > 0 && route?.count > 0) return Math.max(1, Math.round((TAU * route.radius / route.count) / .85));
@@ -98,7 +112,8 @@ export function circlePose(t, index, { x, z, radius, count, loop }) {
   return { x:x+Math.cos(angle)*radius, z:z+Math.sin(angle)*radius, yaw:Math.atan2(Math.sin(angle),-Math.cos(angle)), angle };
 }
 function hoofAnchor(t,index,leg,route,heightAt) {
-  const p=circlePose(t,index,route),[x,,z]=PONY_HIPS[leg];
+  const p=circlePose(t,index,route),[x,,baseZ]=PONY_HIPS[leg];
+  const z=baseZ+(leg<2?-.01:.01);
   const wx=p.x+Math.cos(p.yaw)*x+Math.sin(p.yaw)*z;
   const wz=p.z-Math.sin(p.yaw)*x+Math.cos(p.yaw)*z;
   const s=sampleSurface(heightAt,wx,wz);
@@ -107,21 +122,31 @@ function hoofAnchor(t,index,leg,route,heightAt) {
 export function sampleWalk(t,index,route,heightAt) {
   const pose=circlePose(t,index,route),period=route.loop/(route.strides??PONY_RIG.stridesPerLoop);
   const feet=PONY_HIPS.map((_,leg)=>{
+    const isFore=leg<2;
     const stride=t/period-WALK_OFFSETS[leg],cycle=Math.floor(stride),phase=mod(stride,1);
     const contact=(cycle+WALK_OFFSETS[leg]+STANCE/2)*period;
     const from=hoofAnchor(contact,index,leg,route,heightAt);
-    if(phase<STANCE)return {world:from.world,groundY:from.world[1],normal:from.normal,phase,planted:true};
+    if(phase<STANCE){
+      let flex=0;
+      if(!isFore){
+        const stU=phase/STANCE;
+        if(stU<.25)flex=.005*Math.sin(Math.PI*stU/.25)**2;
+        else if(stU>.30)flex=-.012*Math.sin(Math.PI*(stU-.30)/.70)**2;
+      }
+      return {world:from.world,groundY:from.world[1],normal:from.normal,phase,planted:true,flex};
+    }
     const to=hoofAnchor(contact+period,index,leg,route,heightAt);
     const u=(phase-STANCE)/(1-STANCE),s=u*u*u*(u*(6*u-15)+10);
     const x=from.world[0]+(to.world[0]-from.world[0])*s,z=from.world[2]+(to.world[2]-from.world[2])*s;
     const groundHere=heightAt(x,z);
-    const pitch=.08*Math.sin(TAU*u)*Math.sin(Math.PI*u);
+    const pitch=(isFore?.14:.11)*Math.sin(TAU*u)*Math.sin(Math.PI*u)*(1-.35*u);
     // Account for tilted toe/heel drop so the rectangular hoof clears uneven ground.
     const toeDrop=.5*PONY_RIG.hoof[2]*Math.abs(Math.sin(pitch));
-    // Gentle, low-arc equine walk lift: smooth liftoff and unhurried touch-down.
-    const lift=.058*Math.sin(Math.PI*u)**2*(1+.30*Math.cos(Math.PI*u));
+    // Forelegs clear higher with early carpus fold; hindlegs glide lower.
+    const lift=(isFore?.058:.040)*swingLiftProfile(u);
+    const flex=(isFore?.085:.075)*earlySwingPulse(u);
     const y=Math.max(from.world[1]+(to.world[1]-from.world[1])*s,groundHere+toeDrop)+lift;
-    return {world:[x,y,z],groundY:groundHere,phase,planted:false,pitch};
+    return {world:[x,y,z],groundY:groundHere,phase,planted:false,pitch,flex};
   });
   return { ...pose, y:heightAt(pose.x,pose.z), feet };
 }
@@ -158,11 +183,12 @@ function solveTwoLink(hip,foot,upper,lower,bend) {
     clamped:Math.abs(distance-actual)>1e-6
   };
 }
-const smoothMax=(a,b,k=.02)=>.5*(a+b+Math.hypot(a-b,k));
-export function solvePonyLeg(hip,foot,bend=1,swing=0) {
-  const rig=bend<0?PONY_RIG.fore:PONY_RIG.hind;
+const smoothMax=(a,b,k=.025)=>.5*(a+b+Math.hypot(a-b,k));
+export function solvePonyLeg(hip,foot,bend=1,flex=0) {
+  const isFore=bend<0,rig=isFore?PONY_RIG.fore:PONY_RIG.hind;
   const distance=Math.hypot(foot[0]-hip[0],foot[1]-hip[1],foot[2]-hip[2]);
-  const reach=THREE.MathUtils.clamp(smoothMax(rig.reach-.025*swing,distance-rig.proximal+.015),Math.abs(rig.upper-rig.lower)+.001,rig.upper+rig.lower-.0003);
+  const baseReach=isFore?rig.reach+.008:rig.reach;
+  const reach=THREE.MathUtils.clamp(smoothMax(baseReach-flex,distance-rig.proximal+.012,.025),Math.abs(rig.upper-rig.lower)+.002,rig.upper+rig.lower-.0004);
   const proximal=solveTwoLink(hip,foot,rig.proximal,reach,-bend);
   const distal=solveTwoLink(proximal.joint,proximal.foot,rig.upper,rig.lower,bend);
   return {elbow:proximal.joint,joint:distal.joint,foot:distal.foot,clamped:proximal.clamped||distal.clamped};
@@ -175,9 +201,10 @@ function merge(parts) {
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));g.setIndex(indices);g.computeBoundingSphere();return g;
 }
 const kits=new WeakMap();
-function modelGeometry(parts) {
+function modelGeometry(parts,offsetY=0,offsetZ=0) {
   return merge(parts.map(part=>{
-    const {vertices,indices}=ponyPartMesh(part),g=new THREE.BufferGeometry();
+    const shifted=(offsetY||offsetZ)?{...part,p:[part.p[0],part.p[1]+offsetY,part.p[2]+offsetZ]}:part;
+    const {vertices,indices}=ponyPartMesh(shifted),g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
     g.setIndex(indices);g.computeVertexNormals();return g;
   }));
@@ -187,26 +214,32 @@ function ponyKit(toon,color,mane,saddle,patch) {
   const key=JSON.stringify([color,mane,saddle,patch]);if(cache.has(key))return cache.get(key);
   const flat=p=>{const material=toon(p);material.flatShading=true;return material;};
   const coat=flat({color}),dark=flat({color:mane}),hoof=flat({color:PONY_PALETTE.hoof}),tack=flat({color:PONY_PALETTE.tack});
+  const [,py,pz]=PONY_RIG.poll;
   const kit={coat,dark,hoof,tack,unitBox:modelGeometry([PONY_MODEL.limb]),
     body:modelGeometry(PONY_MODEL.body),neck:modelGeometry(PONY_MODEL.neck),
-    head:modelGeometry(PONY_MODEL.head),eyes:modelGeometry(PONY_MODEL.eyes),
-    maneGeo:modelGeometry(PONY_MODEL.mane),tailGeo:modelGeometry(PONY_MODEL.tail),
+    head:modelGeometry(PONY_MODEL.head,-py,-pz),eyes:modelGeometry(PONY_MODEL.eyes,-py,-pz),
+    maneGeo:modelGeometry([PONY_MODEL.mane[0]]),forelockGeo:modelGeometry([PONY_MODEL.mane[1]],-py,-pz),
+    tailGeo:modelGeometry(PONY_MODEL.tail),
     saddle:saddle?modelGeometry(PONY_MODEL.saddle):null,saddleMat:saddle?flat({color:saddle}):null,
     seat:saddle?modelGeometry(PONY_MODEL.seat):null,
     patchGeo:patch?modelGeometry(PONY_MODEL.patch):null,patchMat:patch?flat({color:patch}):null,
-    halter:modelGeometry(PONY_MODEL.halter)};
+    halter:modelGeometry(PONY_MODEL.halter,-py,-pz)};
   cache.set(key,kit);return kit;
 }
 
 export function createPony(toon,{color='#8a5a3a',mane='#3a2a20',saddle=null,patch=null,len=1.35,h=1.05}={}) {
-  const kit=ponyKit(toon,color,mane,saddle,patch),group=new THREE.Group(),neck=new THREE.Group();
-  group.name='Nagisa Pony';neck.name='Pony Neck Pivot';
+  const kit=ponyKit(toon,color,mane,saddle,patch),group=new THREE.Group(),neck=new THREE.Group(),head=new THREE.Group();
+  group.name='Nagisa Pony';neck.name='Pony Neck Pivot';head.name='Pony Head Pivot';
   group.scale.set(len/1.35,h/1.05,len/1.35);
   const mesh=(geo,mat,parent=group,name='')=>{const m=new THREE.Mesh(geo,mat);m.name=name;m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;};
   mesh(kit.body,kit.coat,group,'Pony Body');if(kit.patchGeo)mesh(kit.patchGeo,kit.patchMat,group,'Pony Pinto Patch');
   neck.position.fromArray(PONY_RIG.neck);neck.rotation.x=PONY_RIG.neckAngle;group.add(neck);
-  mesh(kit.neck,kit.coat,neck,'Pony Neck');mesh(kit.head,kit.coat,neck,'Pony Head');mesh(kit.eyes,kit.hoof,neck,'Pony Eyes');mesh(kit.maneGeo,kit.dark,neck,'Pony Mane');mesh(kit.halter,kit.tack,neck,'Pony Halter');
-  const leadPoint=new THREE.Object3D();leadPoint.name='Pony Lead Point';leadPoint.position.fromArray(PONY_RIG.lead);neck.add(leadPoint);
+  mesh(kit.neck,kit.coat,neck,'Pony Neck');mesh(kit.maneGeo,kit.dark,neck,'Pony Mane');
+  head.position.fromArray(PONY_RIG.poll);neck.add(head);
+  mesh(kit.head,kit.coat,head,'Pony Head');mesh(kit.eyes,kit.hoof,head,'Pony Eyes');mesh(kit.forelockGeo,kit.dark,head,'Pony Forelock');mesh(kit.halter,kit.tack,head,'Pony Halter');
+  const leadPoint=new THREE.Object3D();leadPoint.name='Pony Lead Point';
+  leadPoint.position.set(PONY_RIG.lead[0]-PONY_RIG.poll[0],PONY_RIG.lead[1]-PONY_RIG.poll[1],PONY_RIG.lead[2]-PONY_RIG.poll[2]);
+  head.add(leadPoint);
   const tail=mesh(kit.tailGeo,kit.dark,group,'Pony Tail');tail.position.fromArray(PONY_RIG.tail);tail.rotation.x=.28;
   if(kit.saddle){mesh(kit.saddle,kit.saddleMat,group,'Pony Saddle Blanket');mesh(kit.seat,kit.tack,group,'Pony Saddle Seat');}
   // Four continuous low-poly surfaces share one dynamic mesh. A shared ring at
@@ -264,8 +297,8 @@ export function createPony(toon,{color='#8a5a3a',mane='#3a2a20',saddle=null,patc
       leg.footUp[0]=hoofUp.x;leg.footUp[1]=hoofUp.y;leg.footUp[2]=hoofUp.z;
       top.copy(sole).addScaledVector(hoofUp,PONY_RIG.hoof[1]);
       topArr[0]=top.x;topArr[1]=top.y;topArr[2]=top.z;
-      const swing=f.planted===false?Math.sin(Math.PI*(f.phase-STANCE)/(1-STANCE))**2:0;
-      const solved=solvePonyLeg(PONY_HIPS[i],topArr,i<2?-1:1,swing);
+      const flex=f.flex??0;
+      const solved=solvePonyLeg(PONY_HIPS[i],topArr,i<2?-1:1,flex);
       beam(leg.proximal,PONY_HIPS[i],solved.elbow,1);beam(leg.upper,solved.elbow,solved.joint,1);beam(leg.lower,solved.joint,solved.foot,1);
       leg.points=[PONY_HIPS[i],solved.elbow,solved.joint,solved.foot];
       writePonyLegBuffers(legPosArr,legNormArr,i*PONY_LEG_VERTEX_COUNT,leg.points,i,leg.footUp);
@@ -283,6 +316,7 @@ export function createPony(toon,{color='#8a5a3a',mane='#3a2a20',saddle=null,patc
     neck.position.y=grazing?.69:PONY_RIG.neck[1];
     neck.rotation.x=grazing?-1.90+Math.sin(p)*.035:PONY_RIG.neckAngle+Math.sin(p)*.025;
     neck.rotation.y=0;
+    head.rotation.set(0,0,0);
     tail.rotation.z=Math.sin(p*2)*.13;
     group.updateWorldMatrix(true,false);
     // Idle neck/tail motion does not change planted feet on this static ground.
@@ -297,5 +331,5 @@ export function createPony(toon,{color='#8a5a3a',mane='#3a2a20',saddle=null,patc
       lastIdleMatrix.copy(group.matrixWorld);lastIdleGround=heightAt;idleFeetValid=true;
     }
   }
-  return {group,neck,tail,legs,legMesh,hoofInstances,leadPoint,setFeet,idle,invalidateFeet:()=>{idleFeetValid=false;},saddleY:PONY_RIG.saddleY};
+  return {group,neck,head,tail,legs,legMesh,hoofInstances,leadPoint,setFeet,idle,invalidateFeet:()=>{idleFeetValid=false;},saddleY:PONY_RIG.saddleY};
 }
