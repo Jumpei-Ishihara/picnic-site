@@ -50,7 +50,12 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
  * 時刻ごとの仕上げ：素材ごとの 3 色の色ずらし、色の段階、空気中の光の筋、太陽の光の筋、電線・湯気・窓明かり
  * @returns {{ update(): { day:number, warm:number, night:number, sunEl:number } }}
  */
-export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, nightLights = [], softLighting = false, groundHeight = () => 0 }) {
+export function createLook({
+  pixel, RAMP, tod, sun, sunPath, sky, wires, steam,
+  nightLights = [], softLighting = false, groundHeight = () => 0,
+  volDay = 0.12, volWarm = 0.75, volNight = 0.25, volMax = 60,
+  dayShadow = [0.26, 0.3, 0.36], dayMid = [0.76, 0.77, 0.76]
+}) {
   const cSky = new THREE.Color(), cWire = new THREE.Color(0x5a5e68);
   const state = { day: 1, warm: 0, night: 0, sunEl: 45 };
   return {
@@ -63,8 +68,8 @@ export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, 
       const day = Math.max(0, 1 - warm - night);
       Object.assign(state, { day, warm, night, sunEl });
       // 3 色：昼は影を青緑、朝夕は影を紫・光を橙、夜は青
-      RAMP.shadow.value.fromArray(mix3([[day, [0.26, 0.3, 0.36]], [warm, [0.32, 0.22, 0.36]], [night, [0.2, 0.24, 0.36]]]));
-      RAMP.mid.value.fromArray(mix3([[day, [0.76, 0.77, 0.76]], [warm, [0.84, 0.7, 0.64]], [night, [0.62, 0.7, 0.86]]]));
+      RAMP.shadow.value.fromArray(mix3([[day, dayShadow], [warm, [0.32, 0.22, 0.36]], [night, [0.2, 0.24, 0.36]]]));
+      RAMP.mid.value.fromArray(mix3([[day, dayMid], [warm, [0.84, 0.7, 0.64]], [night, [0.62, 0.7, 0.86]]]));
       RAMP.high.value.fromArray(mix3([[day, [1.2, 1.14, 0.94]], [warm, [1.3, 1.02, 0.76]], [night, [1.05, 1.0, 0.95]]]));
       pixel.setGrade({
         shadow: mix3([[day, [0, 0, 0.015]], [warm, [0.015, -0.01, 0.03]], [night, [-0.01, 0, 0.025]]]),
@@ -76,7 +81,7 @@ export function createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires, steam, 
         pixel.setVolumetric(sun, (day * 0.22 + warm * 0.65) * daylight, sun.color, 28, groundHeight());
         pixel.setSunRays(sd, warm * 0.5 * daylight, sun.color);
       } else {
-        pixel.setVolumetric(sun, day * 0.12 + warm * 0.75 + night * 0.25, sun.color, 60);
+        pixel.setVolumetric(sun, day * volDay + warm * volWarm + night * volNight, sun.color, volMax);
         pixel.setSunRays(sd, sd.y > 0.0 ? warm * 0.85 : 0, sun.color);
       }
       // 電線：空の色に寄せて、地平線のあたりで黒い束にならないように

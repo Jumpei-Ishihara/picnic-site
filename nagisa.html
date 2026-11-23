@@ -96,9 +96,9 @@
     const pixel = createPixelRenderer({ canvas, scene, camera });
     pixel.setPaletteOn(false);
     pixel.setQuantize(32, 0.032);
-    pixel.setBloom(0.9); // 夕日・夜の窓明かりのにじみ
+    pixel.setBloom(1.0); // 夕日・水面のきらめき・夜の窓明かりのにじみ
 
-    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 40, far: 320 });
     const sky = createSky(scene, { rnd, mountains: 0, clouds: 5, radius: 3900, cloudScale: 14, cirrus: 0.8 }); // 秋晴れ：高い空にうろこ雲
     pixel.hideInNormalPass.add(sky.mesh);
     const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON); // その季節の日付の太陽。色の表は日の出・南中・日の入りで読み替え
@@ -116,9 +116,9 @@
     const water = createPixelWater({
       renderer: pixel.renderer, scene, camera, level, loop: LOOP,
       bounds: MB, depthBounds: NB,
-      groundHeight: terrain.heightAt, maxDepth: 3, clarity: 0.4, caustic: 0.2, wave: 0.85, waveFade: [4, 20],
+      groundHeight: terrain.heightAt, maxDepth: 3, depthRes: 512, clarity: 0.62, caustic: 0.5, wave: 0.95, waveFade: [6, 28],
       tints: {
-        day:   ['#6f9a92', '#2f5670', '#e6efe8', '#8ab0a0'],
+        day:   ['#5aa29c', '#245474', '#eaf6f4', '#7cc8be'],
         dusk:  ['#b8806b', '#46345a', '#ffdbb8', '#d98c40'],
         night: ['#1f4a5a', '#0d1f33', '#7f99bf', '#3c6a8a']
       }
@@ -332,7 +332,11 @@
       carBridges: ['wangan-expressway', 'route-357', 'kasaibashi-dori'], boatPath: data.water.river,
       gulls: { x: riverNear[0], z: riverNear[1], r: 140 }
     });
-    const look = createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights] });
+    const look = createLook({
+      pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights],
+      volDay: 0.22, volWarm: 0.9, volNight: 0.3, volMax: 42,
+      dayShadow: [0.24, 0.3, 0.36], dayMid: [0.74, 0.77, 0.78]
+    });
 
     // ============================================================================
     // 歩く
@@ -567,6 +571,7 @@
     // 時間を進めずに 1 フレーム描く（PNG 用。解像度を変えた直後に使う）
     function renderOnly() {
       look.update();
+      leafKit.update(elapsed % LOOP, sun);
       pixel.prepareShadows();
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();

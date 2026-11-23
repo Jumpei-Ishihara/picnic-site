@@ -30,6 +30,7 @@
     import { createHeightTerrain } from './engine/terrain.js';
     import { createBackdrop } from './engine/backdrop.js';
     import { createBridge, createPowerLines, createHouses, railCorridor, windowTextures } from './engine/structures.js';
+    import { createLeafKit } from './engine/trees.js';
     import { EDO_TOD_KEYS, EDO_GROUND_LOOKS, EDO_MID_LOOKS, createLook } from './realsite/look.js';
     import { createPicnicSet } from './engine/picnic-set.js';
     import { createLife } from './realsite/life.js';
@@ -88,9 +89,9 @@
     const pixel = createPixelRenderer({ canvas, scene, camera });
     pixel.setPaletteOn(false);
     pixel.setQuantize(32, 0.032);
-    pixel.setBloom(0.9); // 夕日・夜の窓明かりのにじみ
+    pixel.setBloom(1.0); // 夕日・水面のきらめき・夜の窓明かりのにじみ
 
-    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 60, far: 320 });
+    const { sun, hemi } = createLights(scene, { shadowSize: IS_TOUCH ? 1024 : 2048, extent: 40, far: 320 });
     const sky = createSky(scene, { rnd, mountains: 0, clouds: 5, radius: 2400, cloudScale: 10, cirrus: 0.8 }); // 秋晴れ：高い空にうろこ雲
     pixel.hideInNormalPass.add(sky.mesh);
     const sunPath = seasonalSunPath({ ...data.sun, upstreamBearing: UB }, SEASON); // その季節の日付の太陽。色の表は日の出・南中・日の入りで読み替え
@@ -111,9 +112,9 @@
       renderer: pixel.renderer, scene, camera, level, loop: LOOP,
       shape: [[...west.map(([x, z]) => [x - 4, z]), ...east.reverse().map(([x, z]) => [x + 4, z])]],
       depthBounds: { x0: NB.x0 - 90, z0: NB.z0, x1: NB.x1, z1: NB.z1 },
-      groundHeight: terrain.heightAt, maxDepth: 3, clarity: 0.3, caustic: 0.15, wave: 0.8, waveFade: [4, 20],
+      groundHeight: terrain.heightAt, maxDepth: 3, depthRes: 512, clarity: 0.55, caustic: 0.45, wave: 0.95, waveFade: [6, 28],
       tints: {
-        day:   ['#7a9478', '#41605e', '#dfe6d6', '#8aa080'],
+        day:   ['#5f968e', '#2c586b', '#e8f4ee', '#7fc4b8'],
         dusk:  ['#b8806b', '#46345a', '#ffdbb8', '#d98c40'],
         night: ['#1f4a5a', '#0d1f33', '#7f99bf', '#3c6a8a']
       }
@@ -205,13 +206,17 @@
     }
 
     // ============================================================================
-    // 木（空中写真で見えた木と、OSM の並木）
+    // 木（空中写真で見えた木と、OSM の並木）と木漏れ日
     // ============================================================================
+    const leafKit = createLeafKit({ loop: LOOP, softDapple: true });
+    const leafGeo = new THREE.IcosahedronGeometry(1, 1);
     const trunkMat = toon({ color: '#5b4632' });
-    const leafMats = ['#4f7a34', '#5d8a3c', '#6f8f3a', '#7f9440'].map(c => toon({ color: c })); // 10 月：少し黄ばんだ緑
+    const leafMats = ['#4f7a34', '#5d8a3c', '#6f8f3a', '#7f9440'].map(c => leafKit.leafify(toon({ color: c, flatShading: true }))); // 10 月：少し黄ばんだ緑
     // 季節の葉の色（桜・落葉樹・常緑樹。冬の桜・落葉樹は枝だけ）
     const seasonMats = new Map();
-    const seasonMat = c => { if (!seasonMats.has(c)) seasonMats.set(c, toon({ color: c })); return seasonMats.get(c); };
+    const seasonMat = c => { if (!seasonMats.has(c)) seasonMats.set(c, leafKit.leafify(toon({ color: c, flatShading: true }))); return seasonMats.get(c); };
+    const treeSway = [];
+    const TREE_W0 = Math.PI * 2 / LOOP;
     function makeTree(x, z, r, kind = treeKind(x, z, { cherry: 0.2, evergreen: 0.3 })) {
       const g = new THREE.Group();
       const h = 3 + r * 1.1;
@@ -221,6 +226,7 @@
       let mat = leafMats[(rnd() * leafMats.length) | 0];
       const fc = foliageColors(SEASON, kind, (treeHash(z, x) * 2) | 0);
       if (fc) mat = seasonMat(treeHash(x * 3, z) < 0.5 ? fc[0] : fc[1]);
+      const foliage = new THREE.Group();
       const blobs = 4 + (rnd() * 3 | 0);
       for (let i = 0; i < blobs; i++) {
         const a = i / blobs * Math.PI * 2 + rnd(), d = i === 0 ? 0 : r * 0.45;
@@ -236,11 +242,15 @@
           g.add(b);
           continue;
         }
-        const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), mat);
+        const m = new THREE.Mesh(leafGeo, mat);
         m.position.set(Math.cos(a) * d, py, Math.sin(a) * d);
-        m.scale.y = 0.8;
-        g.add(m);
+        m.scale.set(s, s * 0.8, s);
+        m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+        m.customDepthMaterial = leafKit.depthMat;
+        foliage.add(m);
       }
+      g.add(foliage);
+      if (fc !== null) treeSway.push({ obj: foliage, amp: 0.008 + 0.006 / r, phase: rnd() * 6 });
       g.position.set(x, terrain.heightAt(x, z) - 0.05, z);
       g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
       scene.add(g);
@@ -273,7 +283,11 @@
     const picnicSet = createPicnicSet({ scene, toon, at: S, yaw: sunPath.yawOfBearing(S.bearing), heightAt: terrain.heightAt, loop: LOOP, season: SEASON.key }); // 持ち物はすべての場面で共通（engine/picnic-set.js）
     pixel.hideInNormalPass.add(picnicSet.steam.points);
     const life = createLife({ season: lifeSeason(SEASON), scene, toon, data, terrain, pixel, rnd, loop: LOOP, light: IS_TOUCH });
-    const look = createLook({ pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights] });
+    const look = createLook({
+      pixel, RAMP, tod, sun, sunPath, sky, wires: power.wires, steam: picnicSet.steam, nightLights: [...NIGHT_LIGHTS, ...life.nightLights],
+      volDay: 0.18, volWarm: 0.9, volNight: 0.3, volMax: 45,
+      dayShadow: [0.24, 0.3, 0.36], dayMid: [0.74, 0.77, 0.78]
+    });
 
     // ============================================================================
     // 歩く
@@ -503,6 +517,7 @@
     // 時間を進めずに 1 フレーム描く（PNG 用。解像度を変えた直後に使う）
     function renderOnly() {
       look.update();
+      leafKit.update(elapsed % LOOP, sun);
       pixel.prepareShadows();
       water.renderReflection(pixel.size.width, pixel.size.height);
       pixel.render();
@@ -571,6 +586,8 @@
       // 周期で繰り返すものには、周期で折り返した時刻を渡す（シェーダーの小数の誤差で、6 秒後にわずかにずれないように）
       const loopT = elapsed % LOOP;
       { const el_ = sunPath.sunAt(tod.hour).elevation; picnicSet.update(loopT, { night: tod.night, dusk: Math.max(0, 1 - Math.abs(el_ - 1) / 6) }); } // ランタンは夕方から灯る
+      leafKit.update(loopT, sun);
+      { const a = loopT * TREE_W0; for (const s of treeSway) { s.obj.rotation.x = Math.sin(a + s.phase) * s.amp; s.obj.rotation.z = Math.cos(a + s.phase) * s.amp; } }
       life.update(loopT, trafficClock, { sunElevation: sunPath.sunAt(tod.hour).elevation, night: tod.night, level });
       document.getElementById('loc').textContent = '📍 ' + zoneName(player.x, player.z);
       pixel.prepareShadows(); // 反射・屈折にもこのコマの影を使う
@@ -590,7 +607,7 @@
 
     // 動作確認用（URL末尾に #debug を付けたときだけ）
     if (location.hash === '#debug') {
-      window.__edo = { THREE, data, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, banks, step, setView, setHour, zoneName };
+      window.__edo = { THREE, data, leafKit, capture, exportPNG, recordLoop, begin, setElapsed: t => { elapsed = t; }, get started() { return started; }, picnicSet, base, life, look, sky, audio, LOOP, terrain, water, backdrop, bridges, power, houses, sunPath, tod, controls, player, camera, pixel, sun, scene, collider, banks, step, setView, setHour, zoneName };
     }
 
     } catch (error) { showStartupError(error); }

@@ -70,8 +70,10 @@ const FRAG = `
     float depth = mix(uMaxDepth, texture2D(tDepth, duv).r * uMaxDepth, inside);
     vec3 V = normalize(cameraPosition - vWorld);
 
-    // 反射：波で揺らした鏡像
-    vec3 refl = texture2D(tRefl, vRefl.xy / vRefl.w + nR.xz * 0.6).rgb;
+    // 反射：波で揺らした鏡像（遠方では歪み幅を抑えて対岸の暗い色が飛び込むのを防ぐ）
+    float waveFadeF = smoothstep(uWaveFade.x, uWaveFade.y, camDist);
+    float reflDistort = 0.6 * mix(1.0, 0.35, waveFadeF);
+    vec3 refl = texture2D(tRefl, vRefl.xy / vRefl.w + nR.xz * reflDistort).rgb;
 
     // 屈折：水の下の景色を波で歪めて見る。浅いところほど川底がはっきり見える
     vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
