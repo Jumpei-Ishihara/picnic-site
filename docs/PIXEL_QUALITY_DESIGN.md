@@ -228,8 +228,23 @@ export function createLook({
 
 証跡：[before/summary.json](pixel-quality-validation/before/summary.json)、[stage-a/summary.json](pixel-quality-validation/stage-a/summary.json)、[stage-b/summary.json](pixel-quality-validation/stage-b/summary.json)、[after/summary.json](pixel-quality-validation/after/summary.json)。
 
-### 6.5 未検証範囲
+### 6.5 本番反映・GitHub Pages 公開後検証（2026-11-24）
+
+- **実装コミット**：`5d30f0b42e069dd490f8ce623f72e9a83c535d80`（`main` へプッシュ、強制プッシュなし）
+- **デプロイ結果**：
+  - `Build, Test, and Deploy to GitHub Pages`（Run `45210929882`）：`success`
+  - `pages build and deployment`（Run `45210929115`）：`success`
+- **本番実配信チェック（`https://jumpei-ishihara.github.io/picnic-site/`、Headless Chrome Metal WebGL2）**：
+
+| 本番ページ | `depthRes` | `clarity` / `caustic` | `waveFade` | `leafSoft` | `shadowExtent` | `bloom` | `volMax` | `softLighting` | 6 秒ループ差分 | JS / GL エラー |
+|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `edogawa.html` | `512` | `0.55` / `0.45` | `[6, 28]` | `1` | `40` | `1` | `45` | `0` | `0` | `0` / `0` |
+| `nagisa.html` | `512` | `0.62` / `0.50` | `[6, 28]` | `1` | `40` | `1` | `42` | `0` | `0` | `0` / `0` |
+| `myoden.html` | `512` | `0.62` / `0.50` | `[6, 28]` | `1` | `40` | `1` | `45` | `0` | `0` | `0` / `0` |
+| `myoden-far.html` | `512` | `0.62` / `0.50` | `[6, 28]` | `1` | `40` | `1` | `45` | `0` | `0` | `0` / `0` |
+
+### 6.6 未検証範囲
 
 - スマートフォン / タブレット実機、Safari / Firefox / Windows 環境での実測。
 - 春・冬の全時間帯および全移動経路の網羅撮影。
-- ローカル検証まで完了（GitHub へのコミット・プッシュ・Pages 公開確認は未実施）。
+- ローカル比較画像アーカイブ（`docs/pixel-quality-validation/`）は `.gitignore` 対象とし、必要に応じて `node tools/validate-pixel-quality.cjs` で再生成する。

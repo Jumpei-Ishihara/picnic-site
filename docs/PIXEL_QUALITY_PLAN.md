@@ -1,6 +1,6 @@
 # 実在 4 場面ドット絵 光・水・影の質感調整 改修計画
 
-作成：2026-11-23。状態：**Stage 0〜D 完了（ローカル実装・全 77 件回帰テスト・実ブラウザ比較・ビルド・書き出し確認済み）**。
+作成：2026-11-23。状態：**本番反映・公開後確認済み**（実装コミット `5d30f0b`、GitHub Pages 反映・全 4 場面の実配信検証完了）。
 対象：実在 4 場面のドット絵ページ（`edogawa.html`・`nagisa.html`・`myoden.html`・`myoden-far.html`）および共通モジュール（`realsite/look.js`・`engine/water.js`）。
 詳細仕様と検証結果は [PIXEL_QUALITY_DESIGN.md](PIXEL_QUALITY_DESIGN.md) を参照。
 
@@ -82,4 +82,5 @@ Stage 0 → A → B → C → D を SDD + TDD で順次実施し、全段階の�
 - **Stage A（水面）＋ A-2 フォールバック発動**：初回設定 `waveFade: [10, 45]` でなぎさ川辺の中距離反射は大きく改善した一方、`edogawa-autumn-sunset.png` の水際夕景で 20〜45 m 帯の同心円モアレと対岸の暗い点の引っ張りを検出した。事前設計の **A-2 フォールバック** を適用し、`engine/water.js` に反射歪みの距離減衰（`picnic.html` への影響 0）を追加して `waveFade: [6, 28]` に調整した結果、江戸川夕景の飛びとモアレが解消し、なぎさ川辺の揺らぎも維持された。
 - **Stage B（木漏れ日統一）**：全 4 場面を `createLeafKit({ loop: LOOP, softDapple: true })` に統一し、`edogawa.html` へ木漏れ日・葉の色斑・6 秒風揺れを導入、全 4 場面の `renderOnly()` で `leafKit.update` → `pixel.prepareShadows()` の同期を統一した。
 - **Stage C（光・影・空気感）**：`extent: 40`・`setBloom(1.0)`・`realsite/look.js` の後方互換オプション拡張（`nagisa: volDay 0.22 / volMax 42`、河川敷 3 場面：`volDay 0.18 / volMax 45`、`volWarm 0.9 / volNight 0.3`、昼 `RAMP` 微調整）を適用。全 4 場面で夕景の太陽環帯輝度・明部率はベースライン以上を維持した。
-- **Stage D（統合回帰・ビルド・書き出し）**：`npm test` 全 77 件（新規 4 件含む）成功、`npm run build`・`git diff --check` 成功、4 場面の 6 秒ループ全画素一致（差分 0）・JS/GL エラー 0、江戸川・なぎさの PNG（1280×720）と 6 秒 H.264 MP4 実保存・状態復帰を確認。詳細数値と比較証跡は [PIXEL_QUALITY_DESIGN.md](PIXEL_QUALITY_DESIGN.md#6-実施結果検証証跡2026-11-23) および [比較ページ](pixel-quality-validation/index.html) を参照。
+- **Stage D（統合回帰・ビルド・書き出し）**：`npm test` 全 77 件（新規 4 件含む）成功、`npm run build`・`git diff --check` 成功、4 場面の 6 秒ループ全画素一致（差分 0）・JS/GL エラー 0、江戸川・なぎさの PNG（1280×720）と 6 秒 H.264 MP4 実保存・状態復帰を確認。詳細数値と比較証跡は [PIXEL_QUALITY_DESIGN.md](PIXEL_QUALITY_DESIGN.md#6-実施結果検証証跡2026-11-23) を参照。
+- **本番反映・公開後確認（2026-11-24）**：実装を `5d30f0b` として `main` へプッシュ。GitHub Actions（Build/Test/Deploy: `45210929882`、Pages: `45210929115`）がいずれも `success` となり、本番 URL（`https://jumpei-ishihara.github.io/picnic-site/`）の全 4 場面で実パラメータ反映・6 秒ループ一致（差分 0）・JS/GL エラー 0 を確認した。
